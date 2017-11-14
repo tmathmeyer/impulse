@@ -12,6 +12,7 @@ cp impulse {{DIRECTORY IN YOUR PATH}}
 cd {{PROJECTS DIRECTORY}}
 impulse init
 ```
+You may then take any rules defined in the rules directory and bring them into your projects directory.
 
 ## Directory Layout
 Like the previously mentioned tools, impulse treats some directory as the ```$ROOT```, and all projects are contained somewhere within this directory. For the sake of example in this readme, we will assume that ```$ROOT = ~/src```.
