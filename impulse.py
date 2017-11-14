@@ -4,10 +4,11 @@ import argparse
 import inspect
 import os
 import sys
-
+import time
 
 import threaded_dependence
 import recursive_loader
+import status_out
 
 
 PARSER = argparse.ArgumentParser()
@@ -24,7 +25,10 @@ def target(parser):
 
 		args_name = inspect.getargspec(func)[0]
 		for arg in args_name:
-			task.add_argument(arg, metavar=arg[0].upper(), type=str)
+			if arg != 'debug':
+				task.add_argument(arg, metavar=arg[0].upper(), type=str)
+
+		task.add_argument('--debug', default=False, action='store_true')
 
 		def __stub__(parsed):
 			func(**dict((n, getattr(parsed, n)) for n in args_name))
@@ -43,7 +47,9 @@ def _getroot():
 
 
 @target(TASKS)
-def build(target):
+def build(target, debug):
+	if debug:
+		status_out.debug = True
 	root = _getroot()
 	cdir = os.environ['PWD']
 	os.environ['impulse_root'] = root
@@ -53,7 +59,14 @@ def build(target):
 	if target.startswith(':'):
 		target = '/%s%s' % (cdir[len(root):], target)
 	
+	time1 = time.time()
 	graph = recursive_loader.generate_graph(target)
+	time2 = time.time()
+
+	diff = (time2-time1) * 1000
+	print('loaded [%s] rules in %.2f ms' % (len(graph), diff))
+	print('Starting build')
+
 	pool = threaded_dependence.DependentPool(6)
 	pool.input_job_graph(graph).start()
 
@@ -84,6 +97,5 @@ def main():
 		else:
 			print('Command required')
 	except KeyError as e:
-		print(e)
 		print('Task %s not found in %s' % (a.task, dir(sys.modules[__name__])))
 	

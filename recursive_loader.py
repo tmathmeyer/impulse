@@ -29,20 +29,22 @@ class CreatedPreGraphNode(object):
 		if not self.converted:
 			elements = set()
 			for d in flatten(self.args):
-				if d.startswith('//'):
+				if d.startswith('//') or d.startswith(':'):
 					elements.add(lookup[d].convert_to_graph(lookup))
 
-			self.converted = DependencyGraph(self.full_name,
+			self.converted = DependencyGraph(self.full_name, self.func.__name__,
 				elements, self.args, marshal.dumps(self.func.__code__))
 		return self.converted
 
 
 class DependencyGraph(threaded_dependence.DependentJob):
-	def __init__(self, name, deps, args, decompiled_behavior):
+	def __init__(self, name, funcname, deps, args, decompiled_behavior):
 		super().__init__(deps)
 		self.name = name
-		self.args = args
-		self.decompiled_behavior = decompiled_behavior
+		self.outputs = []
+		self.ruletype = funcname
+		self.__args = args
+		self.__decompiled_behavior = decompiled_behavior
 
 	def __eq__(self, other):
 		return other.name == self.name
@@ -54,16 +56,19 @@ class DependencyGraph(threaded_dependence.DependentJob):
 		return self.name
 
 	def run_job(self, debug):
-		env = build_defs_runtime.env(self.name, self.dependencies, debug)
+		env = build_defs_runtime.env(
+			self, self.name, self.ruletype, self.dependencies, debug)
 		try:
-			code = marshal.loads(self.decompiled_behavior)
-			types.FunctionType(code, env, self.name)(**self.args)
+			code = marshal.loads(self.__decompiled_behavior)
+			types.FunctionType(code, env, self.name)(**self.__args)
 			module_finished_path = env['deptoken'](self)
 			try:
 				os.makedirs(os.path.dirname(module_finished_path))
 			except:
 				pass
-			pathlib.Path(module_finished_path).touch(exist_ok=True)
+			with open(module_finished_path, 'w') as f:
+				for output in self.outputs:
+					f.write(output)
 		except build_defs_runtime.RuleFinishedException:
 			pass
 
