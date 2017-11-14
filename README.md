@@ -12,7 +12,6 @@ cp impulse {{DIRECTORY IN YOUR PATH}}
 cd {{PROJECTS DIRECTORY}}
 impulse init
 ```
-You may then take any rules defined in the rules directory and bring them into your projects directory.
 
 ## Directory Layout
 Like the previously mentioned tools, impulse treats some directory as the ```$ROOT```, and all projects are contained somewhere within this directory. For the sake of example in this readme, we will assume that ```$ROOT = ~/src```.
@@ -29,7 +28,7 @@ Projects have one or more ```BUILD``` files defined in them. These files use a s
 #### Rule files
 In this directory live python-defined build rules (see [core_rules](CORE) for some examples). For rules used in many different projects, these rules _should_ live under ```$ROOT/rules/core/{lang}/build_defs.py``` however these rules may be placed anywhere located under ```$ROOT```.
 
-## Writing a Rule File
+## Writing a Rule file
 A canonical example of a rule file is the included ```c_binary``` rule:
 ```python
 @buildrule
@@ -63,3 +62,68 @@ In addition, there are a few functions present in the local scope when a build r
 * ```build_outputs(dep=None)```: Get the full paths for build outputs of a rule. If no rule is provided, get the build outputs of the current rule.
 * ```command(str)```: run a shell command which outputs files.
 * ```is_nodetype(dep, str)```: Tests whether a dependency is a given type.
+
+## Writing a BUILD file
+#### Two examples:
+$ROOT/json/BUILD:
+```python
+load(
+	"//rules/core/C/build_defs.py"
+)
+
+c_headers(
+	name = "json_h",
+	srcs = [
+		"json.h"
+	]
+)
+
+c_library(
+	name = "lib_json",
+	deps = [
+		":json_h",
+	],
+	srcs = [
+		"json.c"
+	]
+)
+```
+
+$ROOT/weather/BUILD:
+```python
+load(
+	"//rules/core/C/build_defs.py"
+)
+
+c_headers(
+	name = "weather_h",
+	srcs = [
+		"weather.h"
+	]
+)
+
+c_library(
+	name = "lib_weather",
+	deps = [
+		":weather_h",
+		"//json:json_h",
+	],
+	srcs = [
+		"weather.c"
+	],
+	flags = [
+		'-lcurl'
+	]
+)
+
+c_binary(
+	name = "seattle_weather",
+	deps = [
+		":lib_weather",
+		"//json:lib_json"
+	],
+	flags = [
+		'-lcurl'
+	]
+)
+```
