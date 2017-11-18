@@ -75,6 +75,8 @@ def env(graph_object, name, ruletype, dependencies, debug):
 
 	def command(cmd):
 		try:
+			for out in graph_object.outputs:
+				os.makedirs(os.path.dirname(out))
 			if os.system(cmd) != 0:
 				raise Exception()
 		except:

@@ -48,9 +48,11 @@ def c_binary(name, **args):
 	command(cmd)
 ```
 
-All build rules _MUST_ be tagged with the ```@buildrule``` decorator.
+All build rules _MUST_ be tagged with the ```@buildrule``` decorator, and build rule functions may _NOT_ call other functions defined at the top level in the current file or in any other file.
 
-There are two special arguments when calling and writing a build rule:
+The ```@buildrule``` decorator may take no arguments, creating a normal build rule, or may take a single argument representing a "parent" build rule. A build rule defined with a parent may take a 'parent' argument, which is a reference to the parent function. This is the only exception to the prohibition of calling externally defined functions.
+
+There are two other special arguments when calling and writing a build rule:
 * ```name```: must be positional, non-default, and is required to call a build rule. When defining a build rule, it is always the first argument.
 * ```deps```: not required, but is used to list all rules which must be built prior to the current rule being built. the contents of ```deps``` is _not_ passed as an argument, but rather is available as a local variable called ```dependencies```, which is a list of ```DependencyGraph``` objects exposing the fields ```name (str)``` and ```dependencies ([DependencyGraph])```. 
 

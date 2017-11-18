@@ -21,6 +21,7 @@ class CreatedPreGraphNode(object):
 		self.args = args
 		self.func = func
 		self.converted = None
+		self.parent = None
 
 	def __repr__(self):
 		return str(self.args)
@@ -33,18 +34,23 @@ class CreatedPreGraphNode(object):
 					elements.add(lookup[d].convert_to_graph(lookup))
 
 			self.converted = DependencyGraph(self.full_name, self.func.__name__,
-				elements, self.args, marshal.dumps(self.func.__code__))
+				elements, self.args, marshal.dumps(self.func.__code__),
+				self.parent)
 		return self.converted
+
+	def set_parent(self, func):
+		self.parent = marshal.dumps(func.__code__)
 
 
 class DependencyGraph(threaded_dependence.DependentJob):
-	def __init__(self, name, funcname, deps, args, decompiled_behavior):
+	def __init__(self, name, funcname, deps, args, decompiled_behavior, parent):
 		super().__init__(deps)
 		self.name = name
 		self.outputs = []
 		self.ruletype = funcname
 		self.__args = args
 		self.__decompiled_behavior = decompiled_behavior
+		self.parent = parent
 
 	def __eq__(self, other):
 		return other.name == self.name
@@ -60,7 +66,11 @@ class DependencyGraph(threaded_dependence.DependentJob):
 			self, self.name, self.ruletype, self.dependencies, debug)
 		try:
 			code = marshal.loads(self.__decompiled_behavior)
-			types.FunctionType(code, env, self.name)(**self.__args)
+			args = self.__args.copy()
+			if self.parent:
+				parent_code = marshal.loads(self.parent)
+				args['parent'] = types.FunctionType(parent_code, env, 'parent')
+			types.FunctionType(code, env, self.name)(**args)
 			module_finished_path = env['deptoken'](self)
 			try:
 				os.makedirs(os.path.dirname(module_finished_path))
@@ -71,9 +81,6 @@ class DependencyGraph(threaded_dependence.DependentJob):
 					f.write(output)
 		except build_defs_runtime.RuleFinishedException:
 			pass
-
-
-
 
 
 def flatten(item):
@@ -139,13 +146,26 @@ def _load_all_in_file(full_path):
 			exec(compile(f.read(), full_path, 'exec'), _definition_env)
 
 
+def makeCPGN(kwargs, build_path, func):
+	name = kwargs.get('name')
+	kwargs = _load_recursive_dependencies(kwargs, build_path)
+	return CreatedPreGraphNode(build_path + ':' + name, kwargs, func)
+
 def buildrule(func):
-	def __stub__(**kwargs):
-		name = kwargs.get('name')
-		build_path = _get_build_file_dir(inspect.stack()[1].filename)
-		kwargs = _load_recursive_dependencies(kwargs, build_path)
-		cpgn = CreatedPreGraphNode(build_path + ':' + name, kwargs, func)
-		_add_to_ruleset(cpgn)
+	def __stub__(*args, **kwargs):
+		if len(args) == 1 and isinstance(args[0], types.FunctionType):
+			def __inner__(**kwargs):
+				name = kwargs.get('name')
+				build_path = _get_build_file_dir(inspect.stack()[1].filename)
+				cpgn = makeCPGN(kwargs, build_path, args[0])
+				cpgn.set_parent(func.wraps)
+				_add_to_ruleset(cpgn)
+			return __inner__
+		else:
+			name = kwargs.get('name')
+			build_path = _get_build_file_dir(inspect.stack()[1].filename)
+			_add_to_ruleset(makeCPGN(kwargs, build_path, func))
+	__stub__.wraps = func
 	return __stub__
 
 
