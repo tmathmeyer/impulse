@@ -1,9 +1,12 @@
+
+import marshal
 import os
+import random
 import re
 import subprocess
 import shutil
 import time
-import random
+import types
 
 import threaded_dependence
 
@@ -12,9 +15,9 @@ unpath = re.compile('//(.*):.*')
 class RuleFinishedException(Exception):
 	pass
 
-def env(graph_object, name, ruletype, dependencies, debug):
+def env(graph_object, __name, ruletype, dependencies, debug):
 	def directory():
-		return unpath.match(name).group(1)
+		return unpath.match(__name).group(1)
 
 	DEP = '.deps'
 	PWD = os.path.join(os.environ['impulse_root'], 'GENERATED')
@@ -89,4 +92,9 @@ def env(graph_object, name, ruletype, dependencies, debug):
 	res = {}
 	res.update(locals())
 	res.update(globals())
+
+	for name, code in graph_object.access.items():
+		code = marshal.loads(code)
+		res[name] = types.FunctionType(code, res, name)
+
 	return res

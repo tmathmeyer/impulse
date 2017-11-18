@@ -34,3 +34,11 @@ def c_binary(name, **args):
 		cmd += (' ' + flag)
 
 	command(cmd)
+
+@buildrule(c_library)
+def c_library_nostd(name, srcs, **args):
+	flags = args.setdefault('flags', [])
+	flags += [
+		'-nostdinc', '-fno-stack-protector', '-m64', '-g'
+	]
+	c_library(name, srcs, **args)
