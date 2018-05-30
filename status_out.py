@@ -8,7 +8,6 @@ import signal
 stdscr = None
 debug = False
 
-
 def signal_handler(signal, frame):
 	cleanup_status()
 	sys.exit(0)

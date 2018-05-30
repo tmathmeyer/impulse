@@ -29,34 +29,49 @@ Projects have one or more ```BUILD``` files defined in them. These files use a s
 In this directory live python-defined build rules (see [core_rules](CORE) for some examples). For rules used in many different projects, these rules _should_ live under ```$ROOT/rules/core/{lang}/build_defs.py``` however these rules may be placed anywhere located under ```$ROOT```.
 
 ## Writing a Rule file
-A canonical example of a rule file is the included ```c_binary``` rule:
+A canonical example of a rule file is the included ```c_object``` rule:
 ```python
 @buildrule
-def c_binary(name, **args):
-	srcs = args.get('srcs', [])
-	depends(inputs=srcs, outputs=[name])
+def c_object(name, srcs, **args):
+	depends(inputs=srcs, outputs=[name+'.o'])
 
-	objects = ' '.join(' '.join(build_outputs(dep)) for dep in dependencies)
+	object_dependencies = dependencies.filter(ruletype='c_object')
+	objects = ' '.join(sum(map(build_outputs, object_dependencies), []))
+
 	sources = ' '.join(local_file(src) for src in srcs)
 
-	cmd = 'gcc -o %s -I%s %s %s -std=c11 -pedantic -Wextra -Wall' % (
+	cmd = 'gcc -o %s -I%s -c %s %s -std=c11 -Wextra -Wall' % (
 		build_outputs()[0], PWD, sources, objects)
 
 	for flag in args.get('flags', []):
 		cmd += (' ' + flag)
-
 	command(cmd)
 ```
 
 All build rules _MUST_ be tagged with the ```@buildrule``` decorator.
 
-The ```@buildrule``` decorator can either be used with no arguments to create a default build rule. Alternitively, it can be called as a function and can take the names of other locally defined build rules, which allows them to be called from in the scope of the current build rule.
+The ```@buildrule``` decorator can either be used with no arguments, or can be given another buildrule to use in scope. An example is the ```c_object_nostd``` rule:
+```python
+@buildrule(c_object)
+def c_object_nostd(name, srcs, **args):
+	flags = args.setdefault('flags', [])
+	flags += [
+		'-nostdinc', '-fno-stack-protector', '-m64', '-g'
+	]
+	c_object(name, srcs, **args)
+```
+which simply adds some flags and lets ```c_object``` do the heavy lifting. It is important to pass any needed build rules in the decorator, as the function bodies are evaluated as independant compilation units and will not have file local access at runtime.
 
-There are two special arguments when calling and writing a build rule:
-* ```name```: must be positional, non-default, and is required to call a build rule. When defining a build rule, it is always the first argument.
-* ```deps```: not required, but is used to list all rules which must be built prior to the current rule being built. the contents of ```deps``` is _not_ passed as an argument, but rather is available as a local variable called ```dependencies```, which is a list of ```DependencyGraph``` objects exposing the fields ```name (str)``` and ```dependencies ([DependencyGraph])```. 
+There are two special arguments when calling a build rule:
+* ```name```: A string which MUST be provided.
+* ```deps```: Although not required, it is used to build the dependency graph of targets. The build rule code will have access to both the list of strings provided here, as well as the graph node objects.
 
-In addition, there are a few functions present in the local scope when a build rule is executed:
+When writing a build rule:
+* It is acceptable to place ```name``` as a required positional argument, since it is required anyway.
+* To force the requirement of any other field, it can be added to the argument list as a non-default positional argument. A missing argument will cause building to fail and report the violating target.
+* A magic variable ```dependencies``` is availible, and it references a special ```FilterableSet``` type containing the direct dependencies for the current target, represented in their raw node form.
+
+In addition, there are a few magic functions present in the local scope when a build rule is executed:
 * ```directory()```: the local directory of the target.
 * ```local_file(str)```: gets the full path to a file defined relative to the build target.
 * ```copy(str)```: copies the provided full file to a cache location.
@@ -70,62 +85,81 @@ In addition, there are a few functions present in the local scope when a build r
 $ROOT/json/BUILD:
 ```python
 load(
-	"//rules/core/C/build_defs.py"
+    "//rules/core/C/build_defs.py",
 )
 
 c_headers(
-	name = "json_h",
-	srcs = [
-		"json.h"
-	]
+    name = "map_h",
+    srcs = [
+        "map.h",
+    ],
 )
 
-c_library(
-	name = "lib_json",
-	deps = [
-		":json_h",
-	],
-	srcs = [
-		"json.c"
-	]
+c_object(
+    srcs = [
+        "map.c",
+    ],
+    name = "map",
+    deps = [
+        ":map_h"
+    ],
 )
 ```
 
 $ROOT/weather/BUILD:
 ```python
 load(
-	"//rules/core/C/build_defs.py"
+    "//rules/core/C/build_defs.py",
 )
 
 c_headers(
-	name = "weather_h",
-	srcs = [
-		"weather.h"
-	]
+    name = "exif_tags_h",
+    srcs = [
+        "exif_tags.h",
+    ],
 )
 
-c_library(
-	name = "lib_weather",
-	deps = [
-		":weather_h",
-		"//json:json_h",
-	],
-	srcs = [
-		"weather.c"
-	],
-	flags = [
-		'-lcurl'
-	]
+c_headers(
+    name = "exif_h",
+    srcs = [
+        "exif.h",
+    ],
+    deps = [
+        "//map:map_h",
+    ],
+)
+
+c_object(
+    name = "exif_tags",
+    srcs = [
+        "exif_tags.c",
+    ],
+    deps = [
+        ":exif_tags_h"
+    ],
+)
+
+c_object(
+    name = "exif",
+    srcs = [
+        "exif.c",
+    ],
+    deps = [
+        ":exif_tags_h",
+        ":exif_h",
+        "//map:map_h",
+    ],
 )
 
 c_binary(
-	name = "seattle_weather",
-	deps = [
-		":lib_weather",
-		"//json:lib_json"
-	],
-	flags = [
-		'-lcurl'
-	]
+    name = "identify_photosphere",
+    srcs = [
+        "photosphere.c",
+    ],
+    deps = [
+        ":exif",
+        "//map:map",
+        ":exif_tags",
+    ]
 )
 ```

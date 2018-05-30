@@ -5,14 +5,15 @@ def c_headers(name, srcs, **args):
 		copy(local_file(src))
 
 @buildrule
-def c_library(name, srcs, **args):
+def c_object(name, srcs, **args):
 	depends(inputs=srcs, outputs=[name+'.o'])
 
-	objects = ' '.join(' '.join(build_outputs(dep)) for dep in dependencies
-								if is_nodetype(dep, 'c_library'))
+	object_dependencies = dependencies.filter(ruletype='c_object')
+	objects = ' '.join(sum(map(build_outputs, object_dependencies), []))
+
 	sources = ' '.join(local_file(src) for src in srcs)
 
-	cmd = 'gcc -o %s -I%s -c %s %s -std=c11 -pedantic -Wextra -Wall' % (
+	cmd = 'gcc -o %s -I%s -c %s %s -std=c11 -Wextra -Wall' % (
 		build_outputs()[0], PWD, sources, objects)
 
 	for flag in args.get('flags', []):
@@ -24,10 +25,10 @@ def c_binary(name, **args):
 	srcs = args.get('srcs', [])
 	depends(inputs=srcs, outputs=[name])
 
-	objects = ' '.join(' '.join(build_outputs(dep)) for dep in dependencies)
+	objects = ' '.join(sum(map(build_outputs, dependencies), []))
 	sources = ' '.join(local_file(src) for src in srcs)
 
-	cmd = 'gcc -o %s -I%s %s %s -std=c11 -pedantic -Wextra -Wall' % (
+	cmd = 'gcc -o %s -I%s %s %s -std=c11 -Wextra -Wall' % (
 		build_outputs()[0], PWD, sources, objects)
 
 	for flag in args.get('flags', []):
@@ -35,10 +36,10 @@ def c_binary(name, **args):
 
 	command(cmd)
 
-@buildrule(c_library)
-def c_library_nostd(name, srcs, **args):
+@buildrule(c_object)
+def c_object_nostd(name, srcs, **args):
 	flags = args.setdefault('flags', [])
 	flags += [
 		'-nostdinc', '-fno-stack-protector', '-m64', '-g'
 	]
-	c_library(name, srcs, **args)
+	c_object(name, srcs, **args)

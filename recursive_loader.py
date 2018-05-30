@@ -14,6 +14,30 @@ import build_defs_runtime
 
 rules = {}
 
+class FilterableSet(object):
+	def __init__(self, *args, **kwargs):
+		self.wrapped = set(*args, **kwargs)
+
+	def __iter__(self):
+		return self.wrapped.__iter__()
+
+	def __getattr__(self, attr):
+		if attr == 'wrapped':
+			return set()
+		return getattr(self.wrapped, attr)
+
+	def filter(self, **kwargs):
+		matching = [x for x in self.wrapped if self._matches(x, kwargs)]
+		return FilterableSet(*matching)
+
+	def _matches(self, x, props):
+		for k,v in props.items():
+			if not hasattr(x, k):
+				return False
+			if getattr(x, k) != v:
+				return False
+		return True
+
 
 class CreatedPreGraphNode(object):
 	def __init__(self, full_name, args, func):
@@ -28,13 +52,13 @@ class CreatedPreGraphNode(object):
 
 	def convert_to_graph(self, lookup):
 		if not self.converted:
-			elements = set()
+			dependencies = FilterableSet()
 			for d in flatten(self.args):
 				if d.startswith('//') or d.startswith(':'):
-					elements.add(lookup[d].convert_to_graph(lookup))
+					dependencies.add(lookup[d].convert_to_graph(lookup))
 
 			self.converted = DependencyGraph(self.full_name, self.func.__name__,
-				elements, self.args, marshal.dumps(self.func.__code__),
+				dependencies, self.args, marshal.dumps(self.func.__code__),
 				self.access)
 		return self.converted
 
@@ -51,6 +75,8 @@ class DependencyGraph(threaded_dependence.DependentJob):
 		self.__args = args
 		self.__decompiled_behavior = decompiled_behavior
 		self.access = access
+
+		self.printed = False
 
 	def __eq__(self, other):
 		return other.name == self.name
@@ -77,6 +103,29 @@ class DependencyGraph(threaded_dependence.DependentJob):
 					f.write(output)
 		except build_defs_runtime.RuleFinishedException:
 			pass
+		except TypeError:
+			#TODO maybe make this check more robust instead of catching.
+			err_template = 'target "%s" missing required argument(s) "%s"'
+			function_object = types.FunctionType(code, env, self.name)
+			all_args = inspect.getargspec(function_object).args
+			missing_args = filter(lambda arg: arg not in self.__args.keys(), all_args)
+			missing = ', '.join(missing_args)
+			raise threaded_dependence.CommandError(err_template % (self.name, missing))
+
+	def d_print(self, indent):
+		if not self.printed:
+			self.printed = True
+			print(' ' * indent + str(self))
+			for d in self.dependencies:
+				d.d_print(indent+1)
+	def q_print(self):
+		self.printed = False
+		for d in self.dependencies:
+			d.q_print()
+
+	def print(self):
+		self.d_print(0)
+		self.q_print()
 
 
 def flatten(item):

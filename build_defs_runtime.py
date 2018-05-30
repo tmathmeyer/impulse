@@ -4,6 +4,7 @@ import os
 import random
 import re
 import subprocess
+import sys
 import shutil
 import time
 import types
@@ -79,11 +80,18 @@ def env(graph_object, __name, ruletype, dependencies, debug):
 	def command(cmd):
 		try:
 			for out in graph_object.outputs:
-				os.makedirs(os.path.dirname(out))
-			if os.system(cmd) != 0:
-				raise Exception()
+				os.makedirs(os.path.dirname(out), exist_ok=True)
+
+			process = subprocess.Popen(
+				list(cmd.split()),
+				stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+				universal_newlines=True)
+			_, stderr = process.communicate()
+			print(stderr)
+			if process.returncode != 0:
+				raise threaded_dependence.CommandError(stderr)
 		except:
-			raise threaded_dependence.CommandError(cmd)
+			raise
 
 	def deptoken(dep):
 		return os.environ['impulse_root'] + '/' + DEP + dep.name[1:]
