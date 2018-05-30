@@ -1,8 +1,9 @@
 # IdeMpotent Python bUiLd SystEm (IMPULSE)
 
-A mostly idempotent build system modeled after (bazel, buck, pants, etc), but without messy a messy setup process.
+A mostly idempotent build system modeled after bazel. Impulse differentiates itself by being much simpler, while still giving developers much more control. Macros/Rules in bazel use some vile offspring of bash and makefile syntax stored in raw strings, while Rules in impulse are simple python functions.
 
 ## Installing
+* First make sure you have python3 installed
 ```
 git clone https://github.com/tmathmeyer/impulse
 cd impulse
