@@ -6,7 +6,7 @@ import os
 import pathlib
 import types
 
-
+import impulse_paths
 import build_defs_runtime
 import threaded_dependence
 import build_defs_runtime
@@ -39,26 +39,26 @@ class FilterableSet(object):
     return True
 
 
-class CreatedPreGraphNode(object):
-  def __init__(self, full_name, args, func):
-    self.full_name = full_name
-    self.args = args
+class PreGraphNode(object):
+  def __init__(self, build_target, build_args, func):
+    self.full_name = build_target.GetFullyQualifiedRulePath()
+    self.build_args = build_args
     self.func = func
     self.converted = None
     self.access = {}
 
   def __repr__(self):
-    return str(self.args)
+    return str(self.build_args)
 
   def convert_to_graph(self, lookup):
     if not self.converted:
       dependencies = FilterableSet()
-      for d in flatten(self.args):
-        if d.startswith('//') or d.startswith(':'):
+      for d in flatten(self.build_args):
+        if impulse_paths.is_fully_qualified_path(d):
           dependencies.add(lookup[d].convert_to_graph(lookup))
 
       self.converted = DependencyGraph(self.full_name, self.func.__name__,
-        dependencies, self.args, marshal.dumps(self.func.__code__),
+        dependencies, self.build_args, marshal.dumps(self.func.__code__),
         self.access)
     return self.converted
 
@@ -153,26 +153,11 @@ def _load_recursive_dependencies(all_keys, build_path):
 
 
 def _convert_load_vals(value, build_path):
-<<<<<<< HEAD
   if isinstance(value, str):
-    if value.startswith(':'):
-      return build_path + value
-    elif value.startswith('//'):
-      _load_build_file_with_rule(value)
-      return value
-    else:
-      return value
-=======
-	if isinstance(value, str):
-		return impulse_paths.convert_to_build_target()
-		if value.startswith(':'):
-			return build_path + value
-		elif value.startswith('//'):
-			_load_build_file_with_rule(value)
-			return value
-		else:
-			return value
->>>>>>> Add support for git submodules
+    target = impulse_paths.convert_to_build_target(value, build_path)
+    if target is not impulse_paths.NOT_A_BUILD_TARGET:
+      _parse_runtime_file(target.GetBuildFileForTarget())
+      return target.GetFullyQualifiedRulePath()
 
   if isinstance(value, list):
     return [_convert_load_vals(v, build_path) for v in value]
@@ -180,46 +165,27 @@ def _convert_load_vals(value, build_path):
   return value
 
 
-def _get_build_file_dir(full_file_path):
-  reg = re.compile(os.path.join(os.environ['impulse_root'], '(.*)/BUILD'))
-  return '//' + reg.match(full_file_path).group(1)
+already_loaded_files = set()
+def _parse_runtime_file(build_or_defs_file_path):
+  if build_or_defs_file_path in already_loaded_files:
+    return
+  already_loaded_files.add(build_or_defs_file_path)
+  with open(build_or_defs_file_path) as f:
+    exec(compile(f.read(), build_or_defs_file_path, 'exec'), _definition_env)
 
 
-<<<<<<< HEAD
-def _load_full_rule_path(rule_full):
-  full_path = '/'.join([os.environ['impulse_root'], rule_full[2:]])
-  _load_all_in_file(full_path)
-
-
-def _load_build_file_with_rule(rule_full):
-  build_file_path = '/'.join([rule_full.split(':')[0], 'BUILD'])
-  _load_full_rule_path(build_file_path)
-=======
-def _load_build_file_with_rule(build_target):
-	_load_all_in_file(build_target.GetFileDefinedIn())
->>>>>>> Add support for git submodules
-
-
-already_loaded = set()
-def _load_all_in_file(full_path):
-<<<<<<< HEAD
-  if full_path not in already_loaded:
-    already_loaded.add(full_path)
-    with open(full_path) as f:
-      exec(compile(f.read(), full_path, 'exec'), _definition_env)
-
-
-def makeCPGN(kwargs, build_path, func):
-  name = kwargs.get('name')
-  kwargs = _load_recursive_dependencies(kwargs, build_path)
-  return CreatedPreGraphNode(build_path + ':' + name, kwargs, func)
+def CreatePreGraphNode(args_to_target, build_path, func):
+  name = args_to_target.get('name')
+  build_target = impulse_paths.convert_name_to_build_target(name, build_path)
+  dep_targets = _load_recursive_dependencies(args_to_target, build_path)
+  return PreGraphNode(build_target, dep_targets, func)
 
 
 def _create_replacement_function(dependencies, wrapped):
   def replacement(**kwargs): # All args MUST BE KEYWORD
-    build_file_path = _get_build_file_dir(inspect.stack()[1].filename)
-    target_name = kwargs.get('name') # name is required.
-    cpgn = makeCPGN(kwargs, build_file_path, wrapped)
+    build_file = inspect.stack()[1].filename
+    build_file_path = impulse_paths.get_qualified_build_file_dir(build_file)
+    cpgn = CreatePreGraphNode(kwargs, build_file_path, wrapped)
     for dep_func in dependencies:
       cpgn.set_access(dep_func.wraps.__name__, func.wraps)
     _add_to_ruleset(cpgn)
@@ -238,45 +204,8 @@ def buildrule_depends(*dependencies):
 
 
 def load_modules(*args):
-  return [_load_full_rule_path(rule) for rule in args]
-=======
-	if full_path not in already_loaded:
-		already_loaded.add(full_path)
-		with open(full_path) as f:
-			# Will call functions decorated with the 'buildrule' decorator
-			# which will add rules and recursively parse more files.
-			exec(compile(f.read(), full_path, 'exec'), _definition_env)
-
-
-def makeCPGN(kwargs, build_path, func):
-	name = kwargs.get('name')
-	kwargs = _load_recursive_dependencies(kwargs, build_path)
-	return CreatedPreGraphNode(build_path + ':' + name, kwargs, func)
-
-
-def buildrule(*funcs):
-	def __stub__(*args, **kwargs):
-		if len(args) > 0 and isinstance(args[0], types.FunctionType):
-			def __inner__(**kwargs):
-				name = kwargs.get('name')
-				build_path = _get_build_file_dir(inspect.stack()[1].filename)
-				cpgn = makeCPGN(kwargs, build_path, args[0])
-				for func in funcs:
-					cpgn.set_access(func.wraps.__name__, func.wraps)
-				_add_to_ruleset(cpgn)
-			return __inner__
-		else:
-			name = kwargs.get('name')
-			build_path = _get_build_file_dir(inspect.stack()[1].filename)
-			_add_to_ruleset(makeCPGN(kwargs, build_path, funcs[0]))
-	__stub__.wraps = funcs[0]
-	return __stub__
-
-
-def load_modules(*args):
-	for rule in args:
-		_load_all_in_file(rule)
->>>>>>> Add support for git submodules
+  for build_defs in args:
+    _parse_runtime_file(impulse_paths.expand_fully_qualified_path(build_defs))
 
 
 _definition_env = {
@@ -286,25 +215,13 @@ _definition_env = {
 }
 
 
-<<<<<<< HEAD
-def generate_graph(rule):
-  _load_build_file_with_rule(rule)
-  rules[rule].convert_to_graph(rules)
+def generate_graph(build_target):
+  _parse_runtime_file(build_target.GetBuildFileForTarget())
+
+  rules[build_target.GetFullyQualifiedRulePath()].convert_to_graph(rules)
   generated = set()
   for rule in rules.values():
     if rule.converted is not None:
       generated.add(rule.converted)
   return generated
-=======
-def generate_graph(build_target):
-	_load_build_file_with_rule(build_target)
-
-
-	rules[rule].convert_to_graph(rules)
-	generated = set()
-	for rule in rules.values():
-		if rule.converted is not None:
-			generated.add(rule.converted)
-	return generated
->>>>>>> Add support for git submodules
 

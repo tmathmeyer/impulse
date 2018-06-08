@@ -6,6 +6,7 @@ import os
 import sys
 import time
 
+import impulse_paths
 import threaded_dependence
 import recursive_loader
 import status_out
@@ -56,11 +57,10 @@ def build(target, debug):
   if not cdir.startswith(root):
     raise ValueError('Impulse can\'t be run from outside %s.' % root)
 
-  if target.startswith(':'):
-    target = '/%s%s' % (cdir[len(root):], target)
-  
+  bt = impulse_paths.convert_to_build_target(target, cdir, True)
+
   time1 = time.time()
-  graph = recursive_loader.generate_graph(target)
+  graph = recursive_loader.generate_graph(bt)
   time2 = time.time()
 
   diff = (time2-time1) * 1000
@@ -92,11 +92,10 @@ def examine(target):
   if not cdir.startswith(root):
     raise ValueError('Impulse can\'t be run from outside %s.' % root)
 
-  if target.startswith(':'):
-    target = '/%s%s' % (cdir[len(root):], target)
+  bt = impulse_paths.convert_to_build_target(target, cdir, True)
 
   time1 = time.time()
-  graph = recursive_loader.generate_graph(target)
+  graph = recursive_loader.generate_graph(bt)
   time2 = time.time()
 
   diff = (time2-time1) * 1000
@@ -111,13 +110,5 @@ def examine(target):
 
 def main():
   a = PARSER.parse_args()
-  try:
-    getattr(sys.modules[__name__], a.task)(a)
-  except AttributeError:
-    if hasattr(a, 'task'):
-      print('Command "%s" not found' % a.task)
-    else:
-      print('Command required')
-  except KeyError as e:
-    print('Task %s not found in %s' % (a.task, dir(sys.modules[__name__])))
+  getattr(sys.modules[__name__], a.task)(a)
   
