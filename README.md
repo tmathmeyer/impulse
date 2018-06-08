@@ -49,11 +49,11 @@ def c_object(name, srcs, **args):
 	command(cmd)
 ```
 
-All build rules _MUST_ be tagged with the ```@buildrule``` decorator.
+All build rules _MUST_ be tagged with the ```@buildrule``` or ```@buildrule_depends``` decorators.
 
-The ```@buildrule``` decorator can either be used with no arguments, or can be given another buildrule to use in scope. An example is the ```c_object_nostd``` rule:
+The ```@buildrule``` decorator should be used as a bare decorator, however the ```@buildrule_depends``` decorator should be called as a function, and given other buildrules to use in scope. An example is the ```c_object_nostd``` rule:
 ```python
-@buildrule(c_object)
+@buildrule_depends(c_object)
 def c_object_nostd(name, srcs, **args):
 	flags = args.setdefault('flags', [])
 	flags += [
