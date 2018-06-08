@@ -15,8 +15,8 @@ import build_defs_runtime
 rules = {}
 
 class FilterableSet(object):
-  def __init__(self, *args, **kwargs):
-    self.wrapped = set(*args, **kwargs)
+  def __init__(self, *args):
+    self.wrapped = set(args)
 
   def __iter__(self):
     return self.wrapped.__iter__()
@@ -110,7 +110,8 @@ class DependencyGraph(threaded_dependence.DependentJob):
       all_args = inspect.getargspec(function_object).args
       missing_args = filter(lambda arg: arg not in self.__args.keys(), all_args)
       missing = ', '.join(missing_args)
-      raise threaded_dependence.CommandError(err_template % (self.name, missing))
+      raise
+      #raise threaded_dependence.CommandError(err_template % (self.name, missing))
 
   def d_print(self, indent):
     if not self.printed:

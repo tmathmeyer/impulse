@@ -96,6 +96,13 @@ def env(graph_object, __name, ruletype, dependencies, debug):
   def deptoken(dep):
     return os.environ['impulse_root'] + '/' + DEP + dep.name[1:]
 
+  def write_file(filename, string):
+    with open(filename, 'w') as f:
+      f.write(string + '\n')
+
+  def append_file(to_file, from_file):
+    os.system('cat %s >> %s' % (from_file, to_file))
+
 
   res = {}
   res.update(locals())
