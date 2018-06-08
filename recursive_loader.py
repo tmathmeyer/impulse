@@ -153,6 +153,7 @@ def _load_recursive_dependencies(all_keys, build_path):
 
 
 def _convert_load_vals(value, build_path):
+<<<<<<< HEAD
   if isinstance(value, str):
     if value.startswith(':'):
       return build_path + value
@@ -161,6 +162,17 @@ def _convert_load_vals(value, build_path):
       return value
     else:
       return value
+=======
+	if isinstance(value, str):
+		return impulse_paths.convert_to_build_target()
+		if value.startswith(':'):
+			return build_path + value
+		elif value.startswith('//'):
+			_load_build_file_with_rule(value)
+			return value
+		else:
+			return value
+>>>>>>> Add support for git submodules
 
   if isinstance(value, list):
     return [_convert_load_vals(v, build_path) for v in value]
@@ -173,6 +185,7 @@ def _get_build_file_dir(full_file_path):
   return '//' + reg.match(full_file_path).group(1)
 
 
+<<<<<<< HEAD
 def _load_full_rule_path(rule_full):
   full_path = '/'.join([os.environ['impulse_root'], rule_full[2:]])
   _load_all_in_file(full_path)
@@ -181,10 +194,15 @@ def _load_full_rule_path(rule_full):
 def _load_build_file_with_rule(rule_full):
   build_file_path = '/'.join([rule_full.split(':')[0], 'BUILD'])
   _load_full_rule_path(build_file_path)
+=======
+def _load_build_file_with_rule(build_target):
+	_load_all_in_file(build_target.GetFileDefinedIn())
+>>>>>>> Add support for git submodules
 
 
 already_loaded = set()
 def _load_all_in_file(full_path):
+<<<<<<< HEAD
   if full_path not in already_loaded:
     already_loaded.add(full_path)
     with open(full_path) as f:
@@ -221,6 +239,44 @@ def buildrule_depends(*dependencies):
 
 def load_modules(*args):
   return [_load_full_rule_path(rule) for rule in args]
+=======
+	if full_path not in already_loaded:
+		already_loaded.add(full_path)
+		with open(full_path) as f:
+			# Will call functions decorated with the 'buildrule' decorator
+			# which will add rules and recursively parse more files.
+			exec(compile(f.read(), full_path, 'exec'), _definition_env)
+
+
+def makeCPGN(kwargs, build_path, func):
+	name = kwargs.get('name')
+	kwargs = _load_recursive_dependencies(kwargs, build_path)
+	return CreatedPreGraphNode(build_path + ':' + name, kwargs, func)
+
+
+def buildrule(*funcs):
+	def __stub__(*args, **kwargs):
+		if len(args) > 0 and isinstance(args[0], types.FunctionType):
+			def __inner__(**kwargs):
+				name = kwargs.get('name')
+				build_path = _get_build_file_dir(inspect.stack()[1].filename)
+				cpgn = makeCPGN(kwargs, build_path, args[0])
+				for func in funcs:
+					cpgn.set_access(func.wraps.__name__, func.wraps)
+				_add_to_ruleset(cpgn)
+			return __inner__
+		else:
+			name = kwargs.get('name')
+			build_path = _get_build_file_dir(inspect.stack()[1].filename)
+			_add_to_ruleset(makeCPGN(kwargs, build_path, funcs[0]))
+	__stub__.wraps = funcs[0]
+	return __stub__
+
+
+def load_modules(*args):
+	for rule in args:
+		_load_all_in_file(rule)
+>>>>>>> Add support for git submodules
 
 
 _definition_env = {
@@ -230,6 +286,7 @@ _definition_env = {
 }
 
 
+<<<<<<< HEAD
 def generate_graph(rule):
   _load_build_file_with_rule(rule)
   rules[rule].convert_to_graph(rules)
@@ -238,4 +295,16 @@ def generate_graph(rule):
     if rule.converted is not None:
       generated.add(rule.converted)
   return generated
+=======
+def generate_graph(build_target):
+	_load_build_file_with_rule(build_target)
+
+
+	rules[rule].convert_to_graph(rules)
+	generated = set()
+	for rule in rules.values():
+		if rule.converted is not None:
+			generated.add(rule.converted)
+	return generated
+>>>>>>> Add support for git submodules
 
