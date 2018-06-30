@@ -2,7 +2,8 @@ load(
     "//rules/core/Python/build_defs.py",
 )
 
-py_library(
+# This doesn't work!
+impulse_py_library(
     name = "impulse_lib",
     srcs = [
         "build_defs_runtime.py",
@@ -14,7 +15,7 @@ py_library(
     ],
 )
 
-py_binary(
+impulse_py_binary(
 	name = "impulse",
 	deps = [
 		":impulse_lib",

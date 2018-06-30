@@ -164,3 +164,21 @@ c_binary(
     ]
 )
 ```
+
+## Python Executables
+The default build rules offer ```py_library``` and ```py_binary``` as two build rules. It should be noted that if these rules are used, they change the way imports handled. Any third party import will stay the same as before, but importing other code built with impulse will have to be done absolutly. For example, with the directory layout:
+```
+impulse_root/
+  project/
+    some_component/
+      helper1.py
+      helper2.py
+    another_component/
+      fancy_code.py
+    run_this.py
+```
+for any of these files to import helper1.py, they should do it like:
+```
+from project.some_component import helper1
+```
+this holds EVEN FOR ```helper2.py```.

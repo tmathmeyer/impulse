@@ -3,8 +3,8 @@ import os
 import re
 import sys
 
-def pwd():
-  return os.environ.get('PWD')
+def root():
+  return os.environ['impulse_root']
 
 NOT_A_BUILD_TARGET = object()
 
@@ -27,13 +27,15 @@ class BuildTarget(object):
       return self.GetFullRulePath() == other.GetFullRulePath()
     return False
 
+  def __repr__(self):
+    return str(self.__dict__)
+
 
 def convert_name_to_build_target(name, loaded_from_dir):
   return BuildTarget(name, loaded_from_dir)
 
 
 def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
-  root = os.environ['impulse_root']
   if is_relative_path(target):
     return BuildTarget(target[1:], loaded_from_dir)
 
@@ -58,7 +60,7 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
 def expand_fully_qualified_path(path):
   if not is_fully_qualified_path(path):
     sys.exit('%s needs to be fully qualified' % path)
-  return os.path.join(pwd(), path[2:])
+  return os.path.join(root(), path[2:])
 
 def is_fully_qualified_path(path):
   return path.startswith('//')

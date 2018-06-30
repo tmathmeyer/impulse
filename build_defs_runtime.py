@@ -39,6 +39,20 @@ def env(graph_object, __name, ruletype, dependencies, debug):
   def is_nodetype(dep, name):
     return dep.ruletype == name
 
+  def first(l):
+    return l[0]
+
+  def last(l):
+    return l[-1]
+
+  def compose(*F):
+    def r(x):
+      for f in F[::-1]:
+        x = f(x)
+      return x
+    return r
+
+
   def copy(infile):
     try:
       os.makedirs(OUTPUT_DIR)
@@ -46,9 +60,12 @@ def env(graph_object, __name, ruletype, dependencies, debug):
       pass
     shutil.copy(infile, OUTPUT_DIR)
 
+  def add_output(f):
+    graph_object.outputs.append(f)
+
   def depends(inputs, outputs):
     """Breaks on all outputs being older than all inputs."""
-    graph_object.outputs = [os.path.join(OUTPUT_DIR, out) for out in outputs]
+    graph_object.outputs = [os.path.join(directory(), out) for out in outputs]
     def newest(things):
       time = None
       for x in things:
@@ -78,12 +95,15 @@ def env(graph_object, __name, ruletype, dependencies, debug):
       raise RuleFinishedException()
 
   def command(cmd):
+    print(cmd)
     try:
+      os.makedirs(OUTPUT_DIR, exist_ok=True)
       for out in graph_object.outputs:
-        os.makedirs(os.path.dirname(out), exist_ok=True)
+        os.makedirs(os.path.join(PWD, os.path.dirname(out)), exist_ok=True)
 
       process = subprocess.Popen(
         list(cmd.split()),
+        cwd=PWD,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         universal_newlines=True)
       _, stderr = process.communicate()
@@ -97,10 +117,12 @@ def env(graph_object, __name, ruletype, dependencies, debug):
     return os.environ['impulse_root'] + '/' + DEP + dep.name[1:]
 
   def write_file(filename, string):
-    with open(filename, 'w') as f:
+    with open(os.path.join(PWD, filename), 'a') as f:
       f.write(string + '\n')
 
   def append_file(to_file, from_file):
+    from_file = os.path.join(PWD, from_file)
+    to_file = os.path.join(PWD, to_file)
     os.system('cat %s >> %s' % (from_file, to_file))
 
 

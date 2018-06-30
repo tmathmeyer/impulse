@@ -100,7 +100,7 @@ class DependencyGraph(threaded_dependence.DependentJob):
         pass
       with open(module_finished_path, 'w') as f:
         for output in self.outputs:
-          f.write(output)
+          f.write(output + '\n')
     except build_defs_runtime.RuleFinishedException:
       pass
     except TypeError:
@@ -153,26 +153,52 @@ def _load_recursive_dependencies(all_keys, build_path):
     for key, val in all_keys.items())
 
 
+class InvalidBuildRule(Exception):
+  pass
+
+class InvalidBuildRuleWithTarget(Exception):
+  def __init__(self, target):
+    self.target = target
+
+class InvalidIncludeError(Exception):
+  def __init__(self, rule):
+    self.rule = rule
+
+class InvalidIncludeErrorWithLocation(Exception):
+  def __init__(self, rule, target):
+    self.rule = rule
+    self.target = target
+
+
 def _convert_load_vals(value, build_path):
   if isinstance(value, str):
     target = impulse_paths.convert_to_build_target(value, build_path)
     if target is not impulse_paths.NOT_A_BUILD_TARGET:
-      _parse_runtime_file(target.GetBuildFileForTarget())
-      return target.GetFullyQualifiedRulePath()
+      try:
+        _parse_runtime_file(target.GetBuildFileForTarget())
+        return target.GetFullyQualifiedRulePath()
+      except InvalidBuildRule as e:
+        raise InvalidBuildRuleWithTarget(target)
+      except InvalidIncludeError as e:
+        raise InvalidIncludeErrorWithLocation(e.rule, target)
 
   if isinstance(value, list):
     return [_convert_load_vals(v, build_path) for v in value]
 
   return value
 
-
 already_loaded_files = set()
 def _parse_runtime_file(build_or_defs_file_path):
   if build_or_defs_file_path in already_loaded_files:
     return
   already_loaded_files.add(build_or_defs_file_path)
-  with open(build_or_defs_file_path) as f:
-    exec(compile(f.read(), build_or_defs_file_path, 'exec'), _definition_env)
+  try:
+    with open(build_or_defs_file_path) as f:
+      exec(compile(f.read(), build_or_defs_file_path, 'exec'), _definition_env)
+  except FileNotFoundError:
+    raise InvalidBuildRule()
+  except InvalidBuildRuleWithTarget as err:
+    raise InvalidIncludeError(err.target)
 
 
 def CreatePreGraphNode(args_to_target, build_path, func):
@@ -215,9 +241,20 @@ _definition_env = {
   'buildrule_depends': buildrule_depends
 }
 
-
 def generate_graph(build_target):
-  _parse_runtime_file(build_target.GetBuildFileForTarget())
+  try:
+    return _generate_graph(build_target)
+  except InvalidIncludeErrorWithLocation as e:
+    msg = "rule {} included from {} is invalid".format(
+      e.rule.GetFullyQualifiedRulePath(), e.target.GetBuildFileForTarget())
+    print(msg)
+    return set()
+
+def _generate_graph(build_target):
+  try:
+    _parse_runtime_file(build_target.GetBuildFileForTarget())
+  except InvalidIncludeError as e:
+    raise InvalidIncludeErrorWithLocation(e.rule, build_target)
 
   rules[build_target.GetFullyQualifiedRulePath()].convert_to_graph(rules)
   generated = set()
