@@ -169,6 +169,14 @@ class InvalidIncludeErrorWithLocation(Exception):
     self.rule = rule
     self.target = target
 
+class InvalidBuildFile(Exception):
+  def __init__(self, build_file, errormsg):
+    self.build_file = build_file
+    self.errormsg = errormsg
+
+class SilentException(Exception):
+  pass
+
 
 def _convert_load_vals(value, build_path):
   if isinstance(value, str):
@@ -194,7 +202,8 @@ def _parse_runtime_file(build_or_defs_file_path):
   already_loaded_files.add(build_or_defs_file_path)
   try:
     with open(build_or_defs_file_path) as f:
-      exec(compile(f.read(), build_or_defs_file_path, 'exec'), _definition_env)
+      compiled = compile(f.read(), build_or_defs_file_path, 'exec')
+      exec(compiled, _definition_env)
   except FileNotFoundError:
     raise InvalidBuildRule()
   except InvalidBuildRuleWithTarget as err:
@@ -249,6 +258,9 @@ def generate_graph(build_target):
       e.rule.GetFullyQualifiedRulePath(), e.target.GetBuildFileForTarget())
     print(msg)
     return set()
+  except InvalidBuildFile as e:
+    print('{} in {}'.format(e.errormsg, e.build_file))
+    raise SilentException()
 
 def _generate_graph(build_target):
   try:

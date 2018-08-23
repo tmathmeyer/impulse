@@ -7,7 +7,7 @@ A mostly idempotent build system modeled after bazel. Impulse differentiates its
 ```
 git clone https://github.com/tmathmeyer/impulse
 cd impulse
-./build.sh
+make
 cp impulse {{DIRECTORY IN YOUR PATH}}
 
 cd {{PROJECTS DIRECTORY}}

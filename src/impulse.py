@@ -32,7 +32,10 @@ def target(parser):
     task.add_argument('--debug', default=False, action='store_true')
 
     def __stub__(parsed):
-      func(**dict((n, getattr(parsed, n)) for n in args_name))
+      try:
+        func(**dict((n, getattr(parsed, n)) for n in args_name))
+      except recursive_loader.SilentException:
+        pass
     return __stub__
 
   return decorator

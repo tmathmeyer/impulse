@@ -1,5 +1,5 @@
 load(
-    "//rules/core/Python/build_defs.py",
+    "//impulse/src/rules/build_defs.py",
 )
 
 impulse_py_binary(
