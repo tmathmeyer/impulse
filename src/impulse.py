@@ -92,13 +92,8 @@ def init():
 
 @target(TASKS)
 def examine(target):
-  root = _getroot()
-  cdir = os.environ['PWD']
-  os.environ['impulse_root'] = root
-  if not cdir.startswith(root):
-    raise ValueError('Impulse can\'t be run from outside %s.' % root)
-
-  bt = impulse_paths.convert_to_build_target(target, cdir, True)
+  os.environ['impulse_root'] = _getroot()
+  bt = impulse_paths.convert_to_build_target(target, _pwd_root_relative(), True)
 
   time1 = time.time()
   graph = recursive_loader.generate_graph(bt)
@@ -108,13 +103,14 @@ def examine(target):
   print('loaded [%s] rules in %.2f ms' % (len(graph), diff))
 
   for node in graph:
-    if node.name == target:
+    if node.name == bt.GetFullyQualifiedRulePath():
       node.print()
-
-
 
 
 def main():
   a = PARSER.parse_args()
-  getattr(sys.modules[__name__], a.task)(a)
+  if ('task' in a):
+    getattr(sys.modules[__name__], a.task)(a)
+  else:
+    PARSER.print_help(sys.stderr)
   
