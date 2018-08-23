@@ -20,11 +20,11 @@ class BuildTarget(object):
     return self.target_path + ':' + self.target_name
 
   def __hash__(self):
-    return hash(self.GetFullRulePath())
+    return hash(self.GetFullyQualifiedRulePath())
 
   def __eq__(self, other):
     if isinstance(other, BuildTarget):
-      return self.GetFullRulePath() == other.GetFullRulePath()
+      return self.GetFullyQualifiedRulePath() == other.GetFullyQualifiedRulePath()
     return False
 
   def __repr__(self):

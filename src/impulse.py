@@ -46,18 +46,21 @@ def _getroot():
       return f.read()
   raise LookupError('Impulse has not been initialized.')
 
+def _pwd_root_relative():
+  root = _getroot()
+  pwd = os.environ['PWD']
+  if pwd.startswith(root):
+    return '/' + pwd[len(root):]
+  raise ValueError('Impulse can\'t be run from outside %s.' % root)
+
 
 @target(TASKS)
 def build(target, debug):
   if debug:
     status_out.debug = True
-  root = _getroot()
-  cdir = os.environ['PWD']
-  os.environ['impulse_root'] = root
-  if not cdir.startswith(root):
-    raise ValueError('Impulse can\'t be run from outside %s.' % root)
+  os.environ['impulse_root'] = _getroot()
 
-  bt = impulse_paths.convert_to_build_target(target, cdir, True)
+  bt = impulse_paths.convert_to_build_target(target, _pwd_root_relative(), True)
 
   time1 = time.time()
   graph = recursive_loader.generate_graph(bt)
