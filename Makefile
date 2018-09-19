@@ -1,6 +1,7 @@
 # bootstrap makefile for building impulse
 
-impulse:
+all:
+	@rm -rf impulse/
 	@mkdir impulse
 	@touch impulse/__init__.py
 	@cp *.py impulse/
@@ -9,6 +10,7 @@ impulse:
 
 
 debug:
+	@rm -rf impulse/
 	@mkdir impulse
 	@touch impulse/__init__.py
 	@cp *.py impulse/

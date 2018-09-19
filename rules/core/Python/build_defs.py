@@ -19,11 +19,17 @@ def py_library(name, srcs, **args):
 
   command('touch {}'.format(initfile))
 
-  uniq_dirs = set(os.path.dirname(n) for n in outputs if os.path.dirname(n))
-  for D in uniq_dirs:
-    init_file = '{}/__init__.py'.format(D)
+  init_files = set()
+  for direct in outputs:
+    direct = os.path.dirname(direct)
+    if direct:
+      command('mkdir -p {}'.format(direct))
+    while direct:
+      init_files.add('{}/__init__.py'.format(direct))
+      direct = os.path.dirname(direct)
+
+  for init_file in init_files:
     bundle_files.add(init_file)
-    command('mkdir -p {}'.format(D))
     command('touch {}'.format(init_file))
 
   for I, O in zip(srcs, outputs):
@@ -46,12 +52,17 @@ def py_binary(name, srcs, **args):
   bundle_files = set(srcouts)
   bundle_files.add(mainfile)
 
-  uniq_dirs = set(os.path.dirname(n) for n in srcouts if os.path.dirname(n))
+  init_files = set()
+  for direct in srcouts:
+    direct = os.path.dirname(direct)
+    if direct:
+      command('mkdir -p {}'.format(direct))
+    while direct:
+      init_files.add('{}/__init__.py'.format(direct))
+      direct = os.path.dirname(direct)
 
-  for D in uniq_dirs:
-    init_file = '{}/__init__.py'.format(D)
+  for init_file in init_files:
     bundle_files.add(init_file)
-    command('mkdir -p {}'.format(D))
     command('touch {}'.format(init_file))
 
   for I, O in zip(srcs, srcouts):
