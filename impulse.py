@@ -6,10 +6,10 @@ import os
 import sys
 import time
 
-import impulse_paths
-import threaded_dependence
-import recursive_loader
-import status_out
+from impulse import impulse_paths
+from impulse import threaded_dependence
+from impulse import recursive_loader
+from impulse import status_out
 
 
 PARSER = argparse.ArgumentParser()
@@ -114,3 +114,7 @@ def main():
   else:
     PARSER.print_help(sys.stderr)
   
+
+
+if __name__ == '__main__':
+  main()

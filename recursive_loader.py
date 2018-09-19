@@ -6,10 +6,10 @@ import os
 import pathlib
 import types
 
-import impulse_paths
-import build_defs_runtime
-import threaded_dependence
-import build_defs_runtime
+from impulse import impulse_paths
+from impulse import build_defs_runtime
+from impulse import threaded_dependence
+from impulse import build_defs_runtime
 
 
 rules = {}

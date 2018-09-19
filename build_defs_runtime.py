@@ -9,7 +9,7 @@ import shutil
 import time
 import types
 
-import threaded_dependence
+from impulse import threaded_dependence
 
 unpath = re.compile('//(.*):.*')
 

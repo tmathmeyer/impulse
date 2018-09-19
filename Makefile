@@ -1,7 +1,8 @@
 # bootstrap makefile for building impulse
 
 impulse:
-	@zip -j /tmp/impulse.zip src/*.py
-	@echo '#!/usr/bin/env python' | cat - /tmp/impulse.zip > impulse
-	@chmod +x impulse
-	@rm /tmp/impulse.zip
+	@mkdir impulse
+	@touch impulse/__init__.py
+	@cp *.py impulse/
+	@python3 -m impulse.impulse build :impulse --debug
+	@rm -rf impulse/

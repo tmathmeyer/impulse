@@ -1,3 +1,0 @@
-import impulse
-
-impulse.main()

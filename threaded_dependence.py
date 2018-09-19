@@ -6,7 +6,7 @@ import sys
 import time
 
 
-import status_out
+from impulse import status_out
 
 
 TASK_POISON = None
