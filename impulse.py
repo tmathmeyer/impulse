@@ -110,7 +110,10 @@ def examine(target):
 def main():
   a = PARSER.parse_args()
   if ('task' in a):
-    getattr(sys.modules[__name__], a.task)(a)
+    try:
+      getattr(sys.modules[__name__], a.task)(a)
+    except impulse_paths.PathException as e:
+      print(e)
   else:
     PARSER.print_help(sys.stderr)
   

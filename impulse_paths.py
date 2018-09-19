@@ -8,6 +8,14 @@ def root():
 
 NOT_A_BUILD_TARGET = object()
 
+class PathException(Exception):
+  def __init__(self, path):
+    self._path = path
+    super(PathException, self).__init__('Invalid Target: ' + path)
+
+  def __repr__(self):
+    return 'Invalid Target: ' + self._path
+
 class BuildTarget(object):
   def __init__(self, target_name, target_path):
     self.target_name = target_name
@@ -40,9 +48,10 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
     return BuildTarget(target[1:], loaded_from_dir)
 
   if is_fully_qualified_path(target):
-    target = target.split(':')
-    assert len(target) > 1
-    return BuildTarget(target[1], target[0])
+    _target = target.split(':')
+    if len(_target) <= 1:
+      raise PathException(target)
+    return BuildTarget(_target[1], _target[0])
 
   if target.startswith('git://'):
     giturl, target = target.split('%', 1)
@@ -53,7 +62,7 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
     return convert_to_build_target(target, '//'+basename, quit_on_err)
 
   if quit_on_err:
-    sys.exit('Could not parse %s as build rule' % target)
+    raise PathException(target)
 
   return NOT_A_BUILD_TARGET
 

@@ -223,7 +223,7 @@ def _create_replacement_function(dependencies, wrapped):
     build_file_path = impulse_paths.get_qualified_build_file_dir(build_file)
     cpgn = CreatePreGraphNode(kwargs, build_file_path, wrapped)
     for dep_func in dependencies:
-      cpgn.set_access(dep_func.wraps.__name__, func.wraps)
+      cpgn.set_access(dep_func.wraps.__name__, dep_func.wraps)
     _add_to_ruleset(cpgn)
   replacement.wraps = wrapped
   return replacement
