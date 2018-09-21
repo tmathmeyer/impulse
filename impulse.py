@@ -10,36 +10,9 @@ from impulse import impulse_paths
 from impulse import threaded_dependence
 from impulse import recursive_loader
 from impulse import status_out
+from impulse.args import args
 
-
-PARSER = argparse.ArgumentParser()
-TASKS = PARSER.add_subparsers(title='tasks')
-
-
-def target(parser):
-  def decorator(func):
-    helpmsg = func.__doc__ or func.__name__
-    task = parser.add_parser(
-      func.__name__,
-      help=helpmsg.splitlines()[0])
-    task.set_defaults(task=func.__name__)
-
-    args_name = inspect.getargspec(func)[0]
-    for arg in args_name:
-      if arg != 'debug':
-        task.add_argument(arg, metavar=arg[0].upper(), type=str)
-
-    task.add_argument('--debug', default=False, action='store_true')
-
-    def __stub__(parsed):
-      try:
-        func(**dict((n, getattr(parsed, n)) for n in args_name))
-      except recursive_loader.SilentException:
-        pass
-    return __stub__
-
-  return decorator
-
+arguments = args.ArgumentParser()
 
 
 def _getroot():
@@ -57,8 +30,9 @@ def _pwd_root_relative():
   raise ValueError('Impulse can\'t be run from outside %s.' % root)
 
 
-@target(TASKS)
-def build(target, debug):
+@arguments
+def build(target:str, debug:bool=False):
+  """Builds the given target."""
   if debug:
     status_out.debug = True
   os.environ['impulse_root'] = _getroot()
@@ -77,8 +51,9 @@ def build(target, debug):
   pool.input_job_graph(graph).start()
 
 
-@target(TASKS)
+@arguments
 def init():
+  """Initializes impulse in the current directory."""
   home = os.environ['HOME']
   if os.path.exists('%s/.config/impulse/config' % home):
     override = input(('A configuration file exists, '
@@ -90,8 +65,9 @@ def init():
   with open('%s/.config/impulse/config' % home, 'w') as config:
     config.write(os.environ['PWD'])
 
-@target(TASKS)
-def examine(target):
+@arguments
+def examine(target:str):
+  """Examines the build tree for a target."""
   os.environ['impulse_root'] = _getroot()
   bt = impulse_paths.convert_to_build_target(target, _pwd_root_relative(), True)
 
@@ -108,16 +84,8 @@ def examine(target):
 
 
 def main():
-  a = PARSER.parse_args()
-  if ('task' in a):
-    try:
-      getattr(sys.modules[__name__], a.task)(a)
-    except impulse_paths.PathException as e:
-      print(e)
-  else:
-    PARSER.print_help(sys.stderr)
+  arguments.eval()
   
-
 
 if __name__ == '__main__':
   main()
