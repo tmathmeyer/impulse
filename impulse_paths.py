@@ -9,9 +9,13 @@ def root():
 NOT_A_BUILD_TARGET = object()
 
 class PathException(Exception):
-  def __init__(self, path):
-    self._path = path
-    super(PathException, self).__init__('Invalid Target: ' + path)
+  def __init__(self, path, included_from=None):
+    if included_from:
+      self._path = 'Invalid Target: {} Included From: {}'.format(
+        path, included_from)
+    else:
+      self._path = 'Invalid Target: {}'.format(self._path)
+    super(PathException, self).__init__(self._path)
 
   def __repr__(self):
     return 'Invalid Target: ' + self._path

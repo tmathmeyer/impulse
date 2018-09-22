@@ -55,7 +55,10 @@ class PreGraphNode(object):
       dependencies = FilterableSet()
       for d in flatten(self.build_args):
         if impulse_paths.is_fully_qualified_path(d):
-          dependencies.add(lookup[d].convert_to_graph(lookup))
+          if d in lookup:
+            dependencies.add(lookup[d].convert_to_graph(lookup))
+          else:
+            raise impulse_paths.PathException(d, self.full_name)
 
       self.converted = DependencyGraph(self.full_name, self.func.__name__,
         dependencies, self.build_args, marshal.dumps(self.func.__code__),
