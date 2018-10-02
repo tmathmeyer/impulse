@@ -143,8 +143,9 @@ def flatten(item):
 
   if isinstance(item, dict):
     for i in item.values():
-      for x in flatten(i):
-        yield x
+      if not isinstance(i, str):
+        for x in flatten(i):
+          yield x
 
 
 def _add_to_ruleset(pre_graph_node):

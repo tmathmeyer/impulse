@@ -1,5 +1,5 @@
 @buildrule
-def c_headers(name, srcs, **args):
+def c_header(name, srcs, **args):
   depends(inputs=srcs, outputs=srcs)
   for src in srcs:
     copy(local_file(src))
@@ -9,16 +9,13 @@ def c_object(name, srcs, **args):
   depends(inputs=srcs, outputs=[name+'.o'])
 
   object_dependencies = dependencies.filter(ruletype='c_object')
-  objects = ' '.join(sum(map(build_outputs, object_dependencies), []))
 
-  sources = ' '.join(local_file(src) for src in srcs)
+  command('gcc -o {} -I{} -c {} {} -std=c11 -Wextra -Wall {}'.format(
+    build_outputs()[0], PWD,
+    ' '.join(local_file(src) for src in srcs),
+    ' '.join(sum(map(build_outputs, object_dependencies), [])),
+    ' '.join(args.get('flags', []))))
 
-  cmd = 'gcc -o %s -I%s -c %s %s -std=c11 -Wextra -Wall' % (
-    build_outputs()[0], PWD, sources, objects)
-
-  for flag in args.get('flags', []):
-    cmd += (' ' + flag)
-  command(cmd)
 
 @buildrule
 def c_binary(name, **args):
