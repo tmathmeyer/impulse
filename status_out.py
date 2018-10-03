@@ -8,6 +8,7 @@ class JobPrinter(object):
     self._completed_jobs = 0
     self._total_jobs = jobcount
     self._pool_count = pool_count
+    self._print()
 
   def write_task_msg(self, mid, msg):
     self._jobs[mid] = msg
@@ -23,8 +24,8 @@ class JobPrinter(object):
     for _ in range(self._jobs_print_length):
       print('\033[G\033[2K\033[F', end='')
 
-    for msg in [countline] + self._jobs:
-      print('\033[2K{}\033[B\033[G'.format(msg), end='')
+    for idx, msg in enumerate([countline] + self._jobs):
+      print('{}: {}'.format(idx, msg))
 
     self._jobs_print_length = len(self._jobs) + 1
     sys.stdout.flush()

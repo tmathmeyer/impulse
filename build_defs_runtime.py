@@ -34,7 +34,7 @@ def env(graph_object, __name, ruletype, dependencies, debug):
       outputs = []
       with open(deptoken(dep), 'r') as f:
         outputs += f.readlines()
-    return outputs
+    return [o.strip() for o in outputs]
 
   def is_nodetype(dep, name):
     return dep.ruletype == name
@@ -52,13 +52,16 @@ def env(graph_object, __name, ruletype, dependencies, debug):
       return x
     return r
 
+  def dirname(f):
+    return os.path.dirname(f)
 
-  def copy(infile):
+  def copy(infile, outdir=''):
+    outdir = os.path.join(OUTPUT_DIR, outdir)
     try:
-      os.makedirs(OUTPUT_DIR)
+      os.makedirs(outdir)
     except OSError as exc: # Guard against race condition
       pass
-    shutil.copy(infile, OUTPUT_DIR)
+    shutil.copy(infile, outdir)
 
   def add_output(f):
     graph_object.outputs.append(f)
@@ -107,7 +110,7 @@ def env(graph_object, __name, ruletype, dependencies, debug):
         universal_newlines=True)
       _, stderr = process.communicate()
       if process.returncode != 0:
-        raise threaded_dependence.CommandError(stderr)
+        raise threaded_dependence.CommandError(cmd + ' --> ' + stderr)
     except:
       raise
 
