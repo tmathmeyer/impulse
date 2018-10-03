@@ -95,7 +95,6 @@ def env(graph_object, __name, ruletype, dependencies, debug):
       raise RuleFinishedException()
 
   def command(cmd):
-    print(cmd)
     try:
       os.makedirs(OUTPUT_DIR, exist_ok=True)
       for out in graph_object.outputs:
@@ -107,7 +106,6 @@ def env(graph_object, __name, ruletype, dependencies, debug):
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         universal_newlines=True)
       _, stderr = process.communicate()
-      print(stderr)
       if process.returncode != 0:
         raise threaded_dependence.CommandError(stderr)
     except:

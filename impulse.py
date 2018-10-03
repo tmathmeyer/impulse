@@ -44,10 +44,8 @@ def build(target:str, debug:bool=False):
   time2 = time.time()
 
   diff = (time2-time1) * 1000
-  print('loaded [%s] rules in %.2f ms' % (len(graph), diff))
-  print('Starting build')
 
-  pool = threaded_dependence.DependentPool(6)
+  pool = threaded_dependence.DependentPool(6, len(graph))
   pool.input_job_graph(graph).start()
 
 
@@ -85,7 +83,7 @@ def examine(target:str):
 
 def main():
   arguments.eval()
-  
+
 
 if __name__ == '__main__':
   main()

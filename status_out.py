@@ -1,44 +1,38 @@
-import curses
+
 import sys
-import time
 
-import signal
+class JobPrinter(object):
+  def __init__(self, jobcount, pool_count):
+    self._jobs = ['IDLE' for _ in range(pool_count)]
+    self._jobs_print_length = 0
+    self._completed_jobs = 0
+    self._total_jobs = jobcount
+    self._pool_count = pool_count
 
+  def write_task_msg(self, mid, msg):
+    self._jobs[mid] = msg
+    self._print()
 
-stdscr = None
-debug = False
+  def remove_task_msg(self, mid):
+    self._completed_jobs += 1
+    self._jobs[mid] = 'IDLE'
+    self._print()
 
-def signal_handler(signal, frame):
-  cleanup_status()
-  sys.exit(0)
+  def _print(self):
+    countline = '[{} / {}]'.format(self._completed_jobs, self._total_jobs)
+    for _ in range(self._jobs_print_length):
+      print('\033[G\033[2K\033[F', end='')
 
-def report_thread(index, message):
-  if debug:
-    print(message)
-  else:
-    global stdscr
-    stdscr.addstr(index, 0, '>', curses.color_pair(1))
-    stdscr.addstr(index, 2, ' ' * (curses.COLS-2))
-    stdscr.addstr(index, 2, str(message), curses.color_pair(2))
-    stdscr.refresh()
+    for msg in [countline] + self._jobs:
+      print('\033[2K{}\033[B\033[G'.format(msg), end='')
 
-def reset_thread(index):
-  report_thread(index, 'IDLE')
+    self._jobs_print_length = len(self._jobs) + 1
+    sys.stdout.flush()
 
-def setup_status(threads):
-  if not debug:
-    global stdscr
-    stdscr = curses.initscr()
-    curses.start_color()
-    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_BLUE, curses.COLOR_WHITE)
-
-    signal.signal(signal.SIGINT, signal_handler)
-
-    for i in range(threads):
-      reset_thread(i)
-
-def cleanup_status():
-  if not debug:
-    curses.endwin()
-  print('DONE')
+  def finished(self, err=None):
+    if err:
+      self._jobs = [err]
+    else:
+      self._jobs = ['Done']
+    self._print()
+    print('')

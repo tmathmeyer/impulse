@@ -81,13 +81,12 @@ class TaskRunner(multiprocessing.Process):
 
 
 class DependentPool(multiprocessing.Process):
-  def __init__(self, poolcount):
+  def __init__(self, poolcount, jobcount):
     multiprocessing.Process.__init__(self)
     self.threadstatus_queue = multiprocessing.Queue()
     self.job_input_queue = multiprocessing.JoinableQueue()
     self.pool_count = poolcount
-    status_out.setup_status(poolcount)
-
+    self.printer = status_out.JobPrinter(jobcount, poolcount)
 
   def run(self):
     for i in range(self.pool_count):
@@ -99,20 +98,19 @@ class DependentPool(multiprocessing.Process):
         for _ in range(self.pool_count):
           self.job_input_queue.put(TASK_POISON)
         self.job_input_queue.join()
-        status_out.cleanup_status()
-        print('FAILED: ' + status)
+        self.printer.finished(err=status)
         return
 
       if not status.finished:
-        status_out.report_thread(status.id, status.job)
+        self.printer.write_task_msg(status.id, status.job)
       else:
-        status_out.reset_thread(status.id)
+        self.printer.remove_task_msg(status.id)
         self.completed.add(status.job)
         if not self.check_add_nodes():
           for _ in range(self.pool_count):
             self.job_input_queue.put(TASK_POISON)
           self.job_input_queue.join()
-          status_out.cleanup_status()
+          self.printer.finished()
           return
 
   def check_add_nodes(self):
@@ -133,5 +131,5 @@ class DependentPool(multiprocessing.Process):
     self.completed = set()
 
     self.check_add_nodes()
-    
+
     return self
