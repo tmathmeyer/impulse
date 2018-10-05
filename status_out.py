@@ -24,8 +24,8 @@ class JobPrinter(object):
     for _ in range(self._jobs_print_length):
       print('\033[G\033[2K\033[F', end='')
 
-    for idx, msg in enumerate([countline] + self._jobs):
-      print('{}: {}'.format(idx, msg))
+    for msg in [countline] + self._jobs:
+      print(msg)
 
     self._jobs_print_length = len(self._jobs) + 1
     sys.stdout.flush()
