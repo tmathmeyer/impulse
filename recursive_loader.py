@@ -40,12 +40,13 @@ class FilterableSet(object):
 
 
 class PreGraphNode(object):
-  def __init__(self, build_target, build_args, func):
+  def __init__(self, build_target, build_args, func, build_file_path):
     self.full_name = build_target.GetFullyQualifiedRulePath()
     self.build_args = build_args
     self.func = func
     self.converted = None
     self.access = {}
+    self.build_file_path = build_file_path
 
   def __repr__(self):
     return str(self.build_args)
@@ -62,7 +63,7 @@ class PreGraphNode(object):
 
       self.converted = DependencyGraph(self.full_name, self.func.__name__,
         dependencies, self.build_args, marshal.dumps(self.func.__code__),
-        self.access)
+        self.access, self.build_file_path)
     return self.converted
 
   def set_access(self, name, func):
@@ -70,7 +71,7 @@ class PreGraphNode(object):
 
 
 class DependencyGraph(threaded_dependence.DependentJob):
-  def __init__(self, name, funcname, deps, args, decompiled_behavior, access):
+  def __init__(self, name, funcname, deps, args, decompiled_behavior, access, buildfile):
     super().__init__(deps)
     self.name = name
     self.outputs = []
@@ -78,6 +79,8 @@ class DependencyGraph(threaded_dependence.DependentJob):
     self.__args = args
     self.__decompiled_behavior = decompiled_behavior
     self.access = access
+    self.defined_in_file = impulse_paths.expand_fully_qualified_path(
+      os.path.join(buildfile, 'BUILD'))
 
     self.printed = False
 
@@ -114,23 +117,6 @@ class DependencyGraph(threaded_dependence.DependentJob):
       missing_args = filter(lambda arg: arg not in self.__args.keys(), all_args)
       missing = ', '.join(missing_args)
       raise
-      #raise threaded_dependence.CommandError(err_template % (self.name, missing))
-
-  def d_print(self, indent):
-    if not self.printed:
-      self.printed = True
-      print(' ' * indent + str(self))
-      for d in self.dependencies:
-        d.d_print(indent+1)
-  def q_print(self):
-    self.printed = False
-    for d in self.dependencies:
-      d.q_print()
-
-  def print(self):
-    self.d_print(0)
-    self.q_print()
-
 
 def flatten(item):
   if isinstance(item, str):
@@ -218,7 +204,7 @@ def CreatePreGraphNode(args_to_target, build_path, func):
   name = args_to_target.get('name')
   build_target = impulse_paths.convert_name_to_build_target(name, build_path)
   dep_targets = _load_recursive_dependencies(args_to_target, build_path)
-  return PreGraphNode(build_target, dep_targets, func)
+  return PreGraphNode(build_target, dep_targets, func, build_path)
 
 
 def _create_replacement_function(dependencies, wrapped):

@@ -63,23 +63,6 @@ def init():
   with open('%s/.config/impulse/config' % home, 'w') as config:
     config.write(os.environ['PWD'])
 
-@arguments
-def examine(target:str):
-  """Examines the build tree for a target."""
-  os.environ['impulse_root'] = _getroot()
-  bt = impulse_paths.convert_to_build_target(target, _pwd_root_relative(), True)
-
-  time1 = time.time()
-  graph = recursive_loader.generate_graph(bt)
-  time2 = time.time()
-
-  diff = (time2-time1) * 1000
-  print('loaded [%s] rules in %.2f ms' % (len(graph), diff))
-
-  for node in graph:
-    if node.name == bt.GetFullyQualifiedRulePath():
-      node.print()
-
 
 def main():
   arguments.eval()
