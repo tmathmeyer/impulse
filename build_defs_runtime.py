@@ -141,7 +141,6 @@ def env(graph_object, __name, ruletype, dependencies, debug):
     to_file = os.path.join(PWD, to_file)
     os.system('cat %s >> %s' % (from_file, to_file))
 
-
   res = {}
   res.update(locals())
   res.update(globals())
