@@ -12,7 +12,7 @@ from impulse import recursive_loader
 from impulse import status_out
 from impulse.args import args
 
-arguments = args.ArgumentParser()
+arguments = args.ArgumentParser(complete=True)
 
 
 def _getroot():
@@ -23,7 +23,7 @@ def _getroot():
   raise LookupError('Impulse has not been initialized.')
 
 def _pwd_root_relative():
-  root = _getroot()
+  root = os.environ['impulse_root']
   pwd = os.environ['PWD']
   if pwd.startswith(root):
     return '/' + pwd[len(root):]
@@ -31,11 +31,11 @@ def _pwd_root_relative():
 
 
 @arguments
-def build(target:str, debug:bool=False):
+def build(target:str, debug:bool=False, fakeroot:args.Directory=None):
   """Builds the given target."""
   if debug:
     status_out.debug = True
-  os.environ['impulse_root'] = _getroot()
+  os.environ['impulse_root'] = fakeroot or _getroot()
 
   bt = impulse_paths.convert_to_build_target(target, _pwd_root_relative(), True)
 

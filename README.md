@@ -3,16 +3,7 @@
 Impulse differentiates itself by being much simpler, while still giving developers much more control. Macros/Rules in bazel use some vile offspring of bash and makefile syntax stored in raw strings, while Rules in impulse are simple python functions.
 
 ## Installing
-* First make sure you have python3 installed
-```
-git clone https://github.com/tmathmeyer/impulse
-cd impulse
-make
-cp impulse {{DIRECTORY IN YOUR PATH}}
-
-cd {{PROJECTS DIRECTORY}}
-impulse init
-```
+see INSTALLING.md
 
 ## Directory Layout
 Like the previously mentioned tools, impulse treats some directory as the ```$ROOT```, and all projects are contained somewhere within this directory. For the sake of example in this readme, we will assume that ```$ROOT = ~/src```.
