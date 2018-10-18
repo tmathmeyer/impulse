@@ -6,7 +6,10 @@ load(
 py_binary(
     name = "impulse",
     srcs = ["impulse.py"],
-    deps = [":impulse_libs", ":impulse_args"],
+    deps = [
+        ":impulse_libs",
+        ":impulse_args"
+    ],
 )
 
 py_library(

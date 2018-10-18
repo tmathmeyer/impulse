@@ -1,4 +1,5 @@
 
+import inspect
 import marshal
 import os
 import random
@@ -66,35 +67,49 @@ def env(graph_object, __name, ruletype, dependencies, debug):
   def add_output(f):
     graph_object.outputs.append(f)
 
+  def build_file():
+    return graph_object.defined_in_file
+
   def depends(inputs, outputs):
-    """Breaks on all outputs being older than all inputs."""
+    """Sets inputs and ouputs to determine what needs to be built.
+
+    Args:
+      inputs: (list) A list of files RELATIVE to the BUILD FILE.
+      outputs: (list) A list of files RELATIVE to the IMPULSE ROOT DIRECTORY.
+
+    Raises:
+      some generic exception if no work is needed.
+    """
     graph_object.outputs = [os.path.join(directory(), out) for out in outputs]
-    def newest(things):
-      time = None
-      for x in things:
-        if os.path.exists(x):
-          mtime = os.path.getmtime(x)
-          if time is None or mtime > time:
-            time = mtime
-      return time
 
-    def oldest(things):
-      time = None
-      for x in things:
-        if os.path.exists(x):
-          mtime = os.path.getmtime(x)
-          if time is None or mtime < time:
-            time = mtime
-      return time
+    def timestamp(filename):
+      if os.path.exists(filename):
+        return os.path.getmtime(filename)
+      return 0
 
-    newest_input = newest(local_file(i) for i in inputs) or 0
-    newest_dependency = newest(deptoken(d) for d in dependencies) or 0
-    time_newest = max(newest_dependency, newest_input)
+    def filter_time(comp):
+      def __filter__(things):
+        time = None
+        for thing in things:
+          newtime = timestamp(thing)
+          if time is None or comp(newtime, time):
+            time = newtime
+        return time
+      return __filter__
 
-    time_oldest = oldest(
-      os.path.join(OUTPUT_DIR, x) for x in outputs) or time_newest - 1
+    newest = filter_time(lambda mtime,time: mtime > time)
+    oldest = filter_time(lambda mtime,time: mtime < time)
 
-    if time_newest < time_oldest:
+    newest_input_file_timestamp = max(
+      newest(local_file(i) for i in inputs) or 0,
+      newest(deptoken(d) for d in dependencies) or 0,
+      timestamp(build_file()))
+
+    newest_output_file_timestamp = min(
+      oldest(os.path.join(OUTPUT_DIR, x) for x in outputs),
+      newest_input_file_timestamp - 1)
+
+    if newest_input_file_timestamp < newest_output_file_timestamp:
       raise RuleFinishedException()
 
   def command(cmd):
@@ -125,7 +140,6 @@ def env(graph_object, __name, ruletype, dependencies, debug):
     from_file = os.path.join(PWD, from_file)
     to_file = os.path.join(PWD, to_file)
     os.system('cat %s >> %s' % (from_file, to_file))
-
 
   res = {}
   res.update(locals())
