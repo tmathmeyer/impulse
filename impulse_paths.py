@@ -14,7 +14,7 @@ class PathException(Exception):
       self._path = 'Invalid Target: {} Included From: {}'.format(
         path, included_from)
     else:
-      self._path = 'Invalid Target: {}'.format(self._path)
+      self._path = 'Invalid Target: {}'.format(path)
     super(PathException, self).__init__(self._path)
 
   def __repr__(self):
