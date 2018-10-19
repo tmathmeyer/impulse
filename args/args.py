@@ -173,8 +173,6 @@ class ArgumentParser(object):
 
   def eval(self):
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacomplete':
-      with open('/usr/local/google/home/tmathmeyer/FOO', 'a+') as f:
-        f.write(str(sys.argv[3:]) + '\n')
       self._print_completion(sys.argv[3:])
       return
 
