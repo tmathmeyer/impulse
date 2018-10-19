@@ -130,7 +130,8 @@ class BuildTarget(args.ArgComplete):
   def _parse_from_local_build_file(cls):
     build_path = os.path.join(os.environ['PWD'], 'BUILD')
     if os.path.exists(build_path):
-      return cls._parse_from_build_file(build_path)
+      for value in cls._parse_from_build_file(build_path):
+        yield value
 
   @classmethod
   def _parse_from_build_file(cls, path_exists):

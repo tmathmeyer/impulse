@@ -40,7 +40,7 @@ class Directory(ArgComplete):
 
 
 class ArgumentParser(object):
-  def __init__(self, complete=False):
+  def __init__(self, complete=True):
     self._parser = argparse.ArgumentParser()
     self._subparser = self._parser.add_subparsers(title='tasks')
     self._methods = {}
