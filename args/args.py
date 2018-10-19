@@ -17,34 +17,26 @@ class ArgComplete(metaclass=abc.ABCMeta):
     raise NotImplementedError()
 
 
-class File(ArgComplete):
-  @classmethod
-  def get_completion_list(cls, stub):
-    cmd = 'compgen -o bashdefault -o default -o nospace -F _ls {}'.format(stub)
-    stdout =  subprocess.Popen(cmd, shell=True,
-      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    for line in stdout.stdout.readlines():
-      f = line.decode().replace('\n', '')
-      if os.path.isdir(f):
-        yield f + '/'
-      else:
-        yield f
-
 class Directory(ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
-    if os.path.isdir(stub):
-      yield stub
-      if not stub.endswith('/'):
-        stub += '/'
-    cmd = 'compgen -o bashdefault -o default -o nospace -F _ls {}'.format(stub)
+    dirs = list(cls._get_directories(stub[:-1]))
+    if len(dirs) == 1:
+      yield dirs[0]
+      yield dirs[0] + '/'
+    else:
+      for d in dirs:
+        yield d
+
+  @classmethod
+  def _get_directories(cls, stub):
+    cmd = 'compgen -o bashdefault -o default -o nospace -F _cd {}'.format(stub)
     stdout =  subprocess.Popen(cmd, shell=True,
       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     for line in stdout.stdout.readlines():
-      f = line.decode().replace('\n', '')
+      f = line.decode().replace('\n', '').replace('//', '/')
       if os.path.isdir(f):
         yield f
-        yield f + '/'
 
 
 class ArgumentParser(object):
@@ -110,12 +102,10 @@ class ArgumentParser(object):
     codeline = decorator_call.code_context
     raise SyntaxError(msg, (filepath, lineno, 0, codeline))
 
-
-
-
-  def _get_values_for_type(self, argtype, stub):
+  def _get_options_for_param(self, argtype, param):
+    assert(param[-1] == '?')
     if argtype not in (str, None):
-      for result in argtype.get_completion_list(stub):
+      for result in argtype.get_completion_list(param):
         yield result
 
   def _provide_all_flags_and_options(self, cmdargs):
@@ -123,93 +113,69 @@ class ArgumentParser(object):
       if argname.startswith('-'):
         yield argname
       else:
-        for value in self._get_values_for_type(argtype, ''):
+        for value in self._get_options_for_param(argtype, '?'):
           yield value
 
-  def _when_last_arg_is_flag(self, cmdargs, stub):
-    if stub in cmdargs: # this exact flag exists
-      if cmdargs[stub]: # this flag has options
-        for value in self._get_values_for_type(cmdargs[stub], ''):
-          yield value
-      else: # this flag has no options
-        for value in self._provide_all_flags_and_options(cmdargs):
-          yield value
-
-    for flagname in cmdargs.keys():
-      if flagname.startswith(stub) and flagname != stub:
-        yield flagname
-
-  def _last_arg_is_not_flag_but_last_was(self, cmdargs, stub, flag):
-    if flag in cmdargs:
-      if cmdargs[flag]: # previous flag takes args
-        for value in self._get_values_for_type(cmdargs[flag], stub):
-          yield value
-      else: # previous flag takes no args
-        for value in self._when_last_arg_is_not_flag(cmdargs, stub):
-          yield value
-    else:
-      raise LookupError(flag)
-
-  def _when_last_arg_is_not_flag(self, cmdargs, stub, flag=None):
-    if flag and flag.startswith('-'):
-      for value in self._last_arg_is_not_flag_but_last_was(cmdargs, stub, flag):
-        yield value
-    else:
-      for argname, argtype in cmdargs.items():
-        if not argname.startswith('-'):
-          for value in self._get_values_for_type(argtype, stub):
-            yield value
-
-  def _handle_command(self, cmdargs, argv):
-    if len(argv) == 0:
-      for value in self._provide_all_flags_and_options(cmdargs):
-        print(value)
-
-    if len(argv) == 1:
-      if argv[0] == '':
-        self._handle_command(cmdargs, [])
-      elif argv[0].startswith('-'):
-        for value in self._when_last_arg_is_flag(cmdargs, argv[0]):
-          print(value)
-      else:
-        for value in self._when_last_arg_is_not_flag(cmdargs, argv[0]):
-          print(value)
-
-    if len(argv) == 2:
-      if argv[1].startswith('-'):
-        self._handle_command(cmdargs, [argv[1]])
-      else:
-        for value in self._when_last_arg_is_not_flag(cmdargs, argv[1], argv[0]):
-          print(value)
-
-    if len(argv) > 2:
-      self._handle_command(cmdargs, argv[-2:])
-
-  def _print_completion_options(self, args):
+  def _handle_subargs(self, cmdargs, args):
+    # dropped the command and binary so far
     if len(args) == 0:
-      for methodname in self._methods.keys():
-        print(methodname)
-      return
+      raise RuntimeError('cant parse 0 subargs')
 
     if len(args) == 1:
-      if args[0] in self._methods:
-        args.append('')
-      else:
-        self._print_possible_commands(args[0])
-        return
+      if args[0] == '?': # Nothing provided, give args & opts.
+        for value in self._provide_all_flags_and_options(cmdargs):
+          yield value
+      elif args[0].startswith('-'): # Attempting to type a flag.
+        for flagname in cmdargs.keys():
+          if flagname.startswith(args[0][:-1]):
+            yield flagname
+      else: # attempting to provide a value, query every non-flag argument.
+        for argname, argtype in cmdargs.items():
+          if not argname.startswith('-'):
+            for value in self._get_options_for_param(argtype, args[0]):
+              yield value
 
-    if len(args) > 1 and args[0] in self._methods:
-      self._handle_command(self._methods[args[0]]['args'], args[1:])
+    if len(args) == 2:
+      if args[0].startswith('--'): # Previous arg was a --flag
+        argtype = cmdargs.get(args[0], None)
+        if not argtype: # but the flag took no arguments!
+          for value in self._handle_subargs(cmdargs, args[-1:]):
+            yield value # Nothing else matters, just complete the last arg
+        else: # the flag takes arguments, get them
+          for value in self._get_options_for_param(argtype, args[1]):
+            yield value
+      else: # it wasn't a flag, so it doesn't matter
+        for value in self._handle_subargs(cmdargs, args[-1:]):
+          yield value
+
+    if len(args) > 2:
+      for value in self._handle_subargs(cmdargs, args[-2:]):
+        yield value
+
+  def _print_completion(self, args):
+    # There will always be at least a '?'
+    if len(args) == 1:
+      command = args[0][:-1]
+      for methodname in self._methods.keys():
+        if methodname.startswith(command):
+          print(methodname)
       return
 
-  def _print_possible_commands(self, partial_cmd):
-    for methodname in self._methods.keys():
-      if methodname.startswith(partial_cmd):
-        print(methodname)
+    # the command is now:
+    # binary <command> {X} {Y} {Z}
+    # where Z is either '?' or '{str}?'
+    if args[0] not in self._methods:
+      return # invalid command, do not complete
+
+    cmdargs = self._methods[args[0]]['args']
+    for value in self._handle_subargs(cmdargs, args[1:]):
+      print(value)
 
   def eval(self):
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacomplete':
-      self._print_completion_options(sys.argv[2:])
+      with open('/usr/local/google/home/tmathmeyer/FOO', 'a+') as f:
+        f.write(str(sys.argv[3:]) + '\n')
+      self._print_completion(sys.argv[3:])
       return
 
     parsed = self._parser.parse_args()

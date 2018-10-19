@@ -26,4 +26,7 @@ py_library(
         "status_out.py",
         "threaded_dependence.py",
     ],
+    deps = [
+        ":impulse_args",
+    ],
 )

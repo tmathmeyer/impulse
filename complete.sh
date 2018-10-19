@@ -1,9 +1,10 @@
 #!/bin/bash
 
 _impulseargs_complete_global() {
-    local executable="$(which $1)"
-    if (strings "$executable" | grep --quiet "impulse/args/__init__.py") >/dev/null 2>&1; then
-        command="$executable --iacomplete ${COMP_WORDS[@]:1}"
+    local bin="$(which $1)"
+    local query="impulse/args/__init__.py"
+    if (strings "$bin" | grep --quiet "$query") >/dev/null 2>&1; then
+        command="$bin --iacomplete $COMP_LINE?"
         cmdout=$(eval "$command")
         readarray -t COMPREPLY <<<"$cmdout"
         if [[ $? != 0 ]]; then

@@ -15,13 +15,6 @@ from impulse.args import args
 arguments = args.ArgumentParser(complete=True)
 
 
-def _getroot():
-  config = '%s/.config/impulse/config' % os.environ['HOME']
-  if os.path.exists(config):
-    with open(config, 'r') as f:
-      return f.read()
-  raise LookupError('Impulse has not been initialized.')
-
 def _pwd_root_relative():
   root = os.environ['impulse_root']
   pwd = os.environ['PWD']
@@ -31,11 +24,13 @@ def _pwd_root_relative():
 
 
 @arguments
-def build(target:str, debug:bool=False, fakeroot:args.Directory=None):
+def build(target:impulse_paths.BuildTarget,
+          debug:bool=False,
+          fakeroot:args.Directory=None):
   """Builds the given target."""
   if debug:
     status_out.debug = True
-  os.environ['impulse_root'] = fakeroot or _getroot()
+  os.environ['impulse_root'] = fakeroot or impulse_paths.getroot()
 
   bt = impulse_paths.convert_to_build_target(target, _pwd_root_relative(), True)
 
