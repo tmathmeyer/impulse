@@ -75,6 +75,8 @@ class TaskRunner(multiprocessing.Process):
         job()
       except CommandError as e:
         self.signal_output.put(e.msg)
+      except Exception as e:
+        self.signal_output.put(str(e))
       self.signal_output.put(TaskStatus(self.id, job, True))
       self.job_input.task_done()
     return
