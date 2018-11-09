@@ -111,7 +111,7 @@ class DependencyGraph(threaded_dependence.DependentJob):
       pass
     except TypeError:
       #TODO maybe make this check more robust instead of catching.
-      err_template = 'target "%s" missing required argument(s) "%s"'
+      err_template = 'target "{}" missing required argument(s) "{}"'
       function_object = types.FunctionType(code, env, self.name)
       all_args = inspect.getargspec(function_object).args
       missing_args = filter(lambda arg: arg not in self.__args.keys(), all_args)

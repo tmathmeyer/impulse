@@ -12,15 +12,8 @@ from impulse import recursive_loader
 from impulse import status_out
 from impulse.args import args
 
+
 arguments = args.ArgumentParser(complete=True)
-
-
-def _pwd_root_relative():
-  root = os.environ['impulse_root']
-  pwd = os.environ['PWD']
-  if pwd.startswith(root):
-    return '/' + pwd[len(root):]
-  raise ValueError('Impulse can\'t be run from outside %s.' % root)
 
 
 @arguments
@@ -30,9 +23,12 @@ def build(target:impulse_paths.BuildTarget,
   """Builds the given target."""
   if debug:
     status_out.debug = True
-  os.environ['impulse_root'] = fakeroot or impulse_paths.getroot()
 
-  bt = impulse_paths.convert_to_build_target(target, _pwd_root_relative(), True)
+  if fakeroot:
+    os.environ['impulse_root'] = fakeroot
+
+  bt = impulse_paths.convert_to_build_target(
+    target, impulse_paths.relative_pwd(), True)
 
   time1 = time.time()
   graph = recursive_loader.generate_graph(bt)
@@ -48,14 +44,15 @@ def build(target:impulse_paths.BuildTarget,
 def init():
   """Initializes impulse in the current directory."""
   home = os.environ['HOME']
-  if os.path.exists('%s/.config/impulse/config' % home):
+  if os.path.exists('{}/.config/impulse/config'.format(home)):
     override = input(('A configuration file exists, '
               'do you want to overwrite it? [y, N]'))
     if override not in ('y', 'yes', 'Y'):
       return
 
-  os.makedirs('%s/.config/impulse/' % home, exist_ok=True)
-  with open('%s/.config/impulse/config' % home, 'w') as config:
+  print('Exporting $IMPULSE_ROOT to {}'.format(os.environ['PWD']))
+  os.makedirs('{}/.config/impulse/'.format(home), exist_ok=True)
+  with open('{}/.config/impulse/config'.format(home), 'w') as config:
     config.write(os.environ['PWD'])
 
 

@@ -5,18 +5,30 @@ import sys
 
 from impulse.args import args
 
-def root():
-  return os.environ['impulse_root']
 
 NOT_A_BUILD_TARGET = object()
 
 
-def getroot():
-  config = '%s/.config/impulse/config' % os.environ['HOME']
-  if os.path.exists(config):
-    with open(config, 'r') as f:
-      return f.read()
-  raise LookupError('Impulse has not been initialized.')
+def root():
+  if 'impulse_root' not in os.environ:
+    config = '{}/.config/impulse/config'.format(os.environ['HOME'])
+    if os.path.exists(config):
+      with open(config, 'r') as f:
+        os.environ['impulse_root'] = f.read()
+    else:
+      raise LookupError('Impulse has not been initialized.')
+  return os.environ['impulse_root']
+
+def relative_pwd():
+  impulse_root = root()
+  pwd = os.environ.get('PWD', None)
+  if not pwd:
+    raise ValueError('Unable to determine current directory')
+
+  if pwd.startswith(impulse_root):
+    return '/' + pwd[len(impulse_root):]
+
+  raise ValueError('Impulse must be run inside {}.'.format(impulse_root))
 
 
 class PathException(Exception):
@@ -83,7 +95,7 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
 
 def expand_fully_qualified_path(path):
   if not is_fully_qualified_path(path):
-    sys.exit('%s needs to be fully qualified' % path)
+    sys.exit('{} needs to be fully qualified'.format(path))
   return os.path.join(root(), path[2:])
 
 def is_fully_qualified_path(path):
@@ -155,7 +167,7 @@ class BuildTarget(args.ArgComplete):
 
   @classmethod
   def _parse_partial_target(cls, path):
-    build_root = getroot()
+    build_root = root()
     path = os.path.join(build_root, path)
     if ':' in path:
       for value in cls._parse_targets_in_file(*path.split(':')):

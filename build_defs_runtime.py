@@ -11,6 +11,7 @@ import time
 import types
 
 from impulse import threaded_dependence
+from impulse import impulse_paths
 
 unpath = re.compile('//(.*):.*')
 
@@ -22,11 +23,11 @@ def env(graph_object, __name, ruletype, dependencies, debug):
     return unpath.match(__name).group(1)
 
   DEP = '.deps'
-  PWD = os.path.join(os.environ['impulse_root'], 'GENERATED')
+  PWD = os.path.join(impulse_paths.root(), 'GENERATED')
   OUTPUT_DIR = os.path.join(PWD, directory())
 
   def local_file(f):
-    return os.path.join(os.environ['impulse_root'], directory(), f)
+    return os.path.join(impulse_paths.root(), directory(), f)
 
   def build_outputs(dep=None):
     if not dep:
@@ -139,7 +140,7 @@ def env(graph_object, __name, ruletype, dependencies, debug):
   def append_file(to_file, from_file):
     from_file = os.path.join(PWD, from_file)
     to_file = os.path.join(PWD, to_file)
-    os.system('cat %s >> %s' % (from_file, to_file))
+    os.system('cat {} >> {}'.format(from_file, to_file))
 
   res = {}
   res.update(locals())

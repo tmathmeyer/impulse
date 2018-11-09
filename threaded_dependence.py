@@ -53,7 +53,7 @@ class TaskStatus(object):
     self.finished = finished
 
   def __repr__(self):
-    return 'id: %s  --  %s' % (self.id, self.job)
+    return 'id: {}  --  {}'.format(self.id, self.job)
 
 
 class TaskRunner(multiprocessing.Process):
