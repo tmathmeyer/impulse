@@ -207,8 +207,13 @@ def CreatePreGraphNode(args_to_target, build_path, func):
   return PreGraphNode(build_target, dep_targets, func, build_path)
 
 
-def _create_replacement_function(dependencies, wrapped):
+def _create_replacement_function(dependencies, wrapped, required_deps):
+  required_deps = required_deps or []
   def replacement(**kwargs): # All args MUST BE KEYWORD
+    if 'deps' in kwargs:
+      kwargs['deps'] = list(set(kwargs['deps']) | set(required_deps))
+    else:
+      kwargs['deps'] = required_deps
     build_file = inspect.stack()[1].filename
     build_file_path = impulse_paths.get_qualified_build_file_dir(build_file)
     cpgn = CreatePreGraphNode(kwargs, build_file_path, wrapped)
@@ -219,13 +224,13 @@ def _create_replacement_function(dependencies, wrapped):
   return replacement
 
 
-def buildrule(func):
-  return _create_replacement_function([], func)
+def buildrule(func, required_deps=None):
+  return _create_replacement_function([], func, required_deps)
 
 
-def buildrule_depends(*dependencies):
+def buildrule_depends(*dependencies, required_deps=None):
   def decorate(func):
-    return _create_replacement_function(dependencies, func)
+    return _create_replacement_function(dependencies, func, required_deps)
   return decorate
 
 

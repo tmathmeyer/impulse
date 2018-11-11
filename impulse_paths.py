@@ -19,6 +19,7 @@ def root():
       raise LookupError('Impulse has not been initialized.')
   return os.environ['impulse_root']
 
+
 def relative_pwd():
   impulse_root = root()
   pwd = os.environ.get('PWD', None)
@@ -29,6 +30,10 @@ def relative_pwd():
     return '/' + pwd[len(impulse_root):]
 
   raise ValueError('Impulse must be run inside {}.'.format(impulse_root))
+
+
+def output_directory():
+  return os.path.join(root(), 'GENERATED')
 
 
 class PathException(Exception):
@@ -43,16 +48,58 @@ class PathException(Exception):
   def __repr__(self):
     return 'Invalid Target: ' + self._path
 
+
+class LoggerEnv(dict):
+  def __init__(self, called_as='module', push_up=None):
+    self._calls = []
+    self._called_as = called_as
+    self._push_up = push_up
+
+  def __getitem__(self, value):
+    return LoggerEnv(called_as=value, push_up=self)
+
+  def __call__(self, *args, **kwargs):
+    kwargs['called_as'] = kwargs.get('called_as', [])
+    kwargs['called_as'].append(self._called_as)
+    if self._push_up:
+      self._push_up(*args, **kwargs)
+    else:
+      self._calls.append((args, kwargs))
+
+  def __iter__(self):
+    for call in self._calls:
+      yield call
+
+
+class RuleSpec(object):
+  def __init__(self, target, callspec):
+    self.type = callspec[1].get('called_as')[0]
+    self.name = callspec[1].get('name')
+    self.output = os.path.join(
+      output_directory(), target.target_path[2:], self.name)
+
+
+
 class ParsedTarget(object):
   def __init__(self, target_name, target_path):
     self.target_name = target_name
     self.target_path = target_path
 
   def GetBuildFileForTarget(self):
-    return expand_fully_qualified_path(self.target_path + '/BUILD')
+    return expand_fully_qualified_path(os.path.join(self.target_path, 'BUILD'))
 
   def GetFullyQualifiedRulePath(self):
     return self.target_path + ':' + self.target_name
+
+  def GetRuleInfo(self):
+    build_file = self.GetBuildFileForTarget()
+    with open(build_file) as f:
+      compiled = compile(f.read(), build_file, 'exec')
+      logger = LoggerEnv()
+      exec(compiled, logger)
+      for call in logger:
+        if call[1].get('name', None) == self.target_name:
+          return RuleSpec(self, call)
 
   def __hash__(self):
     return hash(self.GetFullyQualifiedRulePath())
@@ -93,34 +140,25 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
 
   return NOT_A_BUILD_TARGET
 
+
 def expand_fully_qualified_path(path):
   if not is_fully_qualified_path(path):
     sys.exit('{} needs to be fully qualified'.format(path))
   return os.path.join(root(), path[2:])
 
+
 def is_fully_qualified_path(path):
   return path.startswith('//')
 
+
 def is_relative_path(path):
   return path.startswith(':')
+
 
 def get_qualified_build_file_dir(build_file_path):
   reg = re.compile(os.path.join(os.environ['impulse_root'], '(.*)/BUILD'))
   return '//' + reg.match(build_file_path).group(1)
 
-class LoggerEnv(dict):
-  def __init__(self):
-    self._calls = []
-
-  def __getitem__(self, value):
-    return self
-
-  def __call__(self, *args, **kwargs):
-    self._calls.append((args, kwargs))
-
-  def __iter__(self):
-    for call in self._calls:
-      yield call
 
 class BuildTarget(args.ArgComplete):
   @classmethod

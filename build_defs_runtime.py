@@ -23,7 +23,7 @@ def env(graph_object, __name, ruletype, dependencies, debug):
     return unpath.match(__name).group(1)
 
   DEP = '.deps'
-  PWD = os.path.join(impulse_paths.root(), 'GENERATED')
+  PWD = impulse_paths.output_directory()
   OUTPUT_DIR = os.path.join(PWD, directory())
 
   def local_file(f):
@@ -136,6 +136,12 @@ def env(graph_object, __name, ruletype, dependencies, debug):
   def write_file(filename, string):
     with open(os.path.join(PWD, filename), 'a') as f:
       f.write(string + '\n')
+
+  def delete_file(filename):
+    try:
+      os.remove(os.path.join(PWD, filename))
+    except:
+      pass
 
   def append_file(to_file, from_file):
     from_file = os.path.join(PWD, from_file)

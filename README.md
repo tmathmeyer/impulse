@@ -5,6 +5,66 @@ Impulse differentiates itself by being much simpler, while still giving develope
 ## Installing
 see INSTALLING.md
 
+## Running
+Default help menu:
+```
+~~$ impulse
+
+usage: impulse [-h] {build,test,init} ...
+
+optional arguments:
+  -h, --help         show this help message and exit
+
+tasks:
+  {build,test,init}
+    build            Builds the given target.
+    test             Builds a testcase and executes it.
+    init             Initializes impulse in the current directory.
+```
+
+Initialize Impulse:
+ - no args
+ - uses current directory as root.
+ - prompts before use.
+```
+~~$ impulse init
+```
+
+Build a target:
+```
+~~$ impulse build -h
+
+usage: impulse build [-h] [--debug] [--fakeroot FAKEROOT] target
+
+positional arguments:
+  target
+
+optional arguments:
+  -h, --help           show this help message and exit
+  --debug              Prints debug messages.
+  --fakeroot           A directory to consider the fake root. useful for
+                       bootstrapping.
+
+```
+
+Run tests:
+```
+~~$ impulse test -h
+
+usage: impulse test [-h] [--export] [--fakeroot FAKEROOT] target
+
+positional arguments:
+  target
+
+optional arguments:
+  -h, --help           show this help message and exit
+  --export             exports test results to a server [WIP].
+  --fakeroot FAKEROOT  A directory to consider the fake root. useful for
+                       bootstrapping.
+
+```
+
+
 ## Directory Layout
 Like the previously mentioned tools, impulse treats some directory as the ```$ROOT```, and all projects are contained somewhere within this directory. For the sake of example in this readme, we will assume that ```$ROOT = ~/src```.
 

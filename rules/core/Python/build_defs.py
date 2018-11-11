@@ -69,8 +69,56 @@ def py_binary(name, srcs, **args):
     command('cp {} {}'.format(local_file(I), O))
 
   package = '.'.join(directory().split('/'))
+  delete_file(mainfile)
   write_file(mainfile, 'from {} import {}'.format(package, name))
   write_file(mainfile, '{}.main()'.format(name))
+
+  tmp_file = zipfile+'.tmp'
+  zip_files(tmp_file, bundle_files)
+
+  libs = dependencies.filter(ruletype='py_library')
+  depzips = map(compose(first, build_outputs), libs)
+  merge_zips(zipfile, tmp_file, *depzips)
+
+  write_file(finalexe, '#!/usr/bin/env python3')
+  append_file(finalexe, zipfile)
+  command('chmod +x {}'.format(finalexe))
+  command('rm {}'.format(mainfile))
+
+
+@buildrule_depends(zip_files, merge_zips,
+  required_deps=["//impulse/testing:unittest"])
+def py_test(name, srcs, **args):
+  depends(inputs=srcs, outputs=[name, name+'.zip'] + srcs)
+  mainfile = '__main__.py'
+
+  finalexe, zipfile, *srcouts = build_outputs()
+  bundle_files = set(srcouts)
+  bundle_files.add(mainfile)
+
+  init_files = set()
+  for direct in srcouts:
+    direct = os.path.dirname(direct)
+    if direct:
+      command('mkdir -p {}'.format(direct))
+    while direct:
+      init_files.add('{}/__init__.py'.format(direct))
+      direct = os.path.dirname(direct)
+
+  for init_file in init_files:
+    bundle_files.add(init_file)
+    command('touch {}'.format(init_file))
+
+  for I, O in zip(srcs, srcouts):
+    command('cp {} {}'.format(local_file(I), O))
+
+  package = 'impulse.testing'
+  delete_file(mainfile)
+  write_file(mainfile, 'from impulse.testing import testmain')
+  package = '.'.join(directory().split('/'))
+  for src in srcs:
+    write_file(mainfile, 'from {} import {}'.format(package, src[:-3]))
+  write_file(mainfile, 'testmain.main()')
 
   tmp_file = zipfile+'.tmp'
   zip_files(tmp_file, bundle_files)
