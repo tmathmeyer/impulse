@@ -33,7 +33,7 @@ def relative_pwd():
 
 
 def output_directory():
-  return os.path.join(root(), 'GENERATED')
+  return os.path.join(root(), 'PACKAGES')
 
 
 class PathException(Exception):

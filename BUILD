@@ -8,25 +8,19 @@ py_binary(
     srcs = ["impulse.py"],
     deps = [
         ":impulse_libs",
-        ":impulse_args"
+        "//impulse/args:args"
     ],
-)
-
-py_library(
-    name = "impulse_args",
-    srcs = ["args/args.py"],
 )
 
 py_library(
     name = "impulse_libs",
     srcs = [
-        "build_defs_runtime.py",
         "impulse_paths.py",
         "recursive_loader.py",
         "status_out.py",
         "threaded_dependence.py",
     ],
     deps = [
-        ":impulse_args",
+        "//impulse/args:args",
     ],
 )

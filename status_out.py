@@ -8,7 +8,7 @@ class JobPrinter(object):
     self._completed_jobs = 0
     self._total_jobs = jobcount
     self._pool_count = pool_count
-    self.debug = False
+    self.debug = True
     self._print()
 
   def write_task_msg(self, mid, msg):
@@ -28,7 +28,7 @@ class JobPrinter(object):
 
     if self.debug:
       for msg in self._jobs:
-        if msg != 'IDLE':
+        if 'IDLE' != msg:
           print(msg)
     else:
       for msg in [countline] + self._jobs:

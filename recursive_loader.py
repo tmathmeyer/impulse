@@ -1,18 +1,206 @@
 
+import collections
 import inspect
 import marshal
 import re
+import sys
+import subprocess
 import os
 import pathlib
 import types
+import time
+import json
 
 from impulse import impulse_paths
-from impulse import build_defs_runtime
 from impulse import threaded_dependence
-from impulse import build_defs_runtime
 
 
 rules = {}
+PATH_REGEX = re.compile('//(.*):(.*)')
+
+
+class Command(object):
+  def __init__(self, args, pwd):
+    self._pwd = pwd
+    self._args = args
+
+  def run(self):
+    process = subprocess.Popen(
+      self._args, 
+      cwd=self._pwd,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+      universal_newlines=True)
+    _, err = process.communicate()
+    if process.returncode != 0:
+      raise threaded_dependence.CommandError(
+        ' '.join(self._args) + '--> ' + err)
+
+
+class Writer(object):
+  def __init__(self, path, mode):
+    self._path = path
+    self._mode = mode
+    self._calls = []
+
+  def __enter__(self):
+    self._calls = []
+    return self
+
+  def __exit__(self, a, b, c):
+    pass
+
+  def __getattr__(self, attr):
+    def savecall(*args, **kwargs):
+      self._calls.append((attr, args, kwargs))
+    return savecall
+
+  def run(self):
+    with open(self._path, self._mode) as f:
+      for fn, args, kwargs in self._calls:
+        getattr(f, fn)(*args, **kwargs)
+
+
+class BuildTarget(object):
+  """Represents a timestamped build target."""
+
+  def __init__(self, name):
+    # target "full" name
+    self.__name = name
+
+    # root is the output directory
+    self._root = self.pkg_file('')
+
+    # input files, output files, dependant build targets
+    self._inputs = set()
+    self._outputs = set()
+    self._depends = set()
+
+    # target simple name
+    self._name = None
+
+    # order the commands to replay after the rule input
+    # files are determined
+    self._ordered_cmds = list()
+
+    # ensure that the root directory is created
+    self.run_impulseroot('mkdir')('-p', self._root)
+
+  @classmethod
+  def ParseFile(cls, jsonfile):
+    parsed = PATH_REGEX.match(jsonfile)
+    jsonfile = os.path.join(
+      impulse_paths.root(), 'PACKAGES',
+      parsed.group(1), parsed.group(2)) + '.package.json'
+    with open(jsonfile, "r") as f:
+      contents = json.loads(f.read())
+      result = BuildTarget(contents['full_name'])
+      result._inputs.update(contents['input_files'])
+      result._outputs.update(contents['output_files'])
+      for dep in contents['depends_on']:
+        result._deps.add(cls.ParseFile(dep))
+      return result
+
+  def evaluate(self):
+    jsonfile = '{}.package.json'.format(self._name)
+    with self.write_file(jsonfile) as f:
+      f.write(json.dumps({
+        'input_files': list(self._inputs),
+        'output_files': list(self._outputs),
+        'built_from': 'TODO',
+        'build_timestamp': int(time.time()),
+        'depends_on': list(str(d) for d in self._depends),
+        'full_name': self.__name,
+      }, indent=2))
+    self.synchronize()
+
+  def __str__(self):
+    return self.__name
+
+  def synchronize(self):
+    for cmd in self._ordered_cmds:
+      cmd.run()
+    self._ordered_cmds = []
+
+  def write_file(self, filename, outside_pkg=False):
+    return self.__openfile(filename, outside_pkg, 'w+')
+
+  def append_file(self, filename, outside_pkg=False):
+    return self.__openfile(filename, outside_pkg, 'a+')
+
+  def __openfile(self, filename, outside_pkg, mode):
+    if outside_pkg:
+      pkgbase = os.path.join(impulse_paths.root(), 'PACKAGES')
+    else:
+      pkgbase = self._root
+    filename = os.path.join(pkgbase, filename)
+    writer = Writer(filename, mode)
+    self._ordered_cmds.append(writer)
+    self._outputs.add(filename)
+    return writer
+
+  def pkg_file(self, filename):
+    """Gets a full file path for a BUILD-file local file."""
+    return os.path.join(
+      impulse_paths.root(), 'PACKAGES', 
+      self.directory(), filename)
+
+  def vc_file(self, filename):
+    return os.path.join(
+      impulse_paths.root(), self.directory(), filename)
+
+  def directory(self):
+    return PATH_REGEX.match(self.__name).group(1)
+
+  def _cmd(self, cmd, pwd=None):
+    """Creates a helper function which appends command."""
+    def run(*args):
+      self._ordered_cmds.append(Command([cmd] + list(args),
+        pwd=pwd or self._root))
+    return run
+
+  def run_pkgroot(self, cmd):
+    return self._cmd(cmd, pwd=os.path.join(
+      impulse_paths.root(), 'PACKAGES'))
+
+  def run_impulseroot(self, cmd):
+    return self._cmd(cmd, impulse_paths.root())
+
+  def import_from(self, vc_file, pkg_file, keep):
+    vc_file = self.vc_file(vc_file)
+    pkg_file = self.pkg_file(pkg_file)
+    self.cp(vc_file, pkg_file)
+    if keep:
+      self._tracked.add(vc_file)
+
+  def track_output_file(self, pkg_file):
+    self._outputs.add(self.pkg_file(pkg_file))
+
+  def track_input_file(self, vc_file):
+    self._inputs.add(self.vc_file(vc_file))
+
+  def track_depends(self, depends):
+    self._depends.add(BuildTarget.ParseFile(depends))
+
+  def set_name(self, name):
+    self._name = name
+
+  def __getattr__(self, attr):
+    return self._cmd(attr)
+
+  def get_output_files(self):
+    self.synchronize()
+    droplen = len(
+      os.path.join(impulse_paths.root(), 'PACKAGES', ''))
+    for f in self._outputs:
+      yield f[droplen:]
+    for dep in self._depends:
+      for f in dep.get_output_files():
+        yield f
+
+
+
+
 
 class FilterableSet(object):
   def __init__(self, *args):
@@ -85,7 +273,8 @@ class DependencyGraph(threaded_dependence.DependentJob):
     self.printed = False
 
   def __eq__(self, other):
-    return other.name == self.name
+    return (other.__class__ == self.__class__ and
+            other.name == self.name)
 
   def __hash__(self):
     return hash(self.name)
@@ -93,30 +282,35 @@ class DependencyGraph(threaded_dependence.DependentJob):
   def __repr__(self):
     return self.name
 
+  def parse_depends(d):
+    return d
+
   def run_job(self, debug):
-    env = build_defs_runtime.env(
-      self, self.name, self.ruletype, self.dependencies, debug)
     try:
       code = marshal.loads(self.__decompiled_behavior)
-      types.FunctionType(code, env, self.name)(**self.__args)
-      module_finished_path = env['deptoken'](self)
-      try:
-        os.makedirs(os.path.dirname(module_finished_path))
-      except:
-        pass
-      with open(module_finished_path, 'w') as f:
-        for output in self.outputs:
-          f.write(output + '\n')
-    except build_defs_runtime.RuleFinishedException:
-      pass
-    except TypeError:
-      #TODO maybe make this check more robust instead of catching.
-      err_template = 'target "{}" missing required argument(s) "{}"'
-      function_object = types.FunctionType(code, env, self.name)
-      all_args = inspect.getargspec(function_object).args
-      missing_args = filter(lambda arg: arg not in self.__args.keys(), all_args)
-      missing = ', '.join(missing_args)
-      raise
+      target = BuildTarget(self.name)
+      def wrap(fn, target, **kwargs):
+        target.set_name(kwargs.get('name'))
+        for dep in kwargs.get('deps', []):
+          target.track_depends(dep)
+        for src in kwargs.get('srcs', []):
+          directory = os.path.dirname(src)
+          while directory:
+            target.mkdir('-p', directory)
+            directory = os.path.dirname(directory)
+          target.track_input_file(src)
+          target.import_from(pkg_file=src, vc_file=src, keep=False)
+        fn(target=target, **kwargs)
+        target.evaluate()
+      fn = types.FunctionType(code, globals(), self.name)
+      wrap(fn, target, **self.__args)
+    except Exception as e:
+      tb = e.__traceback__
+      while tb:
+        print('{}: {}'.format(
+          tb.tb_frame.f_code.co_filename, tb.tb_lineno))
+        tb = tb.tb_next
+      raise e
 
 def flatten(item):
   if isinstance(item, str):
@@ -224,13 +418,18 @@ def _create_replacement_function(dependencies, wrapped, required_deps):
   return replacement
 
 
-def buildrule(func, required_deps=None):
-  return _create_replacement_function([], func, required_deps)
+
+#def buildrule(func, required_deps=None):
+#  return _create_replacement_function([], func, required_deps)
+
+def buildrule(fn, required_deps=None, imports=None):
+  return _create_replacement_function(
+    imports or [], fn, required_deps or [])
 
 
 def buildrule_depends(*dependencies, required_deps=None):
   def decorate(func):
-    return _create_replacement_function(dependencies, func, required_deps)
+    return buildrule(func, required_deps, dependencies)
   return decorate
 
 
