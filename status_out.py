@@ -8,7 +8,7 @@ class JobPrinter(object):
     self._completed_jobs = 0
     self._total_jobs = jobcount
     self._pool_count = pool_count
-    self.debug = True
+    self.debug = False
     self._print()
 
   def write_task_msg(self, mid, msg):

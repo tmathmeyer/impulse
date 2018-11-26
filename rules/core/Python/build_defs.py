@@ -1,133 +1,56 @@
-
-import os
-
 @buildrule
-def zip_files(name, srcs, **_):
-  command('zip {} {}'.format(name, ' '.join(srcs)))
-
-@buildrule
-def merge_zips(name, *zips, **_):
-  command('zipmerge {} {}'.format(name, ' '.join(zips)))
-
-@buildrule_depends(zip_files, merge_zips)
-def py_library(name, srcs, **args):
-  depends(inputs=srcs, outputs=[name + '.zip', '__init__.py'] + srcs)
-
-  zipfile, initfile, *outputs = build_outputs()
-  bundle_files = set(outputs)
-  bundle_files.add(initfile)
-
-  command('touch {}'.format(initfile))
-
-  init_files = set()
-  for direct in outputs:
-    direct = os.path.dirname(direct)
-    if direct:
-      command('mkdir -p {}'.format(direct))
-    while direct:
-      init_files.add('{}/__init__.py'.format(direct))
-      direct = os.path.dirname(direct)
-
-  for init_file in init_files:
-    bundle_files.add(init_file)
-    command('touch {}'.format(init_file))
-
-  for I, O in zip(srcs, outputs):
-    command('cp {} {}'.format(local_file(I), O))
-
-  tmp_file = zipfile+'.tmp'
-  zip_files(tmp_file, bundle_files)
-
-  libs = dependencies.filter(ruletype='py_library')
-  depzips = map(compose(first, build_outputs), libs)
-  merge_zips(zipfile, tmp_file, *depzips)
-
-
-@buildrule_depends(zip_files, merge_zips)
-def py_binary(name, srcs, **args):
-  depends(inputs=srcs, outputs=[name, name+'.zip'] + srcs)
-  mainfile = '__main__.py'
-
-  finalexe, zipfile, *srcouts = build_outputs()
-  bundle_files = set(srcouts)
-  bundle_files.add(mainfile)
-
-  init_files = set()
-  for direct in srcouts:
-    direct = os.path.dirname(direct)
-    if direct:
-      command('mkdir -p {}'.format(direct))
-    while direct:
-      init_files.add('{}/__init__.py'.format(direct))
-      direct = os.path.dirname(direct)
-
-  for init_file in init_files:
-    bundle_files.add(init_file)
-    command('touch {}'.format(init_file))
-
-  for I, O in zip(srcs, srcouts):
-    command('cp {} {}'.format(local_file(I), O))
-
-  package = '.'.join(directory().split('/'))
-  delete_file(mainfile)
-  write_file(mainfile, 'from {} import {}'.format(package, name))
-  write_file(mainfile, '{}.main()'.format(name))
-
-  tmp_file = zipfile+'.tmp'
-  zip_files(tmp_file, bundle_files)
-
-  libs = dependencies.filter(ruletype='py_library')
-  depzips = map(compose(first, build_outputs), libs)
-  merge_zips(zipfile, tmp_file, *depzips)
-
-  write_file(finalexe, '#!/usr/bin/env python3')
-  append_file(finalexe, zipfile)
-  command('chmod +x {}'.format(finalexe))
-  command('rm {}'.format(mainfile))
-
-
-@buildrule_depends(zip_files, merge_zips,
-  required_deps=["//impulse/testing:unittest"])
-def py_test(name, srcs, **args):
-  depends(inputs=srcs, outputs=[name, name+'.zip'] + srcs)
-  mainfile = '__main__.py'
-
-  finalexe, zipfile, *srcouts = build_outputs()
-  bundle_files = set(srcouts)
-  bundle_files.add(mainfile)
-
-  init_files = set()
-  for direct in srcouts:
-    direct = os.path.dirname(direct)
-    if direct:
-      command('mkdir -p {}'.format(direct))
-    while direct:
-      init_files.add('{}/__init__.py'.format(direct))
-      direct = os.path.dirname(direct)
-
-  for init_file in init_files:
-    bundle_files.add(init_file)
-    command('touch {}'.format(init_file))
-
-  for I, O in zip(srcs, srcouts):
-    command('cp {} {}'.format(local_file(I), O))
-
-  package = 'impulse.testing'
-  delete_file(mainfile)
-  write_file(mainfile, 'from impulse.testing import testmain')
-  package = '.'.join(directory().split('/'))
+def py_library(target, name, srcs, **kwargs):
+  import os
+  directories = set()
   for src in srcs:
-    write_file(mainfile, 'from {} import {}'.format(package, src[:-3]))
-  write_file(mainfile, 'testmain.main()')
+    directory = os.path.join(
+      target.directory(), os.path.dirname(src))
+    while directory:
+      directories.add(directory)
+      directory = os.path.dirname(directory)
+    target.track_output_file(src)
+  for directory in directories:
+    initfile = os.path.join(directory, '__init__.py')
+    with target.write_file(initfile, outside_pkg=True) as f:
+      f.write('# auto-generated\n')
 
-  tmp_file = zipfile+'.tmp'
-  zip_files(tmp_file, bundle_files)
+@buildrule
+def py_binary(target, name, **kwargs):
+  # just like py-library
+  import os
+  directories = set()
+  for src in kwargs.get('srcs', []):
+    directory = os.path.join(
+      target.directory(), os.path.dirname(src))
+    while directory:
+      directories.add(directory)
+      directory = os.path.dirname(directory)
+    target.track_output_file(src)
+  for directory in directories:
+    initfile = os.path.join(directory, '__init__.py')
+    with target.write_file(initfile, outside_pkg=True) as f:
+      f.write('# auto-generated\n')
 
-  libs = dependencies.filter(ruletype='py_library')
-  depzips = map(compose(first, build_outputs), libs)
-  merge_zips(zipfile, tmp_file, *depzips)
+  # Generate a mainfile
+  mainfile = '__main__.py'
+  package = '.'.join(target.directory().split('/'))
+  with target.write_file(mainfile, outside_pkg=True) as f:
+    f.write('from {} import {}\n'.format(package, name))
+    f.write('{}.main()\n'.format(name))
 
-  write_file(finalexe, '#!/usr/bin/env python3')
-  append_file(finalexe, zipfile)
-  command('chmod +x {}'.format(finalexe))
-  command('rm {}'.format(mainfile))
+  # write the zip file
+  zipname = target.pkg_file(name + '.zip')
+  zip = target.run_pkgroot('zip')
+  zip(zipname, *list(target.get_output_files()))
+
+  # create executable header
+  with target.write_file(name) as f:
+    f.write('#!/usr/bin/env python3\n')
+
+  # cat zip file into the executable
+  exename = target.pkg_file(name)
+  target.synchronize()
+  os.system('cat {} >> {}'.format(zipname, exename))
+  target.chmod('+x', exename)
+  target.track_output_file(name)
+

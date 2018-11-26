@@ -19,7 +19,16 @@ rules = {}
 PATH_REGEX = re.compile('//(.*):(.*)')
 
 
+def timestamp(filepath):
+  """Gets the last modified timestamp of a file."""
+  if os.path.exists(filepath):
+    return os.path.getmtime(filepath)
+  raise ValueError(filepath + ' does not exist!')
+
+
 class Command(object):
+  """A lazy shell command wrapper."""
+
   def __init__(self, args, pwd):
     self._pwd = pwd
     self._args = args
@@ -38,6 +47,8 @@ class Command(object):
 
 
 class Writer(object):
+  """A lazy file writer wrapper."""
+
   def __init__(self, path, mode):
     self._path = path
     self._mode = mode
@@ -83,25 +94,49 @@ class BuildTarget(object):
     # files are determined
     self._ordered_cmds = list()
 
+    # never been built
+    self._buildtime = 0
+
     # ensure that the root directory is created
     self.run_impulseroot('mkdir')('-p', self._root)
 
   @classmethod
   def ParseFile(cls, jsonfile):
-    parsed = PATH_REGEX.match(jsonfile)
-    jsonfile = os.path.join(
-      impulse_paths.root(), 'PACKAGES',
-      parsed.group(1), parsed.group(2)) + '.package.json'
-    with open(jsonfile, "r") as f:
-      contents = json.loads(f.read())
-      result = BuildTarget(contents['full_name'])
-      result._inputs.update(contents['input_files'])
-      result._outputs.update(contents['output_files'])
-      for dep in contents['depends_on']:
-        result._deps.add(cls.ParseFile(dep))
-      return result
+    try:
+      parsed = PATH_REGEX.match(jsonfile)
+      jsonfile = os.path.join(
+        impulse_paths.root(), 'PACKAGES',
+        parsed.group(1), parsed.group(2)) + '.package.json'
+      with open(jsonfile, "r") as f:
+        contents = json.loads(f.read())
+        result = BuildTarget(contents['full_name'])
+        result._inputs.update(contents['input_files'])
+        result._outputs.update(contents['output_files'])
+        result._buildtime = contents['build_timestamp']
+        for dep in contents['depends_on']:
+          result._depends.add(cls.ParseFile(dep))
+        return result
+    except:
+      return None
 
   def evaluate(self):
+    previous_build = self.ParseFile(self.__name)
+    required_build = previous_build is None
+    if not required_build:
+      for inputfile in self._inputs:
+        if timestamp(inputfile) > previous_build._buildtime:
+          required_build = True
+          break
+
+    if not required_build:
+      for depends_on in self._depends:
+        if depends_on._buildtime > previous_build._buildtime:
+          required_build = True
+          break
+
+    if not required_build:
+      return
+
     jsonfile = '{}.package.json'.format(self._name)
     with self.write_file(jsonfile) as f:
       f.write(json.dumps({
@@ -199,10 +234,9 @@ class BuildTarget(object):
         yield f
 
 
-
-
-
 class FilterableSet(object):
+  """A set that can be filtered with key words."""
+
   def __init__(self, *args):
     self.wrapped = set(args)
 
@@ -417,10 +451,6 @@ def _create_replacement_function(dependencies, wrapped, required_deps):
   replacement.wraps = wrapped
   return replacement
 
-
-
-#def buildrule(func, required_deps=None):
-#  return _create_replacement_function([], func, required_deps)
 
 def buildrule(fn, required_deps=None, imports=None):
   return _create_replacement_function(

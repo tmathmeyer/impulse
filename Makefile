@@ -13,11 +13,11 @@ copy_srcs:
 	@cp BUILD impulse/
 	@cp -r args impulse/args
 
-install: GENERATED/impulse/impulse
+install: PACKAGES/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'
-	@cp GENERATED/impulse/impulse /usr/local/bin/impulse
+	@cp PACKAGES/impulse/impulse /usr/local/bin/impulse
 
 clean:
-	@rm -rf GENERATED/
+	@rm -rf PACKAGES/
 	@rm -rf impulse/
 	@rm -rf .deps/
