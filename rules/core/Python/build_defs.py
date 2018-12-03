@@ -1,56 +1,53 @@
 @buildrule
 def py_library(target, name, srcs, **kwargs):
   import os
-  directories = set()
+  directories = set([''])
   for src in srcs:
-    directory = os.path.join(
-      target.directory(), os.path.dirname(src))
+    directory = os.path.dirname(src)
     while directory:
       directories.add(directory)
       directory = os.path.dirname(directory)
-    target.track_output_file(src)
+    target.track(src, I=True, O=True)
+
   for directory in directories:
     initfile = os.path.join(directory, '__init__.py')
-    with target.write_file(initfile, outside_pkg=True) as f:
+    with open(initfile, 'w+') as f:
       f.write('# auto-generated\n')
+    target.track(initfile, O=True)
+
 
 @buildrule
 def py_binary(target, name, **kwargs):
-  # just like py-library
   import os
   directories = set()
   for src in kwargs.get('srcs', []):
-    directory = os.path.join(
-      target.directory(), os.path.dirname(src))
+    directory = os.path.dirname(src)
     while directory:
       directories.add(directory)
       directory = os.path.dirname(directory)
-    target.track_output_file(src)
+    target.track(src, I=True, O=True)
+
   for directory in directories:
     initfile = os.path.join(directory, '__init__.py')
-    with target.write_file(initfile, outside_pkg=True) as f:
+    with open(initfile, 'w+') as f:
       f.write('# auto-generated\n')
+    target.track(initfile, O=True)
 
-  # Generate a mainfile
-  mainfile = '__main__.py'
-  package = '.'.join(target.directory().split('/'))
-  with target.write_file(mainfile, outside_pkg=True) as f:
-    f.write('from {} import {}\n'.format(package, name))
-    f.write('{}.main()\n'.format(name))
+  with target.writing_temp_files():
+    package = '.'.join(target.build_path().split('/'))
+    mainfile = '__main__.py'
+    with open(mainfile, 'w+') as f:
+      f.write('from {} import {}\n'.format(package, name))
+      f.write('{}.main()\n'.format(name))
 
-  # write the zip file
-  zipname = target.pkg_file(name + '.zip')
-  zip = target.run_pkgroot('zip')
-  zip(zipname, *list(target.get_output_files()))
+    zip_files = list(target.generated_by_dependencies())
+    zipname = '{}/{}.zip'.format(target.build_path(), name)
+    os.system('zip -r {} {} {} 2>&1 > /dev/null'.format(zipname,
+      mainfile, ' '.join(zip_files)))
 
-  # create executable header
-  with target.write_file(name) as f:
-    f.write('#!/usr/bin/env python3\n')
-
-  # cat zip file into the executable
-  exename = target.pkg_file(name)
-  target.synchronize()
-  os.system('cat {} >> {}'.format(zipname, exename))
-  target.chmod('+x', exename)
-  target.track_output_file(name)
-
+    executable_name = '{}/{}'.format(target.build_path(), name)
+    with open(executable_name, 'w+') as f:
+      f.write('#!/usr/bin/env python3\n')
+    os.system('cat {} >> {}'.format(zipname, executable_name))
+    os.system('chmod +x {}'.format(executable_name))
+    target.copy_from_tmp(executable_name)
