@@ -22,7 +22,7 @@ def build(target:impulse_paths.BuildTarget,
           fakeroot:args.Directory=None):
   """Builds the given target."""
   if debug:
-    status_out.debug = True
+    status_out.DEBUG = True
 
   if fakeroot:
     os.environ['impulse_root'] = fakeroot

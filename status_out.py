@@ -1,6 +1,8 @@
 
 import sys
 
+DEBUG = False
+
 class JobPrinter(object):
   def __init__(self, jobcount, pool_count):
     self._jobs = ['IDLE' for _ in range(pool_count)]
@@ -8,7 +10,7 @@ class JobPrinter(object):
     self._completed_jobs = 0
     self._total_jobs = jobcount
     self._pool_count = pool_count
-    self.debug = False
+    self.debug = DEBUG
     self._print()
 
   def write_task_msg(self, mid, msg):

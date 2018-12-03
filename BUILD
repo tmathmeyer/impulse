@@ -19,6 +19,9 @@ py_library(
         "recursive_loader.py",
         "status_out.py",
         "threaded_dependence.py",
+        "build_target.py",
+        "exceptions.py",
+        "rw_fs.py",
     ],
     deps = [
         "//impulse/args:args",

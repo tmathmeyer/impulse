@@ -110,7 +110,7 @@ class ParsedTarget(object):
     return False
 
   def __repr__(self):
-    return str(self.__dict__)
+    return self.GetFullyQualifiedRulePath()
 
 
 def convert_name_to_build_target(name, loaded_from_dir):
