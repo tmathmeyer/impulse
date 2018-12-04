@@ -8,11 +8,12 @@ from impulse import build_target
 
 
 class BuildTargetIntermediary(object):
-  def __init__(self, name, func, args, build_rule, evaluator):
+  def __init__(self, name, func, args, build_rule, ruletype, evaluator):
     self._func = marshal.dumps(func.__code__)
     self._name = name
     self._args = args
     self._build_rule = build_rule
+    self._rule_type = ruletype
     self._evaluator = evaluator
     self._converted = None
 
@@ -23,7 +24,8 @@ class BuildTargetIntermediary(object):
         dep, self._build_rule.target_path)
       dependencies.add(self._evaluator._targets[target].convert())
     self._converted = build_target.BuildTarget(
-      self._name, self._func, self._args, self._build_rule, dependencies)
+      self._name, self._func, self._args, self._build_rule,
+      self._rule_type, dependencies)
     return self._converted
 
 
@@ -68,7 +70,7 @@ class RuleEvaluator(object):
         name, build_file_path)
       # save this target call to evaluate in the graph later
       self._targets[build_rule] = BuildTargetIntermediary(
-        name, fn, kwargs, build_rule, self)
+        name, fn, kwargs, build_rule, build_as, self)
       # Parse the dependencies and evaluate them too
       for dep in kwargs.get('deps', []):
         if impulse_paths.is_fully_qualified_path(dep):

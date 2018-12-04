@@ -2,6 +2,7 @@ import json
 import marshal
 import os
 import re
+import shutil
 import tempfile
 import time
 import traceback
@@ -44,6 +45,7 @@ class PackageInfo(object):
     self.generated_files = set()
     self.package_target = None
     self.package_name = None
+    self.ruletype = None
 
     # critical to take the timestamp early;
     # if a file changes _while_ the builder
@@ -52,6 +54,13 @@ class PackageInfo(object):
 
   def __repr__(self):
     return str(self.package_target)
+
+  def __hash__(self):
+    return hash(self.package_target)
+
+  def __eq__(self, other):
+    return (other.__class__ == self.__class__ and
+      other.package_target == self.package_target)
 
   @classmethod
   def Import(clz, file, target):
@@ -80,8 +89,7 @@ class PackageInfo(object):
 
   def export(self):
     assert self.package_name is not None
-    if self.build_timestamp == 0:
-      self.build_timestamp = int(time.time())
+    self.build_timestamp = int(time.time())
     with open(self.package_name, 'w+') as f:
       env = {}
       for k, v in self.__dict__.items():
@@ -94,12 +102,13 @@ class PackageInfo(object):
 
 
 class BuildTarget(threaded_dependence.DependentJob):
-  def __init__(self, name, func, args, rule, dependencies):
+  def __init__(self, name, func, args, rule, ruletype, dependencies):
     super().__init__(dependencies)
     self._func = func
     self._args = args
     self._name = name
     self._build_rule = rule
+    self._ruletype = ruletype
 
   def __eq__(self, other):
     return (
@@ -122,6 +131,11 @@ class BuildTarget(threaded_dependence.DependentJob):
           yield pkg.build_timestamp + 1
       for p in pkg.depends_on_targets:
         yield p.build_timestamp
+
+    for f in pkg.generated_files:
+      if not os.path.exists(f):
+        return True
+
     for timestamp in all_timestamps():
       if timestamp > pkg.build_timestamp:
         return True
@@ -139,23 +153,30 @@ class BuildTarget(threaded_dependence.DependentJob):
 
   def track(self, file, I=False, O=False):
     if I or O:
-      os.access(file, mode=32768|os.F_OK)
+      os.access(file, mode=os.R_OK|os.W_OK|os.X_OK|os.F_OK)
     if I:
       self._package_info.depends_on_files.add(file)
     if O:
       self._package_info.generated_files.add(file)
 
-  def generated_by_dependencies(self, filter=None):
+  def generated_by_dependencies(self, **kwargs):
     def iterate_output(pkg):
       for f in pkg.generated_files:
         rulepath,_ = RULE_REGEX.match(str(pkg)).groups()
-        yield os.path.join(rulepath, f)
+        yield (os.path.join(rulepath, f), pkg)
       for pkg in pkg.depends_on_targets:
         for i in iterate_output(pkg):
           yield i
 
-    for i in iterate_output(self._package_info):
-      yield i
+    def matches_filter(pkg):
+      for k, v in kwargs.items():
+        if getattr(pkg, k) != v:
+          return False
+      return True
+
+    for file, pkg in iterate_output(self._package_info):
+      if matches_filter(pkg):
+        yield file
 
   def writing_temp_files(self):
     superself = self
@@ -182,9 +203,10 @@ class BuildTarget(threaded_dependence.DependentJob):
       impulse_paths.root(), EXPORT_DIR,
       self.build_path(), os.path.basename(copyname))
     os.system('cp {} {}'.format(copyname, export_to))
-    self._package_info.generated_files.add(
-      os.path.join(self.build_path(), os.path.basename(copyname)))
+    self._package_info.generated_files.add(os.path.basename(copyname))
 
+  def get_true_root(self):
+    return os.path.join(impulse_paths.root(), EXPORT_DIR)
 
   # Entry point where jobs start
   def run_job(self, debug):
@@ -198,6 +220,7 @@ class BuildTarget(threaded_dependence.DependentJob):
     with rw_fs.FuseCTX(tmpdirname, ro_directory, rw_directory):
       with SetDirectory(tmpdirname):
         self._package_info = PackageInfo.Import(package_filename, str(self))
+        self._package_info.ruletype = self._ruletype
         for depends in self.dependencies:
           self._package_info.depends_on_targets.add(
             target2package(depends))
@@ -215,7 +238,8 @@ class BuildTarget(threaded_dependence.DependentJob):
           try:
             fn(self, name=self._name, **self._args)
           except Exception as e:
+            traceback.print_exc()
             raise exceptions.BuildRuleRuntimeError(e)
-
-        self._package_info.export()
-        print('exported')
+          self._package_info.export()
+        else:
+          raise exceptions.BuildTargetNeedsNoUpdate()

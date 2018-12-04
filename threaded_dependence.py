@@ -5,7 +5,7 @@ import random
 import sys
 import time
 
-
+from impulse import exceptions
 from impulse import status_out
 
 
@@ -73,6 +73,8 @@ class TaskRunner(multiprocessing.Process):
       self.signal_output.put(TaskStatus(self.id, job, False))
       try:
         job()
+      except exceptions.BuildTargetNeedsNoUpdate:
+        pass
       except CommandError as e:
         self.signal_output.put(e.msg)
       except Exception as e:

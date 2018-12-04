@@ -114,7 +114,12 @@ class FuseWrapper(fuse.Operations):
         'st_size', 'st_uid'))
     if path == '/':
       return _getattr(self._rw, self._rw)
-    return self._fall_ahead_on_read(path, _getattr)
+
+    stats = self._fall_ahead_on_read(path, _getattr)
+    maybe_ts = self._fallback_on_read(path, _getattr)['st_mtime']
+    if (maybe_ts > stats['st_mtime']):
+      stats['st_mtime'] = maybe_ts
+    return stats
     
   def readlink(self, path):
     def _readlink(path, root):
@@ -133,20 +138,15 @@ class FuseWrapper(fuse.Operations):
     return self._fallback_on_read(path, _statfs)
 
   def access(self, path, mode):
-    if mode & 32768:
-      ro, rw = self._truncate(path)
-      if os.path.exists(ro):
-        if os.path.isdir(ro):
-          os.makedirs(rw)
-        else:
-          if not os.path.exists(os.path.dirname(rw)):
-            os.makedirs(os.path.dirname(rw))
-          shutil.copyfile(ro, rw)
-
-    mode &= 32767
-    def _access(path, root):
+    def _access(path, _=None):
       if not os.access(path, mode):
         self._access_fail(path)
+    if mode == 7:  # force a copy
+      ro, rw = self._truncate(path)
+      if not os.path.isdir(ro):
+        if not os.path.exists(os.path.dirname(rw)):
+          os.makedirs(os.path.dirname(rw))
+        shutil.copyfile(ro, rw)
     return self._fallback_on_read(path, _access)
 
 

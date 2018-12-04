@@ -14,3 +14,8 @@ class BuildRuleCompilationError(Exception):
 class ImpulseAssertWrapperError(Exception):
   """Raised when an impulse core library assert fails."""
   pass
+
+
+class BuildTargetNeedsNoUpdate(Exception):
+  """Raised when a build target was built recently."""
+  pass

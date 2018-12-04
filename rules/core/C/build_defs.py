@@ -1,38 +1,43 @@
 @buildrule
-def c_header(name, srcs, **args):
-  depends(inputs=srcs, outputs=srcs)
+def c_header(target, name, srcs, **args):
   for src in srcs:
-    copy(local_file(src))
+    target.track(src, I=True, O=True)
 
 @buildrule
-def c_object(name, srcs, **args):
-  depends(inputs=srcs, outputs=[name+'.o'])
-
-  object_dependencies = dependencies.filter(ruletype='c_object')
-
-  command('gcc -o {} -I{} -c {} {} -std=c11 -Wextra -Wall {}'.format(
-    build_outputs()[0], PWD,
-    ' '.join(local_file(src) for src in srcs),
-    ' '.join(sum(map(build_outputs, object_dependencies), [])),
-    ' '.join(args.get('flags', []))))
-
+def c_object(target, name, srcs, **args):
+  import os
+  object_dependencies = list(target.generated_by_dependencies(
+    ruletype='c_object'))
+  cmd_fmt = 'gcc -o {bin} -I{incl} -c {srcs} {objs} {flags} {d_flags}'
+  cmd = cmd_fmt.format(**{
+    'bin': name + '.o',
+    'incl': target.get_true_root(),
+    'srcs': ' '.join(srcs),
+    'objs': ' '.join(object_dependencies),
+    'flags': ' '.join(args.get('flags', [])),
+    'd_flags': '-std=c11 -Wextra -Wall',
+  })
+  os.system(cmd)
+  print(cmd)
+  target.track(name + '.o', O=True)
 
 @buildrule
-def c_binary(name, **args):
-  srcs = args.get('srcs', [])
-  depends(inputs=srcs, outputs=[name])
+def c_binary(target, name, **args):
+  import os
+  object_dependencies = list(target.generated_by_dependencies(
+    ruletype='c_object'))
+  cmd_fmt = 'gcc -o {bin} -I{incl} {srcs} {objs} {flags} {d_flags}'
+  os.system(cmd_fmt.format(**{
+    'bin': name,
+    'incl': target.get_true_root(),
+    'srcs': ' '.join(args.get('srcs', [])),
+    'objs': ' '.join(object_dependencies),
+    'flags': ' '.join(args.get('flags', [])),
+    'd_flags': '-std=c11 -Wextra -Wall',
+  }))
+  target.track(name, O=True)
 
-  objects = ' '.join(sum(map(build_outputs, dependencies), []))
-  sources = ' '.join(local_file(src) for src in srcs)
-
-  cmd = 'gcc -o %s -I%s %s %s -std=c11 -Wextra -Wall' % (
-    build_outputs()[0], PWD, sources, objects)
-
-  for flag in args.get('flags', []):
-    cmd += (' ' + flag)
-
-  command(cmd)
-
+"""
 @buildrule_depends(c_object)
 def c_object_nostd(name, srcs, **args):
   flags = args.setdefault('flags', [])
@@ -40,3 +45,4 @@ def c_object_nostd(name, srcs, **args):
     '-nostdinc', '-fno-stack-protector', '-m64', '-g'
   ]
   c_object(name, srcs, **args)
+"""
