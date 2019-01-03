@@ -18,6 +18,6 @@ install: PACKAGES/impulse/impulse
 	@cp PACKAGES/impulse/impulse /usr/local/bin/impulse
 
 clean:
-	@rm -rf PACKAGES/
+	@rm -rf GENERATED/
 	@rm -rf impulse/
 	@rm -rf .deps/

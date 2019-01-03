@@ -1,5 +1,5 @@
-@buildrule
-def py_library(target, name, srcs, **kwargs):
+
+def make_initfiles_from_srcs(target, srcs):
   import os
   directories = set([''])
   for src in srcs:
@@ -15,23 +15,15 @@ def py_library(target, name, srcs, **kwargs):
       f.write('# auto-generated\n')
     target.track(initfile, O=True)
 
+@using(make_initfiles_from_srcs)
+@buildrule
+def py_library(target, name, srcs, **kwargs):
+  make_initfiles_from_srcs(target, srcs)
 
+@using(make_initfiles_from_srcs)
 @buildrule
 def py_binary(target, name, **kwargs):
-  import os
-  directories = set()
-  for src in kwargs.get('srcs', []):
-    directory = os.path.dirname(src)
-    while directory:
-      directories.add(directory)
-      directory = os.path.dirname(directory)
-    target.track(src, I=True, O=True)
-
-  for directory in directories:
-    initfile = os.path.join(directory, '__init__.py')
-    with open(initfile, 'w+') as f:
-      f.write('# auto-generated\n')
-    target.track(initfile, O=True)
+  make_initfiles_from_srcs(target, kwargs.get('srcs', []))
 
   if os.path.exists(name):
     os.system('rm {}'.format(name))

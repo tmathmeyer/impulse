@@ -1,48 +1,86 @@
+
 @buildrule
 def c_header(target, name, srcs, **args):
   for src in srcs:
     target.track(src, I=True, O=True)
 
+
+def _compile(compiler, name, include, srcs, objects, flags, std):
+  import os
+  cmd_fmt = '{compiler} -o {name} {include} {srcs} {objects} {flags} -std={std}'
+  command = cmd_fmt.format(**locals())
+  os.system(command)
+  return name
+
+def _get_include_dirs(target, includes):
+  includes.append(target.get_true_root())
+  with_include = ['-I{}'.format(d) for d in includes]
+  return ' '.join(with_include)
+
+@using(_compile, _get_include_dirs)
 @buildrule
 def c_object(target, name, srcs, **args):
-  import os
-  object_dependencies = list(target.generated_by_dependencies(
-    ruletype='c_object'))
-  cmd_fmt = 'gcc -o {bin} -I{incl} -c {srcs} {objs} {flags} {d_flags}'
-  cmd = cmd_fmt.format(**{
-    'bin': name + '.o',
-    'incl': target.get_true_root(),
-    'srcs': ' '.join(srcs),
-    'objs': ' '.join(object_dependencies),
-    'flags': ' '.join(args.get('flags', [])),
-    'd_flags': '-std=c11 -Wextra -Wall',
-  })
-  os.system(cmd)
-  print(cmd)
-  target.track(name + '.o', O=True)
+  object_dependencies = ' '.join(
+    target.generated_by_dependencies(ruletype='c_object'))
+  flags = set(args.get('flags', []))
+  flags.update(['-Wextra', '-Wall', '-c'])
+  binary = _compile(
+    compiler=args.get('compiler', 'gcc'),
+    name=name+'.o',
+    include=_get_include_dirs(target, args.get('include_dirs', [])),
+    srcs=' '.join(srcs),
+    objects=object_dependencies,
+    flags=' '.join(flags),
+    std=args.get('std', 'c11'))
+  target.track(binary, O=True)
 
+@using(_compile, _get_include_dirs)
 @buildrule
 def c_binary(target, name, **args):
-  import os
-  object_dependencies = list(target.generated_by_dependencies(
-    ruletype='c_object'))
-  cmd_fmt = 'gcc -o {bin} -I{incl} {srcs} {objs} {flags} {d_flags}'
-  os.system(cmd_fmt.format(**{
-    'bin': name,
-    'incl': target.get_true_root(),
-    'srcs': ' '.join(args.get('srcs', [])),
-    'objs': ' '.join(object_dependencies),
-    'flags': ' '.join(args.get('flags', [])),
-    'd_flags': '-std=c11 -Wextra -Wall',
-  }))
-  target.track(name, O=True)
+  object_dependencies = ' '.join(
+    target.generated_by_dependencies(ruletype='c_object'))
+  flags = set(args.get('flags', []))
+  flags.update(['-Wextra', '-Wall'])
+  binary = _compile(
+    compiler=args.get('compiler', 'gcc'),
+    name=name,
+    include=_get_include_dirs(target, args.get('include_dirs', [])),
+    srcs=' '.join(args.get('srcs', [])),
+    objects=object_dependencies,
+    flags=' '.join(flags),
+    std=args.get('std', 'c11'))
+  target.track(binary, O=True)
 
-"""
-@buildrule_depends(c_object)
-def c_object_nostd(name, srcs, **args):
-  flags = args.setdefault('flags', [])
-  flags += [
-    '-nostdinc', '-fno-stack-protector', '-m64', '-g'
-  ]
-  c_object(name, srcs, **args)
-"""
+@using(_compile, _get_include_dirs)
+@buildrule
+def cpp_object(target, name, srcs, **args):
+  object_dependencies = ' '.join(
+    target.generated_by_dependencies(ruletype='cpp_object'))
+  flags = set(args.get('flags', []))
+  flags.update(['-Wextra', '-Wall', '-c'])
+  binary = _compile(
+    compiler=args.get('compiler', 'g++'),
+    name=name+'.o',
+    include=_get_include_dirs(target, args.get('include_dirs', [])),
+    srcs=' '.join(srcs),
+    objects=object_dependencies,
+    flags=' '.join(flags),
+    std=args.get('std', 'c++17'))
+  target.track(binary, O=True)
+
+@using(_compile, _get_include_dirs)
+@buildrule
+def cpp_binary(target, name, **args):
+  object_dependencies = ' '.join(
+    target.generated_by_dependencies(ruletype='cpp_object'))
+  flags = set(args.get('flags', []))
+  flags.update(['-Wextra', '-Wall'])
+  binary = _compile(
+    compiler=args.get('compiler', 'g++'),
+    name=name,
+    include=_get_include_dirs(target, args.get('include_dirs', [])),
+    srcs=' '.join(args.get('srcs', [])),
+    objects=object_dependencies,
+    flags=' '.join(flags),
+    std=args.get('std', 'c++17'))
+  target.track(binary, O=True)

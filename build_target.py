@@ -14,7 +14,7 @@ from impulse import threaded_dependence
 from impulse import rw_fs
 
 RULE_REGEX = re.compile('//(.*):(.*)')
-EXPORT_DIR = 'PACKAGES'
+EXPORT_DIR = 'GENERATED'
 
 
 class SetDirectory(object):
@@ -102,13 +102,14 @@ class PackageInfo(object):
 
 
 class BuildTarget(threaded_dependence.DependentJob):
-  def __init__(self, name, func, args, rule, ruletype, dependencies):
+  def __init__(self, name, func, args, rule, ruletype, scope, dependencies):
     super().__init__(dependencies)
     self._func = func
     self._args = args
     self._name = name
     self._build_rule = rule
     self._ruletype = ruletype
+    self._scope = scope
 
   def __eq__(self, other):
     return (
@@ -121,6 +122,12 @@ class BuildTarget(threaded_dependence.DependentJob):
 
   def __repr__(self):
     return str(self._build_rule)
+
+  def _get_fn_environment(self):
+    environment = globals()
+    for k, v in self._scope.items():
+      environment[k] = types.FunctionType(marshal.loads(v), globals(), k)
+    return environment
 
   def _needs_build(self, pkg):
     def all_timestamps():
@@ -161,11 +168,11 @@ class BuildTarget(threaded_dependence.DependentJob):
 
   def generated_by_dependencies(self, **kwargs):
     def iterate_output(pkg):
-      for f in pkg.generated_files:
-        rulepath,_ = RULE_REGEX.match(str(pkg)).groups()
-        yield (os.path.join(rulepath, f), pkg)
-      for pkg in pkg.depends_on_targets:
-        for i in iterate_output(pkg):
+      for subpkg in pkg.depends_on_targets:
+        for f in subpkg.generated_files:
+          rulepath,_ = RULE_REGEX.match(str(subpkg)).groups()
+          yield (os.path.join(self.get_true_root(), rulepath, f), subpkg)
+        for i in iterate_output(subpkg):
           yield i
 
     def matches_filter(pkg):
@@ -230,7 +237,8 @@ class BuildTarget(threaded_dependence.DependentJob):
           fn = None
           try:
             code = marshal.loads(self._func)
-            fn = types.FunctionType(code, globals(), str(self._build_rule))
+            fn = types.FunctionType(
+              code, self._get_fn_environment(), str(self._build_rule))
           except:
             print('couldnt compile')
             raise exceptions.BuildRuleCompilationError()
