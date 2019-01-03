@@ -9,7 +9,7 @@ py_library(
     "testmain.py"
   ],
   deps = [
-    "//impulse:impulse_args"
+    "//impulse/args:args"
   ]
 )
 

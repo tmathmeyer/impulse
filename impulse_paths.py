@@ -5,7 +5,7 @@ import sys
 
 from impulse.args import args
 
-
+EXPORT_DIR = 'GENERATED'
 NOT_A_BUILD_TARGET = object()
 
 
@@ -33,7 +33,7 @@ def relative_pwd():
 
 
 def output_directory():
-  return os.path.join(root(), 'PACKAGES')
+  return os.path.join(root(), EXPORT_DIR)
 
 
 class PathException(Exception):

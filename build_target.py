@@ -14,7 +14,7 @@ from impulse import threaded_dependence
 from impulse import rw_fs
 
 RULE_REGEX = re.compile('//(.*):(.*)')
-EXPORT_DIR = 'GENERATED'
+EXPORT_DIR = impulse_paths.EXPORT_DIR
 
 
 class SetDirectory(object):
@@ -171,7 +171,7 @@ class BuildTarget(threaded_dependence.DependentJob):
       for subpkg in pkg.depends_on_targets:
         for f in subpkg.generated_files:
           rulepath,_ = RULE_REGEX.match(str(subpkg)).groups()
-          yield (os.path.join(self.get_true_root(), rulepath, f), subpkg)
+          yield (os.path.join(rulepath, f), subpkg)
         for i in iterate_output(subpkg):
           yield i
 
@@ -184,6 +184,11 @@ class BuildTarget(threaded_dependence.DependentJob):
     for file, pkg in iterate_output(self._package_info):
       if matches_filter(pkg):
         yield file
+
+  def get_full_src_files(self, srcs):
+    rulepath, _ = RULE_REGEX.match(str(self._package_info)).groups()
+    for src in srcs:
+      yield os.path.join(rulepath, src)
 
   def writing_temp_files(self):
     superself = self

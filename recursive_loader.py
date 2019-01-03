@@ -3,6 +3,7 @@ import inspect
 import marshal
 import re
 
+from impulse import exceptions
 from impulse import impulse_paths
 from impulse import build_target
 
@@ -23,7 +24,10 @@ class BuildTargetIntermediary(object):
     for dep in self._args.get('deps', []):
       target = impulse_paths.convert_to_build_target(
         dep, self._build_rule.target_path)
-      dependencies.add(self._evaluator._targets[target].convert())
+      try:
+        dependencies.add(self._evaluator.convert_target(target))
+      except exceptions.BuildTargetMissing:
+        raise exceptions.BuildTargetMissingFrom(str(target), self._build_rule)
     self._converted = build_target.BuildTarget(
       self._name, self._func, self._args, self._build_rule,
       self._rule_type, self._scope, dependencies)
@@ -34,9 +38,20 @@ class BuildTargetIntermediary(object):
       self._scope[func.__name__] = (marshal.dumps(func.__code__))
 
 
-class FileImportException(Exception):
-  def __init__(self, exc, file):
-    super(exc)
+def increase_stack_arg_decorator(replacement):
+  # This converts 'replacement' into a decorator that takes args
+  def _superdecorator(self, *args, **kwargs):
+    # This is the actual 'decorator' which gets called
+    def _decorator(fn):
+      # This is what replacement would have created to decorate the function
+      replaced = replacement(self, fn, *args, **kwargs)
+      # This is what the decorated function is replaced with
+      def newfn(*args, **kwargs):
+        kwargs['__stack__'] = kwargs.get('__stack__', 1) + 2
+        replaced(*args, **kwargs)
+      return newfn
+    return _decorator
+  return _superdecorator
 
 
 class RuleEvaluator(object):
@@ -48,7 +63,13 @@ class RuleEvaluator(object):
       'load': self._load_files,
       'buildrule': self._buildrule,
       'using': self._using,
+      'depends_targets': self._depends_on_targets,
     }
+
+  def convert_target(self, target):
+    if target not in self._targets:
+      raise exceptions.BuildTargetMissing()
+    return self._targets[target].convert()
 
   def get_graph_from_target(self, target):
     self._targets[target].convert()
@@ -63,13 +84,19 @@ class RuleEvaluator(object):
       raise ValueError('{} is a not a parsed target object'.format(target))
     self._parse_file(target.GetBuildFileForTarget())
 
-  def _using(self, *includes):
-    def _decorator(fn):
-      def replacement(*args, **kwargs):
-        kwargs['__stack__'] = 2
-        fn(*args, **kwargs).add_scopes(includes)
-      return replacement
-    return _decorator
+  @increase_stack_arg_decorator
+  def _depends_on_targets(self, fn, *targets):
+    def replacement(*args, **kwargs):
+      deps = kwargs.get('deps', []) + list(targets)
+      kwargs['deps'] = deps
+      return fn(*args, **kwargs)
+    return replacement
+
+  @increase_stack_arg_decorator
+  def _using(self, fn, *includes):
+    def replacement(*args, **kwargs):
+      fn(*args, **kwargs).add_scopes(includes)
+    return replacement
 
   def _buildrule(self, fn):
     # py_library, for example
@@ -101,8 +128,10 @@ class RuleEvaluator(object):
       try:
         compiled = compile(f.read(), file, 'exec')
         exec(compiled, self._environ)
+      except NameError as e:
+        raise exceptions.NoSuchRuleType(e.args[0].split('\'')[1])
       except Exception as e:
-        raise FileImportException(e, file)
+        raise exceptions.FileImportException(e, file)
 
   def _load_files(self, *args):
     for loading in args:
