@@ -13,9 +13,9 @@ copy_srcs:
 	@cp BUILD impulse/
 	@cp -r args impulse/args
 
-install: PACKAGES/impulse/impulse
+install: GENERATED/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'
-	@cp PACKAGES/impulse/impulse /usr/local/bin/impulse
+	@cp GENERATED/impulse/impulse /usr/local/bin/impulse
 
 clean:
 	@rm -rf GENERATED/
