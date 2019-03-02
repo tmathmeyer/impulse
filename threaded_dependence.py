@@ -20,6 +20,7 @@ class CommandError(Exception):
   def __init__(self, msg):
     super().__init__(msg)
     self.msg = msg
+    self.__in_thread__ = False
 
 
 class DependentJob(metaclass=abc.ABCMeta):
@@ -30,7 +31,11 @@ class DependentJob(metaclass=abc.ABCMeta):
   def is_satisfied(self, completed):
     return completed.issuperset(self.dependencies)
 
+  def check_thread(self):
+    assert self.__in_thread__
+
   def __call__(self, debug=False):
+    self.__in_thread__ = True
     self.run_job(debug)
 
   @abc.abstractmethod

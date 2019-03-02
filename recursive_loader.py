@@ -8,7 +8,10 @@ from impulse import impulse_paths
 from impulse import build_target
 
 
-class BuildTargetIntermediary(object):
+INVALID_RULE_RECURSION_CANARY = object()
+
+
+class ParsedBuildTarget(object):
   def __init__(self, name, func, args, build_rule, ruletype, evaluator):
     self._func = marshal.dumps(func.__code__)
     self._name = name
@@ -19,23 +22,41 @@ class BuildTargetIntermediary(object):
     self._converted = None
     self._scope = {}
 
-  def convert(self):
+  def Convert(self):
+    # If we try to convert this rule again while conversion is in progress
+    # we need to fail, as a cyclic graph can't be built. Conversion is
+    # single threaded, so this test-and-set will suffice.
+    if self._converted is INVALID_RULE_RECURSION_CANARY:
+      raise exceptions.BuildTargetCycle()
+    if not self._converted:
+      self._converted = INVALID_RULE_RECURSION_CANARY
+      self._converted = self._CreateConverted()
+    return self._converted
+
+  def _CreateConverted(self):
+    # set(build_target.BuildTarget)
     dependencies = set()
-    for dep in self._args.get('deps', []):
+
+    # Convert all 'deps' into edges between BuildTargets
+    for dep in self._args.get('deps', ()):
       target = impulse_paths.convert_to_build_target(
         dep, self._build_rule.target_path)
       try:
-        dependencies.add(self._evaluator.convert_target(target))
+        dependencies.add(self._evaluator.ConvertTarget(target))
       except exceptions.BuildTargetMissing:
         raise exceptions.BuildTargetMissingFrom(str(target), self._build_rule)
-    self._converted = build_target.BuildTarget(
+
+    # Create a BuildTarget graph node
+    return build_target.BuildTarget(
       self._name, self._func, self._args, self._build_rule,
       self._rule_type, self._scope, dependencies)
-    return self._converted
 
-  def add_scopes(self, funcs):
+  def AddScopes(self, funcs):
+    if self._converted:
+      raise "TOO LATE" # TODO raise a real error...
     for func in funcs:
       self._scope[func.__name__] = (marshal.dumps(func.__code__))
+    return self
 
 
 def increase_stack_arg_decorator(replacement):
@@ -54,11 +75,14 @@ def increase_stack_arg_decorator(replacement):
   return _superdecorator
 
 
-class RuleEvaluator(object):
-
+class RecursiveFileParser(object):
+  """Loads files based on load() and buildrule statements."""
   def __init__(self):
-    self._targets = {}
-    self._loaded_files = set()
+    self._targets = {} # Map[BuildTarget->ParsedBuildTarget]
+    self._loaded_files = set() # We don't want to load files multiple times
+
+    # We need to store the environment across compilations, since it allows
+    # files to call eachother's functions.
     self._environ = {
       'load': self._load_files,
       'buildrule': self._buildrule,
@@ -66,79 +90,96 @@ class RuleEvaluator(object):
       'depends_targets': self._depends_on_targets,
     }
 
-  def convert_target(self, target):
+  def ParseTarget(self, target: impulse_paths.ParsedTarget):
+    self._ParseFile(target.GetBuildFileForTarget())
+
+  def ConvertTarget(self, target):
     if target not in self._targets:
       raise exceptions.BuildTargetMissing()
-    return self._targets[target].convert()
+    return self._targets[target].Convert()
 
-  def get_graph_from_target(self, target):
-    self._targets[target].convert()
+  def _ParseFile(self, file: str):
+    if file not in self._loaded_files:
+      self._loaded_files.add(file)
+      with open(file) as f:
+        try:
+          exec(compile(f.read(), file, 'exec'), self._environ)
+        except NameError as e:
+          # TODO: this needs to be fixed, since there could be _other_ name
+          # errors, not just rule-not-found ones.
+          raise exceptions.NoSuchRuleType(e.args[0].split('\'')[1])
+        except Exception as e:
+          # Wrap any exception that we get, so we don't have crashes
+          raise exceptions.FileImportException(e, file)
+
+  @increase_stack_arg_decorator
+  def _depends_on_targets(self, fn, *targets):
+    """Used to decorate a buildrule to state that _all_ targets of that type
+       must also depend on the set of targets listed here."""
+    def replacement(*args, **kwargs):
+      # join the dependencies and call the wrapped function.
+      kwargs['deps'] = kwargs.get('deps', []) + list(targets)
+      return fn(*args, **kwargs)
+    return replacement
+
+  @increase_stack_arg_decorator
+  def _using(self, fn, *includes):
+    """Used to decorate a buildrule to allow it to call other functions in the
+       build_defs file. Normally each function is a separate functional unit."""
+    def replacement(*args, **kwargs):
+      return fn(*args, **kwargs).AddScopes(includes)
+    return replacement
+
+
+  def _buildrule(self, fn):
+    """Decorates a function allowing it to be used as a target buildrule."""
+    
+    # Store the type of buildrule
+    buildrule_name = fn.__name__
+
+    # all params to a build rule must be keyword!
+    def replacement(**kwargs):
+      # 'name' is a required argument!
+      assert 'name' in kwargs
+      name = kwargs['name']
+
+      # This is the buildfile that the rule is called from
+      build_file = inspect.stack()[kwargs.get('__stack__', 1)].filename
+
+      # Directory of the buildfile
+      build_path = impulse_paths.get_qualified_build_file_dir(build_file)
+
+      # This is an 'impulse_paths.ParsedTarget' object
+      build_rule = impulse_paths.convert_name_to_build_target(name, build_path)
+
+      # Create a ParsedBuildTarget which can be converted into the graph later.
+      self._targets[build_rule] = ParsedBuildTarget(
+        name, fn, kwargs, build_rule, buildrule_name, self)
+
+      # Parse the dependencies and evaluate them too.
+      for dep in kwargs.get('deps', []):
+        if impulse_paths.is_fully_qualified_path(dep):
+          self.ParseTarget(impulse_paths.convert_to_build_target(dep, None))
+
+      # The wrapper functions (using, depends, etc) need the ParsedBuildTarget
+      return self._targets[build_rule]
+
+    return replacement
+
+  def _load_files(self, *args):
+    for loading in args:
+      self._ParseFile(impulse_paths.expand_fully_qualified_path(loading))
+
+  def GetAllConvertedTargets(self):
     def converted_targets():
       for target in self._targets.values():
         if target._converted:
           yield target._converted
     return set(converted_targets())
 
-  def parse_target(self, target):
-    if not isinstance(target, impulse_paths.ParsedTarget):
-      raise ValueError('{} is a not a parsed target object'.format(target))
-    self._parse_file(target.GetBuildFileForTarget())
-
-  @increase_stack_arg_decorator
-  def _depends_on_targets(self, fn, *targets):
-    def replacement(*args, **kwargs):
-      deps = kwargs.get('deps', []) + list(targets)
-      kwargs['deps'] = deps
-      return fn(*args, **kwargs)
-    return replacement
-
-  @increase_stack_arg_decorator
-  def _using(self, fn, *includes):
-    def replacement(*args, **kwargs):
-      fn(*args, **kwargs).add_scopes(includes)
-    return replacement
-
-  def _buildrule(self, fn):
-    # py_library, for example
-    build_as = fn.__name__
-    # all params to a build rule should be keyword
-    # name is _required_
-    def replacement(name, **kwargs):
-      # Get our build target & paths
-      build_file = inspect.stack()[kwargs.get('__stack__', 1)].filename
-      build_file_path = impulse_paths.get_qualified_build_file_dir(build_file)
-      build_rule = impulse_paths.convert_name_to_build_target(
-        name, build_file_path)
-      # save this target call to evaluate in the graph later
-      self._targets[build_rule] = BuildTargetIntermediary(
-        name, fn, kwargs, build_rule, build_as, self)
-      # Parse the dependencies and evaluate them too
-      for dep in kwargs.get('deps', []):
-        if impulse_paths.is_fully_qualified_path(dep):
-          self.parse_target(
-            impulse_paths.convert_to_build_target(dep, None))
-      return self._targets[build_rule]
-    return replacement
-
-  def _parse_file(self, file):
-    if file in self._loaded_files:
-      return
-    self._loaded_files.add(file)
-    with open(file) as f:
-      try:
-        compiled = compile(f.read(), file, 'exec')
-        exec(compiled, self._environ)
-      except NameError as e:
-        raise exceptions.NoSuchRuleType(e.args[0].split('\'')[1])
-      except Exception as e:
-        raise exceptions.FileImportException(e, file)
-
-  def _load_files(self, *args):
-    for loading in args:
-      self._parse_file(impulse_paths.expand_fully_qualified_path(loading))
-
 
 def generate_graph(build_target):
-  re = RuleEvaluator()
-  re.parse_target(build_target)
-  return re.get_graph_from_target(build_target)
+  re = RecursiveFileParser()
+  re.ParseTarget(build_target)
+  re.ConvertTarget(build_target)
+  return re.GetAllConvertedTargets()

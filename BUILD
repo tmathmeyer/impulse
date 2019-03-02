@@ -2,7 +2,6 @@ load(
     "//rules/core/Python/build_defs.py",
 )
 
-
 py_binary(
     name = "impulse",
     srcs = ["impulse.py"],
@@ -20,10 +19,10 @@ py_library(
         "status_out.py",
         "threaded_dependence.py",
         "build_target.py",
-        "exceptions.py",
-        "rw_fs.py",
+        "exceptions.py"
     ],
     deps = [
         "//impulse/args:args",
+        "//impulse/pkg:packaging"
     ],
 )

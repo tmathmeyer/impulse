@@ -8,7 +8,9 @@ class BuildRuleRuntimeError(Exception):
 
 class BuildRuleCompilationError(Exception):
   """Raised when a build rule fails to parse/compile correctly."""
-  pass
+  def __init__(self, ex):
+    super(ex)
+    print(ex.__class__)
 
 
 class ImpulseAssertWrapperError(Exception):
@@ -21,20 +23,28 @@ class BuildTargetNeedsNoUpdate(Exception):
   pass
 
 
+class BuildTargetCycle(Exception):
+  """Raised when there is a dependency cycle."""
+  pass
+
+
 class BuildTargetMissing(Exception):
   """Raised when a build target is missing."""
   pass
+
 
 class FileImportException(Exception):
   """Raised when a file can't be recursively imported."""
   def __init__(self, exc, file):
     super(exc)
 
+
 class BuildTargetMissingFrom(Exception):
   """Raised when a build target is missing."""
   def __init__(self, target, buildrule):
     super().__init__('Target "{}", used in "{}", is missing.'.format(
       target, buildrule))
+
 
 class NoSuchRuleType(Exception):
   """Raised when a build rule doesn't exist."""

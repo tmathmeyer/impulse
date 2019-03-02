@@ -1,4 +1,4 @@
-import json
+
 import marshal
 import os
 import re
@@ -11,248 +11,145 @@ import types
 from impulse import exceptions
 from impulse import impulse_paths
 from impulse import threaded_dependence
-from impulse import rw_fs
+
+from impulse.pkg import overlayfs
+from impulse.pkg import packaging
 
 RULE_REGEX = re.compile('//(.*):(.*)')
 EXPORT_DIR = impulse_paths.EXPORT_DIR
+PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')
+BINARIES_DIR = os.path.join(EXPORT_DIR, 'BINARIES')
 
-
-class SetDirectory(object):
-  def __init__(self, directory):
-    self._dir = directory
-
-  def __enter__(self):
-    self._old = os.getcwd()
-    os.chdir(self._dir)
-    while not os.listdir('.'):
-      os.chdir(self._dir)
-
-  def __exit__(self, *args):
-    os.chdir(self._old)
-
-
-def target2package(target):
-  rulepath, rulename = RULE_REGEX.match(str(target)).groups()
-  pkgfile = os.path.join(impulse_paths.root(), EXPORT_DIR, rulepath,
-    '{}.package.json'.format(rulename))
-  return PackageInfo.Import(pkgfile, str(target))
-
-
-class PackageInfo(object):
-  def __init__(self):
-    self.depends_on_files = set()
-    self.depends_on_targets = set()
-    self.generated_files = set()
-    self.package_target = None
-    self.package_name = None
-    self.ruletype = None
-
-    # critical to take the timestamp early;
-    # if a file changes _while_ the builder
-    # is running, we want to try to pick it up
-    self.build_timestamp = int(time.time())
-
-  def __repr__(self):
-    return str(self.package_target)
-
-  def __hash__(self):
-    return hash(self.package_target)
-
-  def __eq__(self, other):
-    return (other.__class__ == self.__class__ and
-      other.package_target == self.package_target)
-
-  @classmethod
-  def Import(clz, file, target):
-    instance = clz()
-    instance.package_target = target
-    instance.package_name = file
-    try:
-      with open(file) as f:
-        contents = json.loads(f.read())
-        for key in instance.__dict__.keys():
-          imported = contents.get(key, None)
-          assert imported is not None  # TODO(raise a better error here)
-          setattr(instance, key, imported)
-        instance.depends_on_targets = set(
-          target2package(target) for target in instance.depends_on_targets)
-        instance.depends_on_files = set(instance.depends_on_files)
-        instance.generated_files = set(instance.generated_files)
-        return instance
-    except FileNotFoundError:
-      instance.depends_on_files = set(['BUILD'])
-      instance.build_timestamp = 0
-      return instance
-    except Exception as e:
-      traceback.print_exc()
-      return instance
-
-  def export(self):
-    assert self.package_name is not None
-    self.build_timestamp = int(time.time())
-    with open(self.package_name, 'w+') as f:
-      env = {}
-      for k, v in self.__dict__.items():
-        if isinstance(v, set):
-          env[k] = list(str(e) for e in v)
-        else:
-          env[k] = v
-      f.write(json.dumps(env, indent=2))
 
 
 
 class BuildTarget(threaded_dependence.DependentJob):
-  def __init__(self, name, func, args, rule, ruletype, scope, dependencies):
+  """A threadable graph node object representing work to do to build."""
+
+  def __init__(self, target_name: str, # The name of the target to build
+                     func, # A marshalled function bytecode blob
+                     args: dict, # The build target parameters to call func with
+                     rule: impulse_paths.ParsedTarget, # The ParsedTarget
+                     buildrule_name: str, # The buildrule type (ie: py_library) 
+                     scope: dict, # A map from name to marshalled bytecode
+                     dependencies: set): # A set of BuildTargets dependencies
     super().__init__(dependencies)
-    self._func = func
-    self._args = args
-    self._name = name
-    self._build_rule = rule
-    self._ruletype = ruletype
-    self._scope = scope
+
+    # These can't be unmarshalled until we're on the other thread in |run_job|
+    self._marshalled_func = func
+    self._marshalled_scope = scope
+    self._buildrule_args = args
+
+    self._buildrule_pt = rule
+    self._target_name = target_name
+    self._buildrule_name = buildrule_name
+
+    self._package = packaging.ExportablePackage(rule, buildrule_name)
 
   def __eq__(self, other):
-    return (
-      other.__class__ == self.__class__ and
-      other._build_rule == self._build_rule
-    )
+    return (other.__class__ == self.__class__ and
+            other._buildrule_pt == self._buildrule_pt)
 
   def __hash__(self):
-    return hash(self._build_rule)
+    return hash(str(self))
 
   def __repr__(self):
-    return str(self._build_rule)
+    return str(self)
 
-  def _get_fn_environment(self):
+  def __str__(self):
+    return 'BuildTarget[{}]'.format(self._buildrule_pt)
+
+  def LoadToTemp(self, package_name):
+    return self._package.LoadToTemp(package_name)
+
+  def UnloadPackageDirectory(self):
+    return self._package.UnloadPackageDirectory()
+
+  def _GetExecEnv(self):
+    self.check_thread()
     environment = globals()
-    for k, v in self._scope.items():
+    for k, v in self._marshalled_scope.items():
       environment[k] = types.FunctionType(marshal.loads(v), globals(), k)
     return environment
 
-  def _needs_build(self, pkg):
-    def all_timestamps():
-      for f in pkg.depends_on_files:
-        if os.path.exists(f):
-          yield int(os.path.getmtime(f))
-        else:
-          yield pkg.build_timestamp + 1
-      for p in pkg.depends_on_targets:
-        yield p.build_timestamp
+  def _NeedsBuild(self, package_dir, src_dir):
+    self.check_thread()
+    self._package, needs_building = self._package.NeedsBuild(
+      package_dir, src_dir)
+    return needs_building
 
-    for f in pkg.generated_files:
-      if not os.path.exists(f):
-        return True
+  def _CompileBuildRule(self):
+    self.check_thread()
+    try:
+      code = marshal.loads(self._marshalled_func)
+      return types.FunctionType(code, self._GetExecEnv(),
+        str(self._buildrule_name))
+    except Exception as e:
+      print(e)
+      raise exceptions.BuildRuleCompilationError()
 
-    for timestamp in all_timestamps():
-      if timestamp > pkg.build_timestamp:
-        return True
-    return False
-
-  def _ensure_directory(self, directory):
-    if not os.path.exists(directory):
-      os.makedirs(directory)
-
-  def build_path(self):
-    return RULE_REGEX.match(str(self._build_rule)).groups()[0]
-
-  def build_name(self):
-    return RULE_REGEX.match(str(self._build_rule)).groups()[1]
-
-  def track(self, file, I=False, O=False):
-    if I or O:
-      os.access(file, mode=os.R_OK|os.W_OK|os.X_OK|os.F_OK)
-    if I:
-      self._package_info.depends_on_files.add(file)
-    if O:
-      self._package_info.generated_files.add(file)
-
-  def generated_by_dependencies(self, **kwargs):
-    def iterate_output(pkg):
-      for subpkg in pkg.depends_on_targets:
-        for f in subpkg.generated_files:
-          rulepath,_ = RULE_REGEX.match(str(subpkg)).groups()
-          yield (os.path.join(rulepath, f), subpkg)
-        for i in iterate_output(subpkg):
-          yield i
-
-    def matches_filter(pkg):
-      for k, v in kwargs.items():
-        if getattr(pkg, k) != v:
-          return False
-      return True
-
-    for file, pkg in iterate_output(self._package_info):
-      if matches_filter(pkg):
-        yield file
-
-  def get_full_src_files(self, srcs):
-    rulepath, _ = RULE_REGEX.match(str(self._package_info)).groups()
-    for src in srcs:
-      yield os.path.join(rulepath, src)
-
-  def writing_temp_files(self):
-    superself = self
-    class TempFiles(object):
-      def __enter__(self):
-        tmpdirname = tempfile.mkdtemp()
-        rw_directory = tempfile.mkdtemp()
-        ro_directory = os.path.join(impulse_paths.root(), EXPORT_DIR)
-        self._ctx = rw_fs.FuseCTX(tmpdirname, ro_directory, rw_directory)
-        self._old = os.getcwd()
-        self._ctx.__enter__()
-        os.chdir(tmpdirname)
-        while not os.listdir('.'):
-          os.chdir(tmpdirname)
-
-      def __exit__(self, *args):
-        os.chdir(self._old)
-        self._ctx.__exit__(*args)
-    return TempFiles()
-
-  def copy_from_tmp(self, copyname):
-    # method only called when within a temp directory!
-    export_to = os.path.join(
-      impulse_paths.root(), EXPORT_DIR,
-      self.build_path(), os.path.basename(copyname))
-    os.system('cp {} {}'.format(copyname, export_to))
-    self._package_info.generated_files.add(os.path.basename(copyname))
-
-  def get_true_root(self):
-    return os.path.join(impulse_paths.root(), EXPORT_DIR)
+  def _RunBuildRule(self):
+    self.check_thread()
+    buildrule = self._CompileBuildRule()
+    try:
+      return buildrule(self._package, **self._buildrule_args)
+    except Exception as e:
+      traceback.print_exc()
+      raise exceptions.BuildRuleRuntimeError(e)
 
   # Entry point where jobs start
   def run_job(self, debug):
-    rulepath, rulename = RULE_REGEX.match(str(self._build_rule)).groups()
-    rw_directory = os.path.join(impulse_paths.root(), EXPORT_DIR, rulepath)
-    ro_directory = os.path.join(impulse_paths.root(), rulepath)
-    package_filename = rulename + '.package.json'
-    self._ensure_directory(rw_directory)
-    tmpdirname = tempfile.mkdtemp()
 
-    with rw_fs.FuseCTX(tmpdirname, ro_directory, rw_directory):
-      with SetDirectory(tmpdirname):
-        self._package_info = PackageInfo.Import(package_filename, str(self))
-        self._package_info.ruletype = self._ruletype
-        for depends in self.dependencies:
-          self._package_info.depends_on_targets.add(
-            target2package(depends))
+    rulepath, rulename = RULE_REGEX.match(str(self._buildrule_pt)).groups()
 
-        if self._needs_build(self._package_info):
-          code = None
-          fn = None
-          try:
-            code = marshal.loads(self._func)
-            fn = types.FunctionType(
-              code, self._get_fn_environment(), str(self._build_rule))
-          except:
-            print('couldnt compile')
-            raise exceptions.BuildRuleCompilationError()
+    # Real root-relative path for packages.
+    pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
 
-          try:
-            fn(self, name=self._name, **self._args)
-          except Exception as e:
-            traceback.print_exc()
-            raise exceptions.BuildRuleRuntimeError(e)
-          self._package_info.export()
-        else:
-          raise exceptions.BuildTargetNeedsNoUpdate()
+    # A list of temporary directories where dependant packages are extracted
+    loaded_dep_dirs = []
+    for dependency in self.dependencies:
+      directory, package = dependency.LoadToTemp(pkg_directory)
+      loaded_dep_dirs.append(directory)
+      self._package.AddDependency(package)
+
+    # The actual source files - this MUST be read only!
+    ro_directory = os.path.join(impulse_paths.root())
+
+    # Exit early, no work to do.
+    if not self._NeedsBuild(pkg_directory, ro_directory):
+      raise exceptions.BuildTargetNeedsNoUpdate()
+
+    # This is going to be where all file writes end up
+    rw_directory = tempfile.mkdtemp()
+
+    # This is where rw_directory, ro_directory, and loaded_dep_dirs get mirrored
+    working_directory = tempfile.mkdtemp()
+
+    # The final location for the .pkg file
+    package_full_path = os.path.join(pkg_directory,
+      self._buildrule_pt.GetPackagePkgFile())
+
+    export_binary = None
+
+    with overlayfs.FuseCTX(working_directory, rw_directory, ro_directory,
+                          *loaded_dep_dirs):
+      with packaging.ScopedTempDirectory(working_directory):
+        with packaging.ScopedTempDirectory(rulepath):
+          self._package.buildroot = (working_directory, rulepath)
+          export_binary = self._RunBuildRule()
+        self._package = self._package.Export()
+        packaging.EnsureDirectory(os.path.dirname(package_full_path))
+        shutil.copyfile(self._package.filename, package_full_path)
+        if self._package.is_binary_target:
+          if not export_binary:
+            raise Exception('{} must return a binary exporter!'.format(
+              self._buildrule_name))
+          bindir = os.path.join(impulse_paths.root(), BINARIES_DIR,
+            self._buildrule_pt.GetPackagePathDirOnly())
+          packaging.EnsureDirectory(bindir)
+          export_binary(self._target_name, package_full_path, bindir)
+
+    shutil.rmtree(working_directory)
+    shutil.rmtree(rw_directory)
+    for d in self.dependencies:
+      d.UnloadPackageDirectory()

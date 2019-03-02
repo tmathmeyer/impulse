@@ -76,145 +76,177 @@ An impulse target is something that impulse can build. A target is either:
 #### BUILD files
 Projects have one or more ```BUILD``` files defined in them. These files use a subset of python syntax, however most builtin tools aren't present and can't be expected to work normally anyway. There is one core function availible -- ```load()```, which accepts comma seperated strings referencing build rule files. These references always exist as a fixed path starting with two slashes. The rule ```"//rules/core/C/build_defs.py"``` references the file ```$ROOT/rules/core/C/build_defs.py```. Once loaded, all rules defined in loaded rule files may be used.
 
+## Writing a BUILD file
+#### Two examples:
+$ROOT/impulse/BUILD:
+```python
+load(
+    "//rules/core/Python/build_defs.py",
+)
+
+py_binary(
+    name = "impulse",
+    srcs = ["impulse.py"],
+    deps = [
+        ":impulse_libs",
+        "//impulse/args:args"
+    ],
+)
+
+py_library(
+    name = "impulse_libs",
+    srcs = [
+        "impulse_paths.py",
+        "recursive_loader.py",
+        "status_out.py",
+        "threaded_dependence.py",
+        "build_target.py",
+        "exceptions.py"
+    ],
+    deps = [
+        "//impulse/args:args",
+        "//impulse/pkg:packaging"
+    ],
+)
+
+```
+
+$ROOT/example_unittests/BUILD:
+```python
+load (
+    "//rules/core/C/build_defs.py",
+)
+
+c_header (
+  name = 'argparse_h',
+  srcs = [
+    "argparse.h"
+  ],
+)
+
+cpp_test (
+  name = 'argparse_test2',
+  srcs = ['test.cpp'],
+  deps = [':argparse_h']
+)
+```
+
 
 #### Rule files
 In this directory live python-defined build rules (see [core_rules](CORE) for some examples). For rules used in many different projects, these rules _should_ live under ```$ROOT/rules/core/{lang}/build_defs.py``` however these rules may be placed anywhere located under ```$ROOT```.
 
 ## Writing a Rule file
-A canonical example of a rule file is the included ```c_object``` rule:
+A canonical example of a rule file is the included ```cpp_object``` rule:
 ```python
+def _compile(compiler, name, include, srcs, objects, flags, std):
+  import os
+  cmd_fmt = '{compiler} -o {name} {include} {srcs} {objects} {flags} -std={std}'
+  command = cmd_fmt.format(**locals())
+  os.system(command)
+  return name
+
+def _get_include_dirs(target, includes):
+  includes.append(target.buildroot[0])
+  with_include = ['-I{}'.format(d) for d in includes]
+  return ' '.join(with_include)
+
+def _get_objects(target):
+  levels = len(target.buildroot[1].split('/'))
+  prepend = os.path.join(*(['..'] * levels))
+  objects = []
+  for deplib in target.Dependencies(package_ruletype='cpp_object'):
+    for f in deplib.IncludedFiles():
+      objects.append(os.path.join(prepend, f))
+  return objects
+
+@using(_compile, _get_include_dirs, _get_objects)
 @buildrule
-def c_object(name, srcs, **args):
-	depends(inputs=srcs, outputs=[name+'.o'])
+def cpp_object(target, name, srcs, **kwargs):
+  objects = _get_objects(target)
 
-	object_dependencies = dependencies.filter(ruletype='c_object')
-	objects = ' '.join(sum(map(build_outputs, object_dependencies), []))
-
-	sources = ' '.join(local_file(src) for src in srcs)
-
-	cmd = 'gcc -o %s -I%s -c %s %s -std=c11 -Wextra -Wall' % (
-		build_outputs()[0], PWD, sources, objects)
-
-	for flag in args.get('flags', []):
-		cmd += (' ' + flag)
-	command(cmd)
+  flags = set(kwargs.get('flags', []))
+  flags.update(['-Wextra', '-Wall', '-c'])
+  binary = _compile(
+    compiler=kwargs.get('compiler', 'g++'),
+    name=name+'.o',
+    include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
+    srcs=' '.join(srcs),
+    objects=' '.join(objects),
+    flags=' '.join(flags),
+    std=kwargs.get('std', 'c++17'))
+  target.AddFile(binary, True)
+  for src in srcs:
+    target.AddFileInputOnly(src)
 ```
 
-All build rules _MUST_ be tagged with the ```@buildrule``` or ```@buildrule_depends``` decorators.
+The ```@using(...)``` decorator allows buildrules to include helper functions from the
+build_defs.py file. This is because each method is actually parsed and compiled separately
+from each other method in a build_defs.py file. Only buildrules can import helper
+functions, they cannot import eachother.
 
-The ```@buildrule``` decorator should be used as a bare decorator, however the ```@buildrule_depends``` decorator should be called as a function, and given other buildrules to use in scope. An example is the ```c_object_nostd``` rule:
+To actually create a buildrule, the function must also be decorated with the 
+```@buildrule``` decorator. A buildrule function must take at least two arguments,
+```target: pkg.packaging.ExportablePackage``` and ```name: str```. All other arguments
+that are passed to a buildrule function come from BUILD files directly, and are
+should always be basic data types (int, str, list, etc). To force the requirement of any field, it can be added to the argument list as a non-default positional argument. A missing argument will cause building to fail and report the violating target.
+
+By default, all operations take place in a read-only copy of the source directory
+where the BUILD file exists. The location is a temporary copy-on-write filesystem
+which allows the rule to use and modify source files without affecting the real
+state of the original sources. A ```pkg.packaging.ExportablePackage``` has methods
+and fields designed to help run code in the buildrule:
+* ```pkg.packaging.ExportablePackage.Dependencies(**kwargs)```: A way to filter
+  rule types based on their properties. A commonly used one would be filtering
+  on ```package_ruletype```, as is shown in ```_get_objects``` above.
+* ```pkg.packaging.ExportablePackage.buildroot```: A tuple of (str, str) where
+  ```buildroot[0]``` is the root of the copy-on-write filesystem, and
+  ```buildroot[1]``` is the local path in the filesystem where execution is happening.
+* ```pkg.packaging.ExportablePackage.AddFile(file, auto_generated=False)```:
+  Adds a file as an output. If auto_generated is False, it also adds it as an input.
+* ```pkg.packaging.ExportablePackage.AddFileInputOnly(file)```: Adds a file only as an
+  input.
+* ```pkg.packaging.ExportablePackage.DependFile(file)```: Adds a file with path
+  relative to the copy-on-write filesystem root directory.
+
+Finally, any buildrule which ends in ```_binary``` must return a function which
+can be used to convert it's package into a binary. In python, for example:
 ```python
-@buildrule_depends(c_object)
-def c_object_nostd(name, srcs, **args):
-	flags = args.setdefault('flags', [])
-	flags += [
-		'-nostdinc', '-fno-stack-protector', '-m64', '-g'
-	]
-	c_object(name, srcs, **args)
+def py_make_binary(package_name, package_file, binary_location):
+  binary_file = os.path.join(binary_location, package_name)
+  os.system('echo "#!/usr/bin/env python3\n" >> {}'.format(binary_file))
+  os.system('cat {} >> {}'.format(package_file, binary_file))
+  os.system('chmod +x {}'.format(binary_file))
 ```
-which simply adds some flags and lets ```c_object``` do the heavy lifting. It is important to pass any needed build rules in the decorator, as the function bodies are evaluated as independant compilation units and will not have file local access at runtime.
-
-There are two special arguments when calling a build rule:
-* ```name```: A string which MUST be provided.
-* ```deps```: Although not required, it is used to build the dependency graph of targets. The build rule code will have access to both the list of strings provided here, as well as the graph node objects.
-
-When writing a build rule:
-* It is acceptable to place ```name``` as a required positional argument, since it is required anyway.
-* To force the requirement of any other field, it can be added to the argument list as a non-default positional argument. A missing argument will cause building to fail and report the violating target.
-* A magic variable ```dependencies``` is availible, and it references a special ```FilterableSet``` type containing the direct dependencies for the current target, represented in their raw node form.
-
-In addition, there are a few magic functions present in the local scope when a build rule is executed:
-* ```directory()```: the local directory of the target.
-* ```local_file(str)```: gets the full path to a file defined relative to the build target.
-* ```copy(str)```: copies the provided full file to a cache location.
-* ```depends(inputs=[], outputs=[])```: The input files and output files that this rule produces.
-* ```build_outputs(dep=None)```: Get the full paths for build outputs of a rule. If no rule is provided, get the build outputs of the current rule.
-* ```command(str)```: run a shell command which outputs files.
-* ```is_nodetype(dep, str)```: Tests whether a dependency is a given type.
-
-## Writing a BUILD file
-#### Two examples:
-$ROOT/json/BUILD:
+This task is simple, since the package files can just have a ```#!/usr/bin/env python```
+prepended, and they become executable python archives. C++ is also rather simple:
 ```python
-load(
-    "//rules/core/C/build_defs.py",
-)
+@using(_compile, _get_include_dirs, _get_objects)
+@buildrule
+def cpp_binary(target, name, **kwargs):
+  objects = _get_objects(target)
+  flags = set(kwargs.get('flags', []))
+  flags.update(['-Wextra', '-Wall'])
+  binary = _compile(
+    compiler=kwargs.get('compiler', 'g++'),
+    name=name,
+    include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
+    srcs=' '.join(kwargs.get('srcs', [])),
+    objects=' '.join(objects),
+    flags=' '.join(flags),
+    std=kwargs.get('std', 'c++17'))
+  target.AddFile(binary, True)
+  for src in kwargs.get('srcs', []):
+    target.AddFileInputOnly(src)
 
-c_headers(
-    name = "map_h",
-    srcs = [
-        "map.h",
-    ],
-)
+  def export_binary(package_name, package_file, binary_location):
+    binary_file = os.path.join(binary_location, package_name)
+    os.system('cp {} {}'.format(os.path.join(target.buildroot[1], binary),
+      binary_file))
 
-c_object(
-    srcs = [
-        "map.c",
-    ],
-    name = "map",
-    deps = [
-        ":map_h"
-    ],
-)
+  return export_binary
 ```
-
-$ROOT/weather/BUILD:
-```python
-load(
-    "//rules/core/C/build_defs.py",
-)
-
-c_headers(
-    name = "exif_tags_h",
-    srcs = [
-        "exif_tags.h",
-    ],
-)
-
-c_headers(
-    name = "exif_h",
-    srcs = [
-        "exif.h",
-    ],
-    deps = [
-        "//map:map_h",
-    ],
-)
-
-c_object(
-    name = "exif_tags",
-    srcs = [
-        "exif_tags.c",
-    ],
-    deps = [
-        ":exif_tags_h"
-    ],
-)
-
-c_object(
-    name = "exif",
-    srcs = [
-        "exif.c",
-    ],
-    deps = [
-        ":exif_tags_h",
-        ":exif_h",
-        "//map:map_h",
-    ],
-)
-
-c_binary(
-    name = "identify_photosphere",
-    srcs = [
-        "photosphere.c",
-    ],
-    deps = [
-        ":exif",
-        "//map:map",
-        ":exif_tags",
-    ]
-)
-```
+Although in this case, the returned function ```export_binary``` uses the local
+variable ```binary``` which is the path of the recently compiled file.
 
 ## Python Executables
 The default build rules offer ```py_library``` and ```py_binary``` as two build rules. It should be noted that if these rules are used, they change the way imports handled. Any third party import will stay the same as before, but importing other code built with impulse will have to be done absolutly. For example, with the directory layout:

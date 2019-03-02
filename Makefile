@@ -12,6 +12,7 @@ copy_srcs:
 	@cp *.py impulse/
 	@cp BUILD impulse/
 	@cp -r args impulse/args
+	@cp -r pkg impulse/pkg
 
 install: GENERATED/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'

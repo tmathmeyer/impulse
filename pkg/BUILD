@@ -1,0 +1,12 @@
+load(
+    "//rules/core/Python/build_defs.py",
+)
+
+
+py_library(
+  name="packaging",
+  srcs=[
+    "packaging.py",
+    "overlayfs.py",
+  ],
+)

@@ -91,6 +91,12 @@ class ParsedTarget(object):
   def GetFullyQualifiedRulePath(self):
     return self.target_path + ':' + self.target_name
 
+  def GetPackagePkgFile(self):
+    return os.path.join(self.GetPackagePathDirOnly(), self.target_name) + '.zip'
+
+  def GetPackagePathDirOnly(self):
+    return self.target_path[2:]
+
   def GetRuleInfo(self):
     build_file = self.GetBuildFileForTarget()
     with open(build_file) as f:

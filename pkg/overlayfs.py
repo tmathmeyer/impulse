@@ -23,10 +23,9 @@ def _dbg_print():
 
 class OverlayFilesystemOperations(fuse.Operations):
   """Backend file operations for the overlay filesystem."""
-  def __init__(self, rw_dir: str, ro_dirs: [str], ro_files: [str]):
+  def __init__(self, rw_dir: str, ro_dirs: [str]):
     self._rw_directory = rw_dir
     self._ro_directories = ro_dirs
-    self._ro_files = ro_files
 
      # Set of strings representing files that shouldn't be shown as
      # they have been moved away.
@@ -40,7 +39,7 @@ class OverlayFilesystemOperations(fuse.Operations):
 
   def _find_shadow_nodes(self, path: str) -> (str, [str]):
     """Returns either the RW copy of the file, or the RO copies."""
-    _dbg_print()
+    #_dbg_print()
     if path.startswith('/'):
       path = path[1:]
 
@@ -53,9 +52,6 @@ class OverlayFilesystemOperations(fuse.Operations):
       full_path = os.path.join(directory, path)
       if os.path.exists(full_path) and full_path not in self._moved_files:
         result.append(full_path)
-    for file in self._ro_files:
-      if file.startswith(path):
-        result.append(file)
     return (rw_copy, result)
 
   def _fallback_on_read(self, path: str, operation):
@@ -109,6 +105,13 @@ class OverlayFilesystemOperations(fuse.Operations):
   def mkdir(self, path, mode):
     path, _ = self._find_shadow_nodes(path)
     return os.mkdir(path, mode)
+
+  def truncate(self, path, length, fh=None):
+    rw, ros = self._find_shadow_nodes(path)
+    if ros:
+      shutil.copyfile(ros[0], rw)
+    with open(rw, 'r+') as f:
+      f.truncate(length)
 
   
   # Delete methods - important to mark these files as deleted!
@@ -193,7 +196,8 @@ class OverlayFilesystemOperations(fuse.Operations):
     mapped_handle, flags = self._open_files[path].get(handle, (handle, 0))
     if mapped_handle == -1: # This is a COW file, and needs to be copied!
       rw_file, ro_files = self._find_shadow_nodes(path)
-      shutil.copyfile(ro_files[0], rw_file)
+      if ro_files:
+        shutil.copyfile(ro_files[0], rw_file)
       self._open_files[path][handle] = (os.open(rw_file, flags), flags)
     handle = self._unmap_handle(path, handle)
     os.lseek(handle, offset, os.SEEK_SET)
@@ -232,36 +236,30 @@ class OverlayFilesystemOperations(fuse.Operations):
 
   # Not implemented
   def link(self, target, name):
-    raise "not implemented"
-
-
-  def truncate(self, path, length, fh=None):
-    raise "not implemented"
+    raise "not implemented - link"
 
 
 
 
-def run_fuse_thread(mount, rw_file, shadow_dirs, shadow_files):
-  fuse.FUSE(OverlayFilesystemOperations(rw_file, shadow_dirs, shadow_files),
+
+def run_fuse_thread(mount, rw_file, shadow_dirs):
+  fuse.FUSE(OverlayFilesystemOperations(rw_file, shadow_dirs),
     mount, nothreads=True, foreground=True)
 
 
 class FuseCTX(object):
-  def __init__(self, mountpoint, rw, shadows):
+  def __init__(self, mountpoint, rw, *shadows):
     self._mount = mountpoint
     self._rw = rw
     self._shadow_dirs = []
-    self._shadow_files = []
     for shadow in shadows:
-      if os.path.isfile(shadow):
-        self._shadow_files.append(shadow)
-      else:
+      if not os.path.isfile(shadow):
         self._shadow_dirs.append(shadow)
 
   def __enter__(self):
     self._oldsignal = signal.signal(signal.SIGINT, self._quit)
     self._thread = multiprocessing.Process(target=run_fuse_thread,
-      args=(self._mount, self._rw, self._shadow_dirs, self._shadow_files))
+      args=(self._mount, self._rw, self._shadow_dirs))
     self._thread.start()
     while not os.path.ismount(self._mount):
       pass
@@ -272,7 +270,7 @@ class FuseCTX(object):
   def _quit(self):
     os.system('fusermount -u {}'.format(self._mount))
     self._thread.join()
-    self.signal(signal.SIGINT, self._oldsignal)
+    signal.signal(signal.SIGINT, self._oldsignal)
 
 
 
@@ -280,6 +278,6 @@ class FuseCTX(object):
 if __name__ == '__main__':
   fmt = 'mounting {} as overlay of rw:{} ro:[{}]'
   print(fmt.format(sys.argv[1], sys.argv[2], ', '.join(sys.argv[3:])))
-  fs = FuseCTX(sys.argv[1], sys.argv[2], sys.argv[3:])
-  run_fuse_thread(fs._mount, fs._rw, fs._shadow_dirs, fs._shadow_files)
+  fs = FuseCTX(sys.argv[1], sys.argv[2], *sys.argv[3:])
+  run_fuse_thread(fs._mount, fs._rw, fs._shadow_dirs)
   
