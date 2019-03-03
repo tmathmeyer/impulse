@@ -76,7 +76,7 @@ class RuleSpec(object):
     self.type = callspec[1].get('called_as')[0]
     self.name = callspec[1].get('name')
     self.output = os.path.join(
-      output_directory(), target.target_path[2:], self.name)
+      output_directory(), 'BINARIES', target.target_path[2:], self.name)
 
 
 

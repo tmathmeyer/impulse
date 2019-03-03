@@ -36,7 +36,7 @@ def build(target:impulse_paths.BuildTarget,
 
   diff = (time2-time1) * 1000
 
-  pool = threaded_dependence.DependentPool(1, len(graph))
+  pool = threaded_dependence.DependentPool(6, len(graph))
   pool.input_job_graph(graph).start()
 
 @arguments
