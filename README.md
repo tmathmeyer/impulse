@@ -136,47 +136,32 @@ cpp_test (
 In this directory live python-defined build rules (see [core_rules](CORE) for some examples). For rules used in many different projects, these rules _should_ live under ```$ROOT/rules/core/{lang}/build_defs.py``` however these rules may be placed anywhere located under ```$ROOT```.
 
 ## Writing a Rule file
-A canonical example of a rule file is the included ```cpp_object``` rule:
+A canonical example of a rule file is the included ```py_library``` rule:
 ```python
-def _compile(compiler, name, include, srcs, objects, flags, std):
-  import os
-  cmd_fmt = '{compiler} -o {name} {include} {srcs} {objects} {flags} -std={std}'
-  command = cmd_fmt.format(**locals())
-  os.system(command)
-  return name
-
-def _get_include_dirs(target, includes):
-  includes.append(target.buildroot[0])
-  with_include = ['-I{}'.format(d) for d in includes]
-  return ' '.join(with_include)
-
-def _get_objects(target):
-  levels = len(target.buildroot[1].split('/'))
-  prepend = os.path.join(*(['..'] * levels))
-  objects = []
-  for deplib in target.Dependencies(package_ruletype='cpp_object'):
-    for f in deplib.IncludedFiles():
-      objects.append(os.path.join(prepend, f))
-  return objects
-
-@using(_compile, _get_include_dirs, _get_objects)
-@buildrule
-def cpp_object(target, name, srcs, **kwargs):
-  objects = _get_objects(target)
-
-  flags = set(kwargs.get('flags', []))
-  flags.update(['-Wextra', '-Wall', '-c'])
-  binary = _compile(
-    compiler=kwargs.get('compiler', 'g++'),
-    name=name+'.o',
-    include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
-    srcs=' '.join(srcs),
-    objects=' '.join(objects),
-    flags=' '.join(flags),
-    std=kwargs.get('std', 'c++17'))
-  target.AddFile(binary, True)
+def _track_files(target, srcs):
   for src in srcs:
-    target.AddFileInputOnly(src)
+    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+  for deplib in target.Dependencies(package_ruletype='py_library'):
+    for f in deplib.IncludedFiles():
+      target.AddFile(f)
+
+def _write_file(target, name, contents):
+  if not os.path.exists(name):
+    with open(name, 'w+') as f:
+      f.write(contents)
+  target.AddFile(name)
+
+
+@using(_track_files, _write_file)
+@buildrule
+def py_library(target, name, srcs, **kwargs):
+  _track_files(target, srcs)
+
+  # Create the init files
+  directory = target.GetPackageDirectory()
+  while directory:
+    _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
+    directory = os.path.dirname(directory)
 ```
 
 The ```@using(...)``` decorator allows buildrules to include helper functions from the
@@ -198,15 +183,9 @@ and fields designed to help run code in the buildrule:
 * ```pkg.packaging.ExportablePackage.Dependencies(**kwargs)```: A way to filter
   rule types based on their properties. A commonly used one would be filtering
   on ```package_ruletype```, as is shown in ```_get_objects``` above.
-* ```pkg.packaging.ExportablePackage.buildroot```: A tuple of (str, str) where
-  ```buildroot[0]``` is the root of the copy-on-write filesystem, and
-  ```buildroot[1]``` is the local path in the filesystem where execution is happening.
-* ```pkg.packaging.ExportablePackage.AddFile(file, auto_generated=False)```:
-  Adds a file as an output. If auto_generated is False, it also adds it as an input.
-* ```pkg.packaging.ExportablePackage.AddFileInputOnly(file)```: Adds a file only as an
-  input.
-* ```pkg.packaging.ExportablePackage.DependFile(file)```: Adds a file with path
-  relative to the copy-on-write filesystem root directory.
+* ```pkg.packaging.ExportablePackage.GetPackageDirectory()```: A function which
+  returns the package directory.
+* ```pkg.packaging.ExportablePackage.AddFile(file)```: Adds a file as an output.
 
 Finally, any buildrule which ends in ```_binary``` must return a function which
 can be used to convert it's package into a binary. In python, for example:
@@ -218,35 +197,7 @@ def py_make_binary(package_name, package_file, binary_location):
   os.system('chmod +x {}'.format(binary_file))
 ```
 This task is simple, since the package files can just have a ```#!/usr/bin/env python```
-prepended, and they become executable python archives. C++ is also rather simple:
-```python
-@using(_compile, _get_include_dirs, _get_objects)
-@buildrule
-def cpp_binary(target, name, **kwargs):
-  objects = _get_objects(target)
-  flags = set(kwargs.get('flags', []))
-  flags.update(['-Wextra', '-Wall'])
-  binary = _compile(
-    compiler=kwargs.get('compiler', 'g++'),
-    name=name,
-    include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
-    srcs=' '.join(kwargs.get('srcs', [])),
-    objects=' '.join(objects),
-    flags=' '.join(flags),
-    std=kwargs.get('std', 'c++17'))
-  target.AddFile(binary, True)
-  for src in kwargs.get('srcs', []):
-    target.AddFileInputOnly(src)
-
-  def export_binary(package_name, package_file, binary_location):
-    binary_file = os.path.join(binary_location, package_name)
-    os.system('cp {} {}'.format(os.path.join(target.buildroot[1], binary),
-      binary_file))
-
-  return export_binary
-```
-Although in this case, the returned function ```export_binary``` uses the local
-variable ```binary``` which is the path of the recently compiled file.
+prepended, and they become executable python archives. 
 
 ## Python Executables
 The default build rules offer ```py_library``` and ```py_binary``` as two build rules. It should be noted that if these rules are used, they change the way imports handled. Any third party import will stay the same as before, but importing other code built with impulse will have to be done absolutly. For example, with the directory layout:
