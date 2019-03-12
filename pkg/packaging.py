@@ -62,7 +62,7 @@ class ExportedPackage(object):
 
 
 class ExportablePackage(object):
-  """A wrapper class for building an package file."""
+  """A wrapper class for building a package file."""
   def __init__(self, package_target, ruletype: str):
     self.included_files = []
     self.input_files = []
@@ -87,24 +87,13 @@ class ExportablePackage(object):
     return json.dumps(copydict, indent=2)
 
   def _GetHash(self, filename: str) -> str:
-    filename = os.path.join(self.buildroot[0], filename)
     return MD5(filename)
 
-  def AddFile(self, filename: str, auto_generated=True):
-    assert os.path.isfile(filename)
-    filename = os.path.join(
-      self.package_target.GetPackagePathDirOnly(), filename)
-    self.included_files.append(filename)
-    if not auto_generated:
-      self.input_files.append([filename, self._GetHash(filename)])
+  def SetInputFiles(self, files:[str]):
+    for f in files:
+      self.input_files.append([f, self._GetHash(f)])
 
-  def AddFileInputOnly(self, filename:str):
-    assert os.path.isfile(filename)
-    filename = os.path.join(
-      self.package_target.GetPackagePathDirOnly(), filename)
-    self.input_files.append([filename, self._GetHash(filename)])
-
-  def DependFile(self, filename: str):
+  def AddFile(self, filename: str):
     self.included_files.append(filename)
 
   def AddDependency(self, dependency):
@@ -112,6 +101,9 @@ class ExportablePackage(object):
 
   def GetPackageName(self):
     return self.package_target.GetPackagePkgFile()
+
+  def GetPackageDirectory(self):
+    return self.package_target.GetPackagePathDirOnly()
 
   def Export(self) -> ExportedPackage:
     with open('pkg_contents.json', 'w+') as f:
@@ -152,7 +144,7 @@ class ExportablePackage(object):
     for k in prev_dict.keys():
       if k not in curr_dict:
         return self, True
-      if curr_dict[k] < prev_dict[k]:
+      if curr_dict[k] > prev_dict[k]:
         return self, True
 
     for src in previous_build['input_files']:

@@ -1,27 +1,3 @@
-def py_write_mainfile(target, contents):
-  mainfile = os.path.join(target.buildroot[0], '__main__.py')
-  with open(mainfile, 'w+') as f:
-    f.write(contents)
-  target.DependFile('__main__.py')
-
-def py_track_files(target, srcs):
-  for src in srcs:
-    target.AddFile(src, False)
-  for deplib in target.Dependencies(package_ruletype='py_library'):
-    for f in deplib.IncludedFiles():
-      target.DependFile(f)
-
-def py_create_inits(target):
-  def makefile(path):
-    if not os.path.exists(path):
-      with open(path, 'w+') as f:
-        f.write('# auto-generated\n')
-    target.DependFile(path[len(target.buildroot[0])+1:])
-
-  d = target.buildroot[1]
-  while d:
-    makefile(os.path.join(target.buildroot[0], d, '__init__.py'))
-    d = os.path.dirname(d)
 
 def py_make_binary(package_name, package_file, binary_location):
   binary_file = os.path.join(binary_location, package_name)
@@ -29,29 +5,67 @@ def py_make_binary(package_name, package_file, binary_location):
   os.system('cat {} >> {}'.format(package_file, binary_file))
   os.system('chmod +x {}'.format(binary_file))
 
-@using(py_track_files, py_create_inits)
+def _track_files(target, srcs):
+  for src in srcs:
+    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+  for deplib in target.Dependencies(package_ruletype='py_library'):
+    for f in deplib.IncludedFiles():
+      target.AddFile(f)
+
+def _write_file(target, name, contents):
+  if not os.path.exists(name):
+    with open(name, 'w+') as f:
+      f.write(contents)
+  target.AddFile(name)
+
+
+@using(_track_files, _write_file)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
-  py_track_files(target, srcs)
-  py_create_inits(target)
+  _track_files(target, srcs)
+
+  # Create the init files
+  directory = target.GetPackageDirectory()
+  while directory:
+    _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
+    directory = os.path.dirname(directory)
 
 
-@using(py_track_files, py_create_inits, py_write_mainfile, py_make_binary)
+@using(_track_files, _write_file, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):
-  py_create_inits(target)
-  py_track_files(target, kwargs.get('srcs', []))
+  # Create the init files
+  directory = target.GetPackageDirectory()
+  while directory:
+    _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
+    directory = os.path.dirname(directory)
+
+  # Track any additional sources
+  _track_files(target, kwargs.get('srcs', []))
+
+  # Create the __main__ file
   main_fmt = 'from {package} import {name}\n{name}.main()\n'
-  package = '.'.join(target.package_target.GetPackagePathDirOnly().split('/'))
-  py_write_mainfile(target, main_fmt.format(package=package, name=name))
+  package = '.'.join(target.GetPackageDirectory().split('/'))
+  main_contents = main_fmt.format(package=package, name=name)
+  _write_file(target, '__main__.py', main_contents)
+
+  # Converter from pkg to binary
   return py_make_binary
 
+
+
 @depends_targets("//impulse/testing:unittest")
-@using(py_track_files, py_create_inits, py_write_mainfile, py_make_binary)
+@using(_track_files, _write_file, py_make_binary)
 @buildrule
 def py_test(target, name, srcs, **kwargs):
-  py_create_inits(target)
-  py_track_files(target, srcs)
+  # Create the init files
+  directory = target.GetPackageDirectory()
+  while directory:
+    _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
+    directory = os.path.dirname(directory)
+
+  # Track the sources
+  _track_files(target, srcs)
 
   import_fmt = 'from {} import {}\n'
   main_exec = 'from impulse.testing import testmain\ntestmain.main()\n'
@@ -62,5 +76,5 @@ def py_test(target, name, srcs, **kwargs):
     main_contents += import_fmt.format(package, os.path.splitext(src)[0])
   main_contents += main_exec
 
-  py_write_mainfile(target, main_contents)
+  _write_file(target, '__main__.py', main_contents)
   return py_make_binary

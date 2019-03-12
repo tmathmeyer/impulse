@@ -11,21 +11,53 @@ import multiprocessing
 import inspect
 
 
+traced_calls = set()
+def FSCall(fn):
+  traced_calls.add(fn.__name__)
+  return fn
+
+""" Debug Code!
+
+GREEN = '\033[92m'
+RESET = '\033[0m'
+
+def clean_attrs(attrd):
+  if not attrd:
+    return {}
+  return {k: int(v) for k, v in attrd.items()}
+
+def ShowReturnValuesForFSCalls(frame, event, arg, indent=[0]):
+  def argvalues(frame):
+    for argname_index in range(1, frame.f_code.co_argcount):
+      yield str(frame.f_locals[frame.f_code.co_varnames[argname_index]])
+
+  if event == "call":
+    name = frame.f_code.co_name
+    if name in traced_calls and frame.f_lineno < 400:
+      print('{}{}({}){}'.format(GREEN, name, ', '.join(argvalues(frame)), RESET))
+  elif event == "return":
+    name = frame.f_code.co_name
+    if name in traced_calls and frame.f_lineno < 400:
+      if name == 'getattr':
+        print(' --> {}'.format(clean_attrs(arg)))
+      else:
+        print('  --> {}'.format(arg))
+      print('') # newline
+  return ShowReturnValuesForFSCalls
+
+import sys
+sys.settrace(ShowReturnValuesForFSCalls)
+"""
+
 def ACCESS_ERR():
   raise fuse.FuseOSError(errno.EACCES)
 
-def _dbg_print():
-  sidx = 1
-  while inspect.stack()[sidx][3].startswith('_'):
-    sidx += 1
-  print(inspect.stack()[sidx][3])
-
-
 class OverlayFilesystemOperations(fuse.Operations):
   """Backend file operations for the overlay filesystem."""
-  def __init__(self, rw_dir: str, ro_dirs: [str]):
+  def __init__(self, rw_dir: str, ro_dirs: [str], shadow_files:dict):
     self._rw_directory = rw_dir
     self._ro_directories = ro_dirs
+    self._ro_files = shadow_files
 
      # Set of strings representing files that shouldn't be shown as
      # they have been moved away.
@@ -37,9 +69,8 @@ class OverlayFilesystemOperations(fuse.Operations):
     self._open_files = collections.defaultdict(dict)
 
 
-  def _find_shadow_nodes(self, path: str) -> (str, [str]):
+  def _find_shadow_nodes(self, path: str, files:bool = False) -> (str, [str]):
     """Returns either the RW copy of the file, or the RO copies."""
-    #_dbg_print()
     if path.startswith('/'):
       path = path[1:]
 
@@ -47,15 +78,64 @@ class OverlayFilesystemOperations(fuse.Operations):
     if os.path.exists(rw_copy) and path != '':
       return (rw_copy, [])
 
-    result = []
+    result = set()
     for directory in self._ro_directories:
       full_path = os.path.join(directory, path)
       if os.path.exists(full_path) and full_path not in self._moved_files:
-        result.append(full_path)
-    return (rw_copy, result)
+        result.add(full_path)
+
+    if files:
+      for f in self._live_ro_files():
+        named_dir, maybe_for_read = self._chop_ro_file_to_fit(f, path)
+        if named_dir and maybe_for_read:
+          result.add(maybe_for_read)
+
+    return (rw_copy, list(result))
+
+  def _live_ro_files(self):
+    for f in self._ro_files.keys():
+      if f not in self._moved_files:
+        yield f
+
+  def _get_next_element_of(self, f: str, directory: str):
+    ffq = self._ro_files.get(f, None)
+    if not ffq:
+      return None, None
+    while len(f) >= len(directory):
+      b = os.path.basename(f)
+      f = os.path.dirname(f)
+      ffq = os.path.dirname(ffq)
+      if f == directory:
+        return b, os.path.join(ffq, b)
+    return None, None
+
+  def _chop_ro_file_to_fit(self, f: str, search: str):
+    ffq = self._ro_files.get(f, None)
+    if not ffq:
+      return None, None
+    while len(f) >= len(search):
+      b = os.path.basename(f)
+      if f == search:
+        return b, ffq
+      f = os.path.dirname(f)
+      ffq = os.path.dirname(ffq)
+    return None, None
+
+  def _chop_ro_file_to_fit_original(self, f: str, directory: str):
+    ffq = self._ro_files.get(f, None)
+    if not ffq:
+      return None, None
+
+    while len(f) >= len(directory):
+      b = os.path.basename(f)
+      f = os.path.dirname(f)
+      ffq = os.path.dirname(ffq)
+      if f == directory:
+        return b, os.path.join(ffq, b)
+    return None, None
 
   def _fallback_on_read(self, path: str, operation):
-    path, ro_nodes = self._find_shadow_nodes(path)
+    path, ro_nodes = self._find_shadow_nodes(path, True)
     if ro_nodes: # RW version doesn't exist
       return operation(ro_nodes[0])
     return operation(path)
@@ -68,6 +148,7 @@ class OverlayFilesystemOperations(fuse.Operations):
   def _hide_RO_nodes(self, ro_nodes: [str]):
     self._moved_files.update(ro_nodes)
 
+
   def _change_file(self, path: str, operation, failure=ACCESS_ERR):
     writable_node, ro_nodes = self._find_shadow_nodes(path)
     if ro_nodes: # no RW version of the file could be found - 
@@ -79,17 +160,21 @@ class OverlayFilesystemOperations(fuse.Operations):
 
   # Copy on write methods - these change properties of the file which
   # means the file needs to be copied before use.
+  @FSCall
   def chmod(self, path, mode):
     return self._change_file(path, lambda p: os.chmod(p, mode))
 
+  @FSCall
   def chown(self, path, uid, gid):
     return self._change_file(path, lambda p: os.chown(p, uid, gid))
 
+  @FSCall
   def utimens(self, path, times=None):
     def utime(path):
       return os.utime(path, times)
     return self._change_file(path, utime)
 
+  @FSCall
   def symlink(self, name, target):
     def _ensure_target(target):
       rw, _ = self._find_shadow_nodes(name)
@@ -98,14 +183,17 @@ class OverlayFilesystemOperations(fuse.Operations):
 
 
   # Write from scratch - easy, just create a new node in the RW space
+  @FSCall
   def mknod(self, path, mode, dev):
     path, _ = self._find_shadow_nodes(path)
     return os.mknod(path, mode, dev)
 
+  @FSCall
   def mkdir(self, path, mode):
     path, _ = self._find_shadow_nodes(path)
     return os.mkdir(path, mode)
 
+  @FSCall
   def truncate(self, path, length, fh=None):
     rw, ros = self._find_shadow_nodes(path)
     if ros:
@@ -115,11 +203,13 @@ class OverlayFilesystemOperations(fuse.Operations):
 
   
   # Delete methods - important to mark these files as deleted!
+  @FSCall
   def rmdir(self, path):
     path, RO_nodes = self._find_shadow_nodes(path)
     self._hide_RO_nodes(RO_nodes)
     return os.rmdir(path)
 
+  @FSCall
   def unlink(self, path):
     path, RO_nodes = self._find_shadow_nodes(path)
     self._hide_RO_nodes(RO_nodes)
@@ -127,6 +217,7 @@ class OverlayFilesystemOperations(fuse.Operations):
 
 
   # Read-only methods - easy, they never modify anything.
+  @FSCall
   def getattr(self, path, fh=None):
     def stat(pw):
       st = os.lstat(pw)
@@ -137,6 +228,7 @@ class OverlayFilesystemOperations(fuse.Operations):
       return stat(self._rw_directory)
     return self._fallback_on_read(path, stat)
 
+  @FSCall
   def statfs(self, path):
     def statvfs(path):
       stv = os.statvfs(path)
@@ -145,12 +237,14 @@ class OverlayFilesystemOperations(fuse.Operations):
         'f_files', 'f_flag', 'f_frsize', 'f_namemax'))
     return self._fallback_on_read(path, statvfs)
 
+  @FSCall
   def access(self, path, mode):
     def osaccess(path):
       if not os.access(path, mode):
         ACCESS_ERR()
     return self._fallback_on_read(path, osaccess)
 
+  @FSCall
   def readlink(self, path):
     def _readlink(path):
       pathname = os.readlink(path)
@@ -161,6 +255,7 @@ class OverlayFilesystemOperations(fuse.Operations):
 
 
   # IO methods
+  @FSCall
   def open(self, original_path, flags):
     if flags & (os.O_RDONLY|os.O_WRONLY|os.O_RDWR) == os.O_RDONLY:
       return self._fallback_on_read(original_path, lambda p: os.open(p, flags))
@@ -179,14 +274,17 @@ class OverlayFilesystemOperations(fuse.Operations):
     os.lseek(handle, offset, os.SEEK_SET)
     return os.read(handle, length)
 
+  @FSCall
   def flush(self, path, handle):
     handle = self._unmap_handle(path, handle)
     return os.fsync(handle)
 
+  @FSCall
   def fsync(self, path, fdatasync, handle):
     handle = self._unmap_handle(path, handle)
     return self.flush(handle)
 
+  #@FSCall -- not important
   def release(self, path, handle):
     if handle in self._open_files[path]:
       os.close(self._open_files[path].pop(handle)[0])
@@ -203,6 +301,7 @@ class OverlayFilesystemOperations(fuse.Operations):
     os.lseek(handle, offset, os.SEEK_SET)
     return os.write(handle, buf)
 
+  @FSCall
   def create(self, path, mode, fi=None):
     rw_file, ro_files = self._find_shadow_nodes(path)
     if ro_files:
@@ -211,16 +310,23 @@ class OverlayFilesystemOperations(fuse.Operations):
       os.makedirs(os.path.dirname(rw_file))
     return os.open(rw_file, os.O_WRONLY | os.O_CREAT, mode)
 
+  @FSCall
   def readdir(self, path, fh):
     rw_dir, ro_dirs = self._find_shadow_nodes(path)
     dirents = set(['.', '..'])
     for rwo_dir in ro_dirs + [rw_dir]:
       if os.path.isdir(rwo_dir):
         dirents.update(os.listdir(rwo_dir))
-      else:
+      elif os.path.exists(rwo_dir):
         dirents.update([rwo_dir])
-    return dirents
 
+    for f in self._live_ro_files():
+      named_dir, _ = self._get_next_element_of(f, path[1:])
+      if named_dir:
+        dirents.update([named_dir])
+    return list(dirents)
+
+  @FSCall
   def rename(self, old, new):
     rw_old, ro_old = self._find_shadow_nodes(old)
     rw_new, ro_new = self._find_shadow_nodes(new)
@@ -235,6 +341,7 @@ class OverlayFilesystemOperations(fuse.Operations):
 
 
   # Not implemented
+  @FSCall
   def link(self, target, name):
     raise "not implemented - link"
 
@@ -242,16 +349,17 @@ class OverlayFilesystemOperations(fuse.Operations):
 
 
 
-def run_fuse_thread(mount, rw_file, shadow_dirs):
-  fuse.FUSE(OverlayFilesystemOperations(rw_file, shadow_dirs),
+def run_fuse_thread(mount, rw_file, shadow_dirs, shadow_files):
+  fuse.FUSE(OverlayFilesystemOperations(rw_file, shadow_dirs, shadow_files),
     mount, nothreads=True, foreground=True)
 
 
 class FuseCTX(object):
-  def __init__(self, mountpoint, rw, *shadows):
+  def __init__(self, mountpoint, rw, files=None, *shadows):
     self._mount = mountpoint
     self._rw = rw
     self._shadow_dirs = []
+    self._files = files or {}
     for shadow in shadows:
       if not os.path.isfile(shadow):
         self._shadow_dirs.append(shadow)
@@ -259,7 +367,7 @@ class FuseCTX(object):
   def __enter__(self):
     self._oldsignal = signal.signal(signal.SIGINT, self._quit)
     self._thread = multiprocessing.Process(target=run_fuse_thread,
-      args=(self._mount, self._rw, self._shadow_dirs))
+      args=(self._mount, self._rw, self._shadow_dirs, self._files))
     self._thread.start()
     while not os.path.ismount(self._mount):
       pass
@@ -279,5 +387,5 @@ if __name__ == '__main__':
   fmt = 'mounting {} as overlay of rw:{} ro:[{}]'
   print(fmt.format(sys.argv[1], sys.argv[2], ', '.join(sys.argv[3:])))
   fs = FuseCTX(sys.argv[1], sys.argv[2], *sys.argv[3:])
-  run_fuse_thread(fs._mount, fs._rw, fs._shadow_dirs)
+  run_fuse_thread(fs._mount, fs._rw, fs._shadow_dirs, [])
   

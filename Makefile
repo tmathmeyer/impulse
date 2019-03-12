@@ -2,7 +2,6 @@
 
 all: copy_srcs
 	@python3 -m impulse.impulse build //impulse:impulse --fakeroot $(shell pwd) --debug
-	@rm -rf .deps/
 	@rm -rf impulse/
 
 copy_srcs:
@@ -21,4 +20,3 @@ install: GENERATED/impulse/impulse
 clean:
 	@rm -rf GENERATED/
 	@rm -rf impulse/
-	@rm -rf .deps/

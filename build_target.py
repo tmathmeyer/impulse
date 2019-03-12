@@ -85,10 +85,11 @@ class BuildTarget(threaded_dependence.DependentJob):
       return types.FunctionType(code, self._GetExecEnv(),
         str(self._buildrule_name))
     except Exception as e:
-      print(e)
-      raise exceptions.BuildRuleCompilationError()
+      traceback.print_exc()
+      raise exceptions.BuildRuleCompilationError(e)
 
   def _RunBuildRule(self):
+    print('BUILDING TARGET - {}'.format(self._buildrule_args['name']))
     self.check_thread()
     buildrule = self._CompileBuildRule()
     try:
@@ -97,6 +98,28 @@ class BuildTarget(threaded_dependence.DependentJob):
       traceback.print_exc()
       raise exceptions.BuildRuleRuntimeError(e)
 
+  def _GetBuildRuleIncludedFiles(self, buildroot, pkgdir):
+    self.check_thread()
+    def _unpack(obj):
+      if type(obj) == list:
+        for k in obj:
+          for v in _unpack(k):
+            yield v
+      if type(obj) == str:
+        yield obj
+      if type(obj) == dict:
+        for k, v in obj.items():
+          if k != 'name':
+            for q in _unpack(v):
+              yield q
+    result = {}
+    for potential in _unpack(self._buildrule_args):
+      fq_path = os.path.join(buildroot, potential)
+      if os.path.exists(fq_path):
+        result[os.path.join(pkgdir, potential)] = fq_path
+    return result
+
+
   # Entry point where jobs start
   def run_job(self, debug):
 
@@ -104,6 +127,15 @@ class BuildTarget(threaded_dependence.DependentJob):
 
     # Real root-relative path for packages.
     pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
+
+    # Actual directory where buildfile lives.
+    build_root = os.path.join(impulse_paths.root(), rulepath)
+
+    # The input files specified in the rule in the BUILD file.
+    forced_files = self._GetBuildRuleIncludedFiles(build_root, rulepath)
+
+    # Set these as the hashed input files
+    self._package.SetInputFiles(forced_files.keys())
 
     # A list of temporary directories where dependant packages are extracted
     loaded_dep_dirs = []
@@ -131,12 +163,12 @@ class BuildTarget(threaded_dependence.DependentJob):
 
     export_binary = None
 
-    with overlayfs.FuseCTX(working_directory, rw_directory, ro_directory,
+    with overlayfs.FuseCTX(working_directory, rw_directory, forced_files,
                           *loaded_dep_dirs):
       with packaging.ScopedTempDirectory(working_directory):
-        with packaging.ScopedTempDirectory(rulepath):
-          self._package.buildroot = (working_directory, rulepath)
-          export_binary = self._RunBuildRule()
+        #with packaging.ScopedTempDirectory(rulepath):
+        self._package.buildroot = (working_directory, rulepath)
+        export_binary = self._RunBuildRule()
         self._package = self._package.Export()
         packaging.EnsureDirectory(os.path.dirname(package_full_path))
         shutil.copyfile(self._package.filename, package_full_path)
