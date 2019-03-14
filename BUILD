@@ -19,10 +19,10 @@ py_library(
         "status_out.py",
         "threaded_dependence.py",
         "build_target.py",
-        "exceptions.py"
     ],
     deps = [
         "//impulse/args:args",
-        "//impulse/pkg:packaging"
+        "//impulse/pkg:packaging",
+        "//impulse/exceptions:exceptions",
     ],
 )

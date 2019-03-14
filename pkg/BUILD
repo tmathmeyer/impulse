@@ -9,4 +9,8 @@ py_library(
     "packaging.py",
     "overlayfs.py",
   ],
+  deps=[
+    "//impulse/fuse:fuse",
+    "//impulse/exceptions:exceptions",
+  ]
 )

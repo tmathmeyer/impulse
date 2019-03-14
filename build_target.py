@@ -8,9 +8,10 @@ import time
 import traceback
 import types
 
-from impulse import exceptions
 from impulse import impulse_paths
 from impulse import threaded_dependence
+
+from impulse.exceptions import exceptions
 
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
@@ -95,8 +96,9 @@ class BuildTarget(threaded_dependence.DependentJob):
     try:
       return buildrule(self._package, **self._buildrule_args)
     except Exception as e:
-      traceback.print_exc()
-      raise exceptions.BuildRuleRuntimeError(e)
+      # TODO pull snippits of the code and highlight the erroring line,
+      # then print that.
+      raise exceptions.BuildDefsRaisesException(e)
 
   def _GetBuildRuleIncludedFiles(self, buildroot, pkgdir):
     self.check_thread()
@@ -134,9 +136,6 @@ class BuildTarget(threaded_dependence.DependentJob):
     # The input files specified in the rule in the BUILD file.
     forced_files = self._GetBuildRuleIncludedFiles(build_root, rulepath)
 
-    # Set these as the hashed input files
-    self._package.SetInputFiles(forced_files.keys())
-
     # A list of temporary directories where dependant packages are extracted
     loaded_dep_dirs = []
     for dependency in self.dependencies:
@@ -149,7 +148,7 @@ class BuildTarget(threaded_dependence.DependentJob):
 
     # Exit early, no work to do.
     if not self._NeedsBuild(pkg_directory, ro_directory):
-      raise exceptions.BuildTargetNeedsNoUpdate()
+      return
 
     # This is going to be where all file writes end up
     rw_directory = tempfile.mkdtemp()
@@ -157,31 +156,32 @@ class BuildTarget(threaded_dependence.DependentJob):
     # This is where rw_directory, ro_directory, and loaded_dep_dirs get mirrored
     working_directory = tempfile.mkdtemp()
 
-    # The final location for the .pkg file
-    package_full_path = os.path.join(pkg_directory,
-      self._buildrule_pt.GetPackagePkgFile())
+    try:
+      # The final location for the .pkg file
+      package_full_path = os.path.join(pkg_directory,
+        self._buildrule_pt.GetPackagePkgFile())
 
-    export_binary = None
+      export_binary = None
 
-    with overlayfs.FuseCTX(working_directory, rw_directory, forced_files,
-                          *loaded_dep_dirs):
-      with packaging.ScopedTempDirectory(working_directory):
-        #with packaging.ScopedTempDirectory(rulepath):
-        self._package.buildroot = (working_directory, rulepath)
-        export_binary = self._RunBuildRule()
-        self._package = self._package.Export()
-        packaging.EnsureDirectory(os.path.dirname(package_full_path))
-        shutil.copyfile(self._package.filename, package_full_path)
-        if self._package.is_binary_target:
-          if not export_binary:
-            raise Exception('{} must return a binary exporter!'.format(
-              self._buildrule_name))
-          bindir = os.path.join(impulse_paths.root(), BINARIES_DIR,
-            self._buildrule_pt.GetPackagePathDirOnly())
-          packaging.EnsureDirectory(bindir)
-          export_binary(self._target_name, package_full_path, bindir)
-
-    shutil.rmtree(working_directory)
-    shutil.rmtree(rw_directory)
-    for d in self.dependencies:
-      d.UnloadPackageDirectory()
+      with overlayfs.FuseCTX(working_directory, rw_directory, forced_files,
+                            *loaded_dep_dirs):
+        with packaging.ScopedTempDirectory(working_directory):
+          # Set these as the hashed input files
+          self._package.SetInputFiles(forced_files.keys())
+          export_binary = self._RunBuildRule()
+          self._package = self._package.Export()
+          packaging.EnsureDirectory(os.path.dirname(package_full_path))
+          shutil.copyfile(self._package.filename, package_full_path)
+          if self._package.is_binary_target:
+            if not export_binary:
+              raise Exception('{} must return a binary exporter!'.format(
+                self._buildrule_name))
+            bindir = os.path.join(impulse_paths.root(), BINARIES_DIR,
+              self._buildrule_pt.GetPackagePathDirOnly())
+            packaging.EnsureDirectory(bindir)
+            export_binary(self._target_name, package_full_path, bindir)
+    finally:
+      shutil.rmtree(working_directory)
+      shutil.rmtree(rw_directory)
+      for d in self.dependencies:
+        d.UnloadPackageDirectory()

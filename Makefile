@@ -12,6 +12,8 @@ copy_srcs:
 	@cp BUILD impulse/
 	@cp -r args impulse/args
 	@cp -r pkg impulse/pkg
+	@cp -r fuse impulse/fuse
+	@cp -r exceptions impulse/exceptions
 
 install: GENERATED/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'

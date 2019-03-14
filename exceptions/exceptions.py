@@ -1,42 +1,45 @@
 
+class ListedSourceNotFound(Exception):
+  def __init__(self, filename, targetname):
+    super().__init__('[{}] used in [{}] not found on disk.'.format(
+      filename, targetname))
+    self.filename = filename
+    self.targetname = targetname
 
-
-class BuildRuleRuntimeError(Exception):
+class BuildDefsRaisesException(Exception):
   """Raised when a build_defs file raises an exception."""
-  pass
+  def __init__(self, ex1):
+    super().__init__(ex1)
 
 
 class BuildRuleCompilationError(Exception):
   """Raised when a build rule fails to parse/compile correctly."""
-  def __init__(self, ex):
-    super(ex)
-    print(ex.__class__)
+  def __init__(self, ex2):
+    super().__init__(ex2)
 
 
 class ImpulseAssertWrapperError(Exception):
   """Raised when an impulse core library assert fails."""
-  pass
-
-
-class BuildTargetNeedsNoUpdate(Exception):
-  """Raised when a build target was built recently."""
-  pass
+  def __init__(self, ex3):
+    super().__init__(ex3)
 
 
 class BuildTargetCycle(Exception):
   """Raised when there is a dependency cycle."""
-  pass
+  def __init__(self, ex5):
+    super().__init__(ex5)
 
 
 class BuildTargetMissing(Exception):
   """Raised when a build target is missing."""
-  pass
+  def __init__(self, ex6):
+    super().__init__(ex6)
 
 
 class FileImportException(Exception):
   """Raised when a file can't be recursively imported."""
-  def __init__(self, exc, file):
-    super(exc)
+  def __init__(self, ex, file):
+    super().__init__(ex)
 
 
 class BuildTargetMissingFrom(Exception):

@@ -3,9 +3,10 @@ import inspect
 import marshal
 import re
 
-from impulse import exceptions
 from impulse import impulse_paths
 from impulse import build_target
+
+from impulse.exceptions import exceptions
 
 
 INVALID_RULE_RECURSION_CANARY = object()

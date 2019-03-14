@@ -7,6 +7,8 @@ import tempfile
 import time
 import zipfile
 
+from impulse.exceptions import exceptions
+
 
 def EnsureDirectory(directory):
   if not os.path.exists(directory):
@@ -87,7 +89,11 @@ class ExportablePackage(object):
     return json.dumps(copydict, indent=2)
 
   def _GetHash(self, filename: str) -> str:
-    return MD5(filename)
+    try:
+      return MD5(filename)
+    except FileNotFoundError as e:
+      raise exceptions.ListedSourceNotFound(filename,
+        str(self.package_target)) from e
 
   def SetInputFiles(self, files:[str]):
     for f in files:

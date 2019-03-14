@@ -4,9 +4,11 @@ import os
 import random
 import sys
 import time
+import traceback
 
-from impulse import exceptions
 from impulse import status_out
+
+from impulse.exceptions import exceptions
 
 
 TASK_POISON = None
@@ -62,8 +64,9 @@ class TaskStatus(object):
 
 
 class TaskRunner(multiprocessing.Process):
-  def __init__(self, id_num, job_input, signal_output):
+  def __init__(self, id_num, debug, job_input, signal_output):
     multiprocessing.Process.__init__(self)
+    self.debug = debug
     self.id = id_num
     self.job_input = job_input
     self.signal_output = signal_output
@@ -78,20 +81,30 @@ class TaskRunner(multiprocessing.Process):
       self.signal_output.put(TaskStatus(self.id, job, False))
       try:
         job()
-      except exceptions.BuildTargetNeedsNoUpdate:
-        pass
       except CommandError as e:
-        self.signal_output.put(e.msg)
+        self._handle_exception(e)
       except Exception as e:
-        self.signal_output.put(str(e))
+        self._handle_exception(e)
+
       self.signal_output.put(TaskStatus(self.id, job, True))
       self.job_input.task_done()
     return
 
+  def _handle_exception(self, exc):
+    if not self.debug:
+      self.signal_output.put(str(e))
+      return
+
+    try:
+      raise exc
+    except:
+      traceback.print_exc()
+
 
 class DependentPool(multiprocessing.Process):
-  def __init__(self, poolcount, jobcount):
+  def __init__(self, debug, poolcount, jobcount):
     multiprocessing.Process.__init__(self)
+    self.debug = debug
     self.threadstatus_queue = multiprocessing.Queue()
     self.job_input_queue = multiprocessing.JoinableQueue()
     self.pool_count = poolcount
@@ -99,7 +112,7 @@ class DependentPool(multiprocessing.Process):
 
   def run(self):
     for i in range(self.pool_count):
-      TaskRunner(i, self.job_input_queue, self.threadstatus_queue).start()
+      TaskRunner(i, self.debug, self.job_input_queue, self.threadstatus_queue).start()
 
     while True:
       status = self.threadstatus_queue.get()
