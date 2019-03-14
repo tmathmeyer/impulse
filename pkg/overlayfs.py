@@ -5,7 +5,6 @@ import errno
 import os
 import shutil
 import signal
-import sys
 import multiprocessing
 
 from impulse.fuse import fuse
@@ -287,9 +286,6 @@ class OverlayFilesystemOperations(fuse.Operations):
     raise "not implemented - link"
 
 
-
-
-
 def run_fuse_thread(mount, rw_file, shadow_dirs, shadow_files):
   fuse.FUSE(OverlayFilesystemOperations(rw_file, shadow_dirs, shadow_files),
     mount, nothreads=True, foreground=True)
@@ -320,13 +316,3 @@ class FuseCTX(object):
     os.system('fusermount -u {}'.format(self._mount))
     self._thread.join()
     signal.signal(signal.SIGINT, self._oldsignal)
-
-
-
-
-if __name__ == '__main__':
-  fmt = 'mounting {} as overlay of rw:{} ro:[{}]'
-  print(fmt.format(sys.argv[1], sys.argv[2], ', '.join(sys.argv[3:])))
-  fs = FuseCTX(sys.argv[1], sys.argv[2], *sys.argv[3:])
-  run_fuse_thread(fs._mount, fs._rw, fs._shadow_dirs, [])
-  

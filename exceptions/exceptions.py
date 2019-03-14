@@ -6,6 +6,14 @@ class ListedSourceNotFound(Exception):
     self.filename = filename
     self.targetname = targetname
 
+class InvalidPathException(Exception):
+  """Raised when a path is invalid for a provided reason."""
+  def __init__(self, path, reason):
+    super().__init__('[{}] invalid: {}'.format(path, reason))
+    self.path = path
+    self.reason = reason
+
+
 class BuildDefsRaisesException(Exception):
   """Raised when a build_defs file raises an exception."""
   def __init__(self, ex1):

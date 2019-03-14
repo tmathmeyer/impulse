@@ -1,9 +1,10 @@
 
 import os
 import re
-import sys
 
 from impulse.args import args
+
+from impulse.exceptions import exceptions
 
 EXPORT_DIR = 'GENERATED'
 NOT_A_BUILD_TARGET = object()
@@ -149,7 +150,8 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
 
 def expand_fully_qualified_path(path):
   if not is_fully_qualified_path(path):
-    sys.exit('{} needs to be fully qualified'.format(path))
+    raise exceptions.InvalidPathException(path,
+      'Path is not repository-relative (missing starting //)')
   return os.path.join(root(), path[2:])
 
 

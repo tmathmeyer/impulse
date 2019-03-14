@@ -1,11 +1,9 @@
 
 import marshal
 import os
-import re
 import shutil
 import tempfile
 import time
-import traceback
 import types
 
 from impulse import impulse_paths
@@ -16,7 +14,6 @@ from impulse.exceptions import exceptions
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
 
-RULE_REGEX = re.compile('//(.*):(.*)')
 EXPORT_DIR = impulse_paths.EXPORT_DIR
 PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')
 BINARIES_DIR = os.path.join(EXPORT_DIR, 'BINARIES')
@@ -86,7 +83,6 @@ class BuildTarget(threaded_dependence.DependentJob):
       return types.FunctionType(code, self._GetExecEnv(),
         str(self._buildrule_name))
     except Exception as e:
-      traceback.print_exc()
       raise exceptions.BuildRuleCompilationError(e)
 
   def _RunBuildRule(self):
@@ -125,7 +121,7 @@ class BuildTarget(threaded_dependence.DependentJob):
   # Entry point where jobs start
   def run_job(self, debug):
 
-    rulepath, rulename = RULE_REGEX.match(str(self._buildrule_pt)).groups()
+    rulepath = self._buildrule_pt.GetPackagePathDirOnly()
 
     # Real root-relative path for packages.
     pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
@@ -176,8 +172,7 @@ class BuildTarget(threaded_dependence.DependentJob):
             if not export_binary:
               raise Exception('{} must return a binary exporter!'.format(
                 self._buildrule_name))
-            bindir = os.path.join(impulse_paths.root(), BINARIES_DIR,
-              self._buildrule_pt.GetPackagePathDirOnly())
+            bindir = os.path.join(impulse_paths.root(), BINARIES_DIR, rulepath)
             packaging.EnsureDirectory(bindir)
             export_binary(self._target_name, package_full_path, bindir)
     finally:

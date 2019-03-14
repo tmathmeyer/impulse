@@ -1,14 +1,8 @@
 import abc
 import multiprocessing
-import os
-import random
-import sys
-import time
 import traceback
 
 from impulse import status_out
-
-from impulse.exceptions import exceptions
 
 
 TASK_POISON = None
@@ -95,10 +89,7 @@ class TaskRunner(multiprocessing.Process):
       self.signal_output.put(str(e))
       return
 
-    try:
-      raise exc
-    except:
-      traceback.print_exc()
+    traceback.print_exc()
 
 
 class DependentPool(multiprocessing.Process):

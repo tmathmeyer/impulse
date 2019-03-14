@@ -1,7 +1,6 @@
 
 import inspect
 import marshal
-import re
 
 from impulse import impulse_paths
 from impulse import build_target
