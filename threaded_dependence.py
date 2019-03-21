@@ -86,9 +86,8 @@ class TaskRunner(multiprocessing.Process):
 
   def _handle_exception(self, exc):
     if not self.debug:
-      self.signal_output.put(str(e))
+      self.signal_output.put(str(exc))
       return
-
     traceback.print_exc()
 
 

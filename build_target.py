@@ -86,7 +86,6 @@ class BuildTarget(threaded_dependence.DependentJob):
       raise exceptions.BuildRuleCompilationError(e)
 
   def _RunBuildRule(self):
-    print('BUILDING TARGET - {}'.format(self._buildrule_args['name']))
     self.check_thread()
     buildrule = self._CompileBuildRule()
     try:
@@ -94,7 +93,9 @@ class BuildTarget(threaded_dependence.DependentJob):
     except Exception as e:
       # TODO pull snippits of the code and highlight the erroring line,
       # then print that.
-      raise exceptions.BuildDefsRaisesException(e)
+      target_name = self._buildrule_args['name']
+      buildrule_type = str(self._buildrule_name)
+      raise exceptions.BuildDefsRaisesException(target_name, buildrule_type, e)
 
   def _GetBuildRuleIncludedFiles(self, buildroot, pkgdir):
     self.check_thread()
@@ -107,7 +108,7 @@ class BuildTarget(threaded_dependence.DependentJob):
         yield obj
       if type(obj) == dict:
         for k, v in obj.items():
-          if k != 'name':
+          if k in ('srcs', 'data'):
             for q in _unpack(v):
               yield q
     result = {}

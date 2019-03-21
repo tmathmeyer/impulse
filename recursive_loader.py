@@ -95,7 +95,7 @@ class RecursiveFileParser(object):
 
   def ConvertTarget(self, target):
     if target not in self._targets:
-      raise exceptions.BuildTargetMissing()
+      raise exceptions.BuildTargetMissing(target)
     return self._targets[target].Convert()
 
   def _ParseFile(self, file: str):

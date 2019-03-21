@@ -94,6 +94,9 @@ class ExportablePackage(object):
     except FileNotFoundError as e:
       raise exceptions.ListedSourceNotFound(filename,
         str(self.package_target)) from e
+    except IsADirectoryError:
+      raise exceptions.ListedSourceNotFound(
+        filename, str(self.package_target))
 
   def SetInputFiles(self, files:[str]):
     for f in files:
