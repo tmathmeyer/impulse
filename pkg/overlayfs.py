@@ -146,7 +146,8 @@ class OverlayFilesystemOperations(fuse.Operations):
 
   def mkdir(self, path, mode):
     path, _ = self._find_shadow_nodes(path)
-    return os.mkdir(path, mode)
+    if not os.path.exists(path):
+      return os.mkdir(path, mode)
 
   def truncate(self, path, length, fh=None):
     rw, ros = self._find_shadow_nodes(path)

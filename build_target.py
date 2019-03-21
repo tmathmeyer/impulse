@@ -90,6 +90,8 @@ class BuildTarget(threaded_dependence.DependentJob):
     buildrule = self._CompileBuildRule()
     try:
       return buildrule(self._package, **self._buildrule_args)
+    except exceptions.BuildDefsRaisesException:
+      raise
     except Exception as e:
       # TODO pull snippits of the code and highlight the erroring line,
       # then print that.

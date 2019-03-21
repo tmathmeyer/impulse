@@ -1,14 +1,15 @@
-def _compile(compiler, name, include, srcs, objects, flags, std):
+def _compile(target, compiler, name, include, srcs, objects, flags, std):
   import os
   cmd_fmt = '{compiler} -o {name} {include} {srcs} {objects} {flags} -std={std}'
   command = cmd_fmt.format(**locals())
-  os.system(command)
+  if os.system(command):
+    target.ExecutionFailed(command)
   return name
 
 
 def _get_include_dirs(target, includes):
   includes.append(target.GetPackageDirectory())
-  return ' '.join('-I{}'.format(d)
+  return '-I. ' + ' '.join('-I{}'.format(d)
    for d in includes)
 
 
@@ -28,6 +29,9 @@ def _get_src_files(target, srcs):
 def c_header(target, name, srcs, **kwargs):
   for src in _get_src_files(target, srcs):
     target.AddFile(src)
+  for deplib in target.Dependencies(package_ruletype='c_header'):
+    for f in deplib.IncludedFiles():
+      target.AddFile(f)
 
 
 @using(_compile, _get_include_dirs, _get_objects, _get_src_files)
@@ -37,6 +41,7 @@ def cpp_object(target, name, srcs, **kwargs):
   flags = set(kwargs.get('flags', []))
   flags.update(['-Wall', '-c'])
   binary = _compile(
+    target=target,
     compiler=kwargs.get('compiler', 'g++'),
     name=os.path.join(target.GetPackageDirectory(), name+'.o'),
     include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
@@ -55,6 +60,7 @@ def cpp_binary(target, name, **kwargs):
   flags = set(kwargs.get('flags', []))
   flags.update(['-Wall'])
   binary = _compile(
+    target=target,
     compiler=kwargs.get('compiler', 'g++'),
     name=os.path.join(target.GetPackageDirectory(), name),
     include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
@@ -87,6 +93,7 @@ def cpp_test(target, name, **kwargs):
   ]
 
   binary = _compile(
+    target=target,
     compiler=kwargs.get('compiler', 'g++'),
     name=os.path.join(target.GetPackageDirectory(), name),
     include=_get_include_dirs(target, include_dirs),
