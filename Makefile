@@ -15,9 +15,9 @@ copy_srcs:
 	@cp -r fuse impulse/fuse
 	@cp -r exceptions impulse/exceptions
 
-install: GENERATED/impulse/impulse
+install: GENERATED/BINARIES/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'
-	@cp GENERATED/impulse/impulse /usr/local/bin/impulse
+	@cp GENERATED/BINARIES/impulse/impulse /usr/local/bin/impulse
 
 clean:
 	@rm -rf GENERATED/
