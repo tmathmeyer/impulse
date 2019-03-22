@@ -27,12 +27,7 @@ def build(target:impulse_paths.BuildTarget,
   bt = impulse_paths.convert_to_build_target(
     target, impulse_paths.relative_pwd(), True)
 
-  time1 = time.time()
   graph = recursive_loader.generate_graph(bt)
-  time2 = time.time()
-
-  diff = (time2-time1) * 1000
-
   pool = threaded_dependence.DependentPool(debug, 1 if debug else 6, len(graph))
   pool.input_job_graph(graph).start()
 

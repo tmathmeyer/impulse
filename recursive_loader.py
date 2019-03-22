@@ -1,6 +1,8 @@
 
+import glob
 import inspect
 import marshal
+import os
 
 from impulse import impulse_paths
 from impulse import build_target
@@ -87,6 +89,7 @@ class RecursiveFileParser(object):
       'load': self._load_files,
       'buildrule': self._buildrule,
       'using': self._using,
+      'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
     }
 
@@ -130,6 +133,15 @@ class RecursiveFileParser(object):
       return fn(*args, **kwargs).AddScopes(includes)
     return replacement
 
+  def _find_files_pattern(self, p):
+    build_file = inspect.stack()[1].filename
+    build_directory = os.path.dirname(build_file)
+    pattern = os.path.join(build_directory, p)
+    try:
+      return glob.glob(pattern)
+    except Exception as e:
+      print(e)
+      return []
 
   def _buildrule(self, fn):
     """Decorates a function allowing it to be used as a target buildrule."""

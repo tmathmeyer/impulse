@@ -15,7 +15,9 @@ def ACCESS_ERR():
 
 class OverlayFilesystemOperations(fuse.Operations):
   """Backend file operations for the overlay filesystem."""
-  def __init__(self, rw_dir: str, ro_dirs: [str], shadow_files:dict):
+  def __init__(self, queue, rw_dir: str, ro_dirs: [str], shadow_files:dict):
+    self.ready_queue = queue
+
     self._rw_directory = rw_dir
     self._ro_directories = ro_dirs
     self._ro_files = shadow_files
@@ -281,14 +283,12 @@ class OverlayFilesystemOperations(fuse.Operations):
     elif os.path.exists(rw_old): # File is in RW, so just move it.
       shutil.move(rw_old, rw_new)
 
-
-  # Not implemented
-  def link(self, target, name):
-    raise "not implemented - link"
+  def init(self, *args, **kwargs):
+    self.ready_queue.put('ready')
 
 
-def run_fuse_thread(mount, rw_file, shadow_dirs, shadow_files):
-  fuse.FUSE(OverlayFilesystemOperations(rw_file, shadow_dirs, shadow_files),
+def run_fuse_thread(q, mount, rw_file, shadow_dirs, shadow_files):
+  fuse.FUSE(OverlayFilesystemOperations(q, rw_file, shadow_dirs, shadow_files),
     mount, nothreads=True, foreground=True)
 
 
@@ -304,9 +304,12 @@ class FuseCTX(object):
 
   def __enter__(self):
     self._oldsignal = signal.signal(signal.SIGINT, self._quit)
+    q = multiprocessing.Queue()
     self._thread = multiprocessing.Process(target=run_fuse_thread,
-      args=(self._mount, self._rw, self._shadow_dirs, self._files))
+      args=(q, self._mount, self._rw, self._shadow_dirs, self._files))
     self._thread.start()
+    while True:
+      q.get()
     while not os.path.ismount(self._mount):
       pass
 
