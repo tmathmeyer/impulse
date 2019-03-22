@@ -88,6 +88,7 @@ class RecursiveFileParser(object):
     self._environ = {
       'load': self._load_files,
       'buildrule': self._buildrule,
+      'buildrule_macro': self._buildrule_macro,
       'using': self._using,
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
@@ -134,14 +135,25 @@ class RecursiveFileParser(object):
     return replacement
 
   def _find_files_pattern(self, p):
-    build_file = inspect.stack()[1].filename
-    build_directory = os.path.dirname(build_file)
+    build_file = self._get_buildfile_from_stack()
+    build_directory = impulse_paths.get_qualified_build_file_dir(build_file)[2:]
     pattern = os.path.join(build_directory, p)
     try:
-      return glob.glob(pattern)
+      return [f[len(build_directory)+1:] for f in glob.glob(pattern)] or []
     except Exception as e:
       print(e)
       return []
+
+  def _get_buildfile_from_stack(self):
+    build_file = 'Fake'
+    build_file_index = 1
+    while not build_file.endswith('BUILD'):
+      build_file = inspect.stack()[build_file_index].filename
+      build_file_index += 1
+    return build_file
+
+  def _buildrule_macro(self, fn):
+    return fn
 
   def _buildrule(self, fn):
     """Decorates a function allowing it to be used as a target buildrule."""
@@ -156,7 +168,7 @@ class RecursiveFileParser(object):
       name = kwargs['name']
 
       # This is the buildfile that the rule is called from
-      build_file = inspect.stack()[kwargs.get('__stack__', 1)].filename
+      build_file = self._get_buildfile_from_stack()
 
       # Directory of the buildfile
       build_path = impulse_paths.get_qualified_build_file_dir(build_file)

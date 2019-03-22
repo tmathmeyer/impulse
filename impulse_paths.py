@@ -66,6 +66,7 @@ class LoggerEnv(dict):
       self._push_up(*args, **kwargs)
     else:
       self._calls.append((args, kwargs))
+    return []
 
   def __iter__(self):
     for call in self._calls:

@@ -1060,6 +1060,22 @@ class FUSE(object):
         return self.operations('ioctl', path.decode(self.encoding),
             cmd, arg, fh, flags, data)
 
+
+def _debug_method(fn):
+    def replacement(*args):
+        print(fn.__name__)
+        print(args)
+        try:
+            result = fn(*args)
+            return result
+        except Exception as e:
+            print('\n\n==========================================')
+            print(e)
+            print(fn.__name__)
+            print('==========================================\n\n')
+            raise e
+    return replacement
+
 class Operations(object):
     '''
     This class should be subclassed and passed as an argument to FUSE on
@@ -1073,7 +1089,10 @@ class Operations(object):
     def __call__(self, op, *args):
         if not hasattr(self, op):
             raise FuseOSError(errno.EFAULT)
-        return getattr(self, op)(*args)
+        if hasattr(self, 'debug_mode_enabled'):
+            return _debug_method(getattr(self, op))(*args)
+        else:
+            return getattr(self, op)(*args)
 
     def access(self, path, amode):
         return 0

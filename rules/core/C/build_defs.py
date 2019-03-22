@@ -1,6 +1,9 @@
-def _compile(target, compiler, name, include, srcs, objects, flags, std):
+def _compile(target, compiler, name, include, srcs, objs, flags, std):
   import os
-  cmd_fmt = '{compiler} -o {name} {include} {srcs} {objects} {flags} -std={std}'
+  if std:
+    cmd_fmt = '{compiler} -o {name} {include} {srcs} {objs} {flags} -std={std}'
+  else:
+    cmd_fmt = '{compiler} -o {name} {include} {srcs} {objs} {flags}'
   command = cmd_fmt.format(**locals())
   if os.system(command):
     target.ExecutionFailed(command)
@@ -46,7 +49,7 @@ def cpp_object(target, name, srcs, **kwargs):
     name=os.path.join(target.GetPackageDirectory(), name+'.o'),
     include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
     srcs=' '.join(_get_src_files(target, srcs)),
-    objects=' '.join(objects),
+    objs=' '.join(objects),
     flags=' '.join(flags),
     std=kwargs.get('std', 'c++17'))
 
@@ -65,7 +68,7 @@ def cpp_binary(target, name, **kwargs):
     name=os.path.join(target.GetPackageDirectory(), name),
     include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
     srcs=' '.join(_get_src_files(target, kwargs.get('srcs', []))),
-    objects=' '.join(objects),
+    objs=' '.join(objects),
     flags=' '.join(flags),
     std=kwargs.get('std', 'c++17'))
   target.AddFile(binary)
@@ -98,7 +101,7 @@ def cpp_test(target, name, **kwargs):
     name=os.path.join(target.GetPackageDirectory(), name),
     include=_get_include_dirs(target, include_dirs),
     srcs=' '.join(_get_src_files(target, kwargs.get('srcs', []))),
-    objects=' '.join(objects),
+    objs=' '.join(objects),
     flags=' '.join(flags),
     std=kwargs.get('std', 'c++17'))
   target.AddFile(binary)

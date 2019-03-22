@@ -80,6 +80,8 @@ class OverlayFilesystemOperations(fuse.Operations):
       b = os.path.basename(f)
       if f == search:
         return b, ffq
+      if f == '/':
+        return None, None
       f = os.path.dirname(f)
       ffq = os.path.dirname(ffq)
     return None, None
@@ -283,7 +285,7 @@ class OverlayFilesystemOperations(fuse.Operations):
     elif os.path.exists(rw_old): # File is in RW, so just move it.
       shutil.move(rw_old, rw_new)
 
-  def init(self, *args, **kwargs):
+  def init(self, path_ready):
     self.ready_queue.put('ready')
 
 
@@ -304,14 +306,11 @@ class FuseCTX(object):
 
   def __enter__(self):
     self._oldsignal = signal.signal(signal.SIGINT, self._quit)
-    q = multiprocessing.Queue()
+    readyq = multiprocessing.Queue()
     self._thread = multiprocessing.Process(target=run_fuse_thread,
-      args=(q, self._mount, self._rw, self._shadow_dirs, self._files))
+      args=(readyq, self._mount, self._rw, self._shadow_dirs, self._files))
     self._thread.start()
-    while True:
-      q.get()
-    while not os.path.ismount(self._mount):
-      pass
+    readyq.get()
 
   def __exit__(self, *args):
     self._quit()

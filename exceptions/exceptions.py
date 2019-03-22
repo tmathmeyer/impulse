@@ -48,7 +48,7 @@ class BuildTargetMissing(Exception):
 class FileImportException(Exception):
   """Raised when a file can't be recursively imported."""
   def __init__(self, ex, file):
-    super().__init__(ex)
+    super().__init__('Exception occured importing {}:\n{}'.format(file, ex))
 
 
 class BuildTargetMissingFrom(Exception):
