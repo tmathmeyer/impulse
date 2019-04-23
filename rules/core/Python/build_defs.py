@@ -5,7 +5,7 @@ def py_make_binary(package_name, package_file, binary_location):
   os.system('cat {} >> {}'.format(package_file, binary_file))
   os.system('chmod +x {}'.format(binary_file))
 
-def _track_files(target, srcs):
+def _add_files(target, srcs):
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
   for deplib in target.Dependencies(package_ruletype='py_library'):
@@ -19,10 +19,10 @@ def _write_file(target, name, contents):
   target.AddFile(name)
 
 
-@using(_track_files, _write_file)
+@using(_add_files, _write_file)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
-  _track_files(target, srcs)
+  _add_files(target, srcs)
 
   # Create the init files
   directory = target.GetPackageDirectory()
@@ -31,7 +31,7 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
 
-@using(_track_files, _write_file, py_make_binary)
+@using(_add_files, _write_file, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):
   # Create the init files
@@ -41,7 +41,7 @@ def py_binary(target, name, **kwargs):
     directory = os.path.dirname(directory)
 
   # Track any additional sources
-  _track_files(target, kwargs.get('srcs', []))
+  _add_files(target, kwargs.get('srcs', []))
 
   # Create the __main__ file
   main_fmt = 'from {package} import {name}\n{name}.main()\n'
@@ -55,7 +55,7 @@ def py_binary(target, name, **kwargs):
 
 
 @depends_targets("//impulse/testing:unittest")
-@using(_track_files, _write_file, py_make_binary)
+@using(_add_files, _write_file, py_make_binary)
 @buildrule
 def py_test(target, name, srcs, **kwargs):
   # Create the init files
@@ -65,7 +65,7 @@ def py_test(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
   # Track the sources
-  _track_files(target, srcs)
+  _add_files(target, srcs)
 
   import_fmt = 'from {} import {}\n'
   main_exec = 'from impulse.testing import testmain\ntestmain.main()\n'

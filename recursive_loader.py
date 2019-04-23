@@ -35,11 +35,36 @@ class ParsedBuildTarget(object):
       self._converted = self._CreateConverted()
     return self._converted
 
+  def _get_all_seems_like_buildrule_patterns(self):
+    def get_all(some, probably):
+      if type(some) == str:
+        v = probably(some)
+        if v:
+          yield v
+      elif type(some) == dict:
+        for v in get_all(some.items(), probably):
+          yield v
+      else:
+        try:
+          for l in some:
+            for v in get_all(l, probably):
+              yield v
+        except TypeError:
+          pass
+    def is_buildrule(txt):
+      try:
+        return impulse_paths.convert_to_build_target(
+          txt, self._build_rule.target_path, True)
+      except:
+        return None
+    return get_all(self._args, is_buildrule)
+
   def _CreateConverted(self):
     # set(build_target.BuildTarget)
     dependencies = set()
 
     # Convert all 'deps' into edges between BuildTargets
+    print(list(self._get_all_seems_like_buildrule_patterns()))
     for dep in self._args.get('deps', ()):
       target = impulse_paths.convert_to_build_target(
         dep, self._build_rule.target_path)
