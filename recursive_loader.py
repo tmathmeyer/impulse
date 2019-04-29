@@ -64,10 +64,7 @@ class ParsedBuildTarget(object):
     dependencies = set()
 
     # Convert all 'deps' into edges between BuildTargets
-    print(list(self._get_all_seems_like_buildrule_patterns()))
-    for dep in self._args.get('deps', ()):
-      target = impulse_paths.convert_to_build_target(
-        dep, self._build_rule.target_path)
+    for target in self._get_all_seems_like_buildrule_patterns():
       try:
         dependencies.add(self._evaluator.ConvertTarget(target))
       except exceptions.BuildTargetMissing:
@@ -102,6 +99,12 @@ def increase_stack_arg_decorator(replacement):
   return _superdecorator
 
 
+
+def _data_buildrule(target, name, srcs):
+  for src in srcs:
+    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+
+
 class RecursiveFileParser(object):
   """Loads files based on load() and buildrule statements."""
   def __init__(self):
@@ -117,6 +120,7 @@ class RecursiveFileParser(object):
       'using': self._using,
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
+      'data': self._buildrule(_data_buildrule)
     }
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):

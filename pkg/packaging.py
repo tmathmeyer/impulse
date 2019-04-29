@@ -8,6 +8,7 @@ import time
 import zipfile
 
 from impulse.exceptions import exceptions
+from impulse.util import temp_dir
 
 
 def EnsureDirectory(directory):
@@ -22,23 +23,6 @@ def MD5(fname):
           hash_md5.update(chunk)
   return hash_md5.hexdigest()
 
-
-class ScopedTempDirectory(object):
-  def __init__(self, temp_directory=None):
-    self._temp_directory = temp_directory
-    self._old_directory = None
-    self._delete_on_exit = not temp_directory
-
-  def __enter__(self):
-    if not self._temp_directory:
-      self._temp_directory = tempfile.mkdtemp()
-    self._old_directory = os.getcwd()
-    os.chdir(self._temp_directory)
-
-  def __exit__(self, *args):
-    os.chdir(self._old_directory)
-    if self._delete_on_exit:
-      os.rmdir(self._temp_directory)
 
 
 class ExportedPackage(object):
@@ -69,6 +53,8 @@ class ExportablePackage(object):
     self.included_files = []
     self.input_files = []
     self.depends_on_targets = []
+    self.build_file = []
+    self.rule_file = []
     self.package_target = package_target
     self.build_timestamp = int(time.time())
     self.is_binary_target = ruletype.endswith(
@@ -76,6 +62,7 @@ class ExportablePackage(object):
     self.package_ruletype = ruletype
 
     self._export_binary = None
+    self._extracted_dir = None
 
   def _GetJson(self) -> str:
     copydict = {}
@@ -101,6 +88,14 @@ class ExportablePackage(object):
   def SetInputFiles(self, files:[str]):
     for f in files:
       self.input_files.append([f, self._GetHash(f)])
+
+  def SetRuleFile(self, file:str, hashpath:str):
+    if file:
+      self.rule_file = [file, self._GetHash(hashpath)]
+
+  def SetBuildFile(self, file:str, hashpath:str):
+    if file:
+      self.build_file = [file, self._GetHash(hashpath)]
 
   def AddFile(self, filename: str):
     self.included_files.append(filename)
@@ -165,27 +160,43 @@ class ExportablePackage(object):
       if MD5(full_path) != src[1]:
         return self, True
 
+    check_files = []
+    if previous_build.get('build_file', None):
+      check_files.append(previous_build['build_file'])
+    if previous_build.get('rule_file', None):
+      check_files.append(previous_build['rule_file'])
+    for f, h in check_files:
+      full_path = os.path.join(src_dir, f)
+      if MD5(full_path) != h:
+        return self, True
+
     return self, False
 
-  def LoadToTemp(self, package_directory):
-    # Extract this into a temp-dir
-    package_name = os.path.join(package_directory,
+  def LoadToTemp(self, pkg_dir, bin_dir):
+    # Temp directory to write to (deleted on object destruction)
+    self._extracted_dir = tempfile.mkdtemp()
+    package_name = os.path.join(pkg_dir,
       self.package_target.GetPackagePkgFile())
 
-    package_contents = None
-
-    # Temp directory to write to
-    self._extracted_dir = tempfile.mkdtemp()
-    with ScopedTempDirectory(self._extracted_dir):
+    with temp_dir.ScopedTempDirectory(self._extracted_dir):
       unzip = 'unzip {} 2>&1 > /dev/null'.format(package_name)
       os.system(unzip)
       with open('pkg_contents.json') as f:
         package_contents = json.loads(f.read())
-    return self._extracted_dir, ExportedPackage(
-      self.package_target.GetPackagePkgFile(), package_contents)
+        exported_package = ExportedPackage(
+          self.package_target.GetPackagePkgFile(), package_contents)
+        if self.is_binary_target:
+          relative_binary = os.path.join(
+            self.package_target.GetPackagePathDirOnly(),
+            self.package_target.target_name)
+          full_path_binary = os.path.join(bin_dir, relative_binary)
+          return None, {self.package_target.target_name: full_path_binary}, exported_package
+        else:
+          return self._extracted_dir, {}, exported_package
 
   def UnloadPackageDirectory(self):
     shutil.rmtree(self._extracted_dir)
+    self._extracted_dir = None
 
   def Dependencies(self, **filters):
     for package in self.depends_on_targets:
@@ -198,4 +209,9 @@ class ExportablePackage(object):
 
   def IncludedFiles(self):
     return [f for f in self.included_files]
+
+  def __del__(self):
+    if self._extracted_dir:
+      if os.path.exists(self._extracted_dir):
+        self.UnloadPackageDirectory()
 

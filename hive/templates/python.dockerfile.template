@@ -1,0 +1,15 @@
+FROM python:3.7-alpine
+
+COPY {main_executable} .
+RUN chmod +x {main_executable}
+
+{{binaries}}
+COPY {.} .
+RUN chmod +x {.}
+{{/binaries}}
+
+{{pip_packages}}
+RUN pip install {.}
+{{/pip_packages}}
+
+CMD ["./{main_executable}"]

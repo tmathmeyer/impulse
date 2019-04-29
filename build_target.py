@@ -8,17 +8,21 @@ import types
 
 from impulse import impulse_paths
 from impulse import threaded_dependence
-
 from impulse.exceptions import exceptions
-
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
+from impulse.util import temp_dir
 
 EXPORT_DIR = impulse_paths.EXPORT_DIR
 PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')
 BINARIES_DIR = os.path.join(EXPORT_DIR, 'BINARIES')
 
 
+def GetRootRelativePath(path:str):
+  root = impulse_paths.root()
+  if path.startswith(root):
+    return path[len(root)+1:]
+  return None
 
 
 class BuildTarget(threaded_dependence.DependentJob):
@@ -57,8 +61,8 @@ class BuildTarget(threaded_dependence.DependentJob):
   def __str__(self):
     return 'BuildTarget[{}]'.format(self._buildrule_pt)
 
-  def LoadToTemp(self, package_name):
-    return self._package.LoadToTemp(package_name)
+  def LoadToTemp(self, package_dir, binary_dir):
+    return self._package.LoadToTemp(package_dir, binary_dir)
 
   def UnloadPackageDirectory(self):
     return self._package.UnloadPackageDirectory()
@@ -80,16 +84,18 @@ class BuildTarget(threaded_dependence.DependentJob):
     self.check_thread()
     try:
       code = marshal.loads(self._marshalled_func)
-      return types.FunctionType(code, self._GetExecEnv(),
-        str(self._buildrule_name))
+      return (
+        types.FunctionType(code, self._GetExecEnv(), str(self._buildrule_name)),
+        code.co_filename, self._buildrule_pt.GetBuildFileForTarget()
+      )
     except Exception as e:
       raise exceptions.BuildRuleCompilationError(e)
 
   def _RunBuildRule(self):
     self.check_thread()
-    buildrule = self._CompileBuildRule()
+    buildrule, rule, buildfile = self._CompileBuildRule()
     try:
-      return buildrule(self._package, **self._buildrule_args)
+      return buildrule(self._package, **self._buildrule_args), rule, buildfile
     except exceptions.BuildDefsRaisesException:
       raise
     except Exception as e:
@@ -128,19 +134,25 @@ class BuildTarget(threaded_dependence.DependentJob):
 
     # Real root-relative path for packages.
     pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
+    bin_directory = os.path.join(impulse_paths.root(), BINARIES_DIR)
 
     # Actual directory where buildfile lives.
     build_root = os.path.join(impulse_paths.root(), rulepath)
 
     # The input files specified in the rule in the BUILD file.
     forced_files = self._GetBuildRuleIncludedFiles(build_root, rulepath)
+    included_files = {}
+    included_files.update(forced_files)
 
     # A list of temporary directories where dependant packages are extracted
     loaded_dep_dirs = []
     for dependency in self.dependencies:
-      directory, package = dependency.LoadToTemp(pkg_directory)
-      loaded_dep_dirs.append(directory)
+      directory, files, package = dependency.LoadToTemp(
+        pkg_directory, bin_directory)
+      if directory:
+        loaded_dep_dirs.append(directory)
       self._package.AddDependency(package)
+      forced_files.update(files)
 
     # The actual source files - this MUST be read only!
     ro_directory = os.path.join(impulse_paths.root())
@@ -164,10 +176,12 @@ class BuildTarget(threaded_dependence.DependentJob):
 
       with overlayfs.FuseCTX(working_directory, rw_directory, forced_files,
                             *loaded_dep_dirs):
-        with packaging.ScopedTempDirectory(working_directory):
+        with temp_dir.ScopedTempDirectory(working_directory):
           # Set these as the hashed input files
-          self._package.SetInputFiles(forced_files.keys())
-          export_binary = self._RunBuildRule()
+          self._package.SetInputFiles(included_files.keys())
+          export_binary, rulefile, buildfile = self._RunBuildRule()
+          self._package.SetRuleFile(GetRootRelativePath(rulefile), rulefile)
+          self._package.SetBuildFile(GetRootRelativePath(buildfile), buildfile)
           self._package = self._package.Export()
           packaging.EnsureDirectory(os.path.dirname(package_full_path))
           shutil.copyfile(self._package.filename, package_full_path)
@@ -175,7 +189,7 @@ class BuildTarget(threaded_dependence.DependentJob):
             if not export_binary:
               raise Exception('{} must return a binary exporter!'.format(
                 self._buildrule_name))
-            bindir = os.path.join(impulse_paths.root(), BINARIES_DIR, rulepath)
+            bindir = os.path.join(bin_directory, rulepath)
             packaging.EnsureDirectory(bindir)
             export_binary(self._target_name, package_full_path, bindir)
     finally:
