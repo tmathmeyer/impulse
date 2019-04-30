@@ -190,7 +190,8 @@ class ExportablePackage(object):
             self.package_target.GetPackagePathDirOnly(),
             self.package_target.target_name)
           full_path_binary = os.path.join(bin_dir, relative_binary)
-          return None, {self.package_target.target_name: full_path_binary}, exported_package
+          binary_location = os.path.join('bin', self.package_target.target_name)
+          return None, {binary_location: full_path_binary}, exported_package
         else:
           return self._extracted_dir, {}, exported_package
 
