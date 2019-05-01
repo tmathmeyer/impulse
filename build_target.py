@@ -95,7 +95,6 @@ class BuildTarget(threaded_dependence.DependentJob):
     self.check_thread()
     buildrule, rule, buildfile = self._CompileBuildRule()
     try:
-      print(self._buildrule_args)
       return buildrule(self._package, **self._buildrule_args), rule, buildfile
     except exceptions.BuildDefsRaisesException:
       raise

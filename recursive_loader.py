@@ -170,7 +170,6 @@ class RecursiveFileParser(object):
     try:
       return [f[len(build_directory)+1:] for f in glob.glob(pattern)] or []
     except Exception as e:
-      print(e)
       return []
 
   def _get_buildfile_from_stack(self):

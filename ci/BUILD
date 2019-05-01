@@ -5,7 +5,10 @@ load (
 
 py_binary (
   name = "impulse_ci",
-  srcs = [ "impulse_ci.py" ]
+  srcs = [
+    "impulse_ci.py",
+    "flask_api.py",
+  ],
 )
 
 python_container (
@@ -18,5 +21,7 @@ python_container (
   binaries = [
     "impulse",
   ],
-  pip_packages = [ "Flask" ]
+  pip_packages = [
+    "Flask"
+  ],
 )
