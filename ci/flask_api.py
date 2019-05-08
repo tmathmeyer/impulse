@@ -62,7 +62,6 @@ class ResourceProvider(object):
     for path, verb_to_handler in path_dict.items():
       full_router_path = _url_path_join(self.get_provider_url_stub(), path)
       stub_function = self._create_handler(verb_to_handler, full_router_path)
-      print(full_router_path)
       flask_router = flask_app.route(
         full_router_path, methods=verb_to_handler.keys())
       flask_router(stub_function)
@@ -84,9 +83,7 @@ class ResourceProvider(object):
         kwargs['data'] = flask.request.get_json()
 
       try:
-        val = handler(self, *args, **kwargs)
-        print(val)
-        return flask.jsonify(val), 200
+        return flask.jsonify(handler(self, *args, **kwargs)), 200
       except ServiceError as e:
         return e.err_msg, e.err_code
 

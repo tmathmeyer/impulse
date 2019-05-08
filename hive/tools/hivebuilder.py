@@ -11,8 +11,6 @@ def main():
   extractcmd = 'unzip {}'.format(os.path.join(os.getcwd(), sys.argv[1]))
   with temp_dir.ScopedTempDirectory():
     os.system(extractcmd)
-    os.system('tree')
     dockercmd = 'docker build -t {} .'.format(Path(sys.argv[1]).stem)
-    print(dockercmd)
     os.system(dockercmd)
     os.system('rm -rf ./*')

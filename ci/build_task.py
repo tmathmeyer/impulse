@@ -157,7 +157,6 @@ class WebhookBuildTask(flask_api.Resource):
 
   def enter_thread(self):
     self._enter_new_step('Preparation')
-    print(os.getcwd())
     with temp_dir.ScopedTempDirectory(delete_non_empty=True):
       project = self._get('project')
       self.ensure_secure_branch_name(project)

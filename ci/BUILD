@@ -28,7 +28,6 @@ python_container (
   ],
   pip_packages = [
     "Flask",
-    "fusepy",
   ],
   alpine_packages = [
     "git",
