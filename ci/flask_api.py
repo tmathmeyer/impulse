@@ -49,7 +49,7 @@ class ResourceProvider(object):
 
     result['_links'].update({
       'self': {
-        'href': '{}/{}'.format(self.get_provider_url_stub(), resource.get_id)
+        'href': '{}/{}'.format(self.get_provider_url_stub(), resource.get_id())
       }
     })
     return result

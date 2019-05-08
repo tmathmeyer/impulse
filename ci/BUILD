@@ -6,8 +6,13 @@ load (
 py_binary (
   name = "impulse_ci",
   srcs = [
+    "build_task.py",
     "impulse_ci.py",
     "flask_api.py",
+  ],
+  deps = [
+    "//impulse/util:temp_dir",
+    "//impulse/rpc:rpc",
   ],
 )
 

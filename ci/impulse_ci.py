@@ -1,65 +1,39 @@
 
 import flask
-import uuid
+from flask import request
 
 from impulse.ci import flask_api
-
-class WebhookBuildTask(flask_api.Resource):
-  def __init__(self, head, head_branch, base, base_branch):
-    self._head = head
-    self._head_branch = head_branch
-    self._base = base
-    self._base_branch = base_branch
-    self._id = uuid.uuid4()
-
-  def get_full_json(self):
-    return {
-      'head': self._head,
-      'head_branch': self._head_branch,
-      'base': self._base,
-      'base_branch': self._base_branch,
-      'id': self._id
-    }
-
-  def get_core_json(self):
-    return {
-      'id': self._id
-    }
-
-  def get_id(self):
-    return self._id
-
-
+from impulse.ci import build_task
+from impulse.rpc import rpc
 
 class WebHookResourceProvider(flask_api.ResourceProvider):
   def __init__(self, flask):
     super(WebHookResourceProvider, self).__init__('webhooks', flask)
-
-    self._jobs = {}
+    self._CIProcessPool = rpc.RPC(build_task.ProcessPool, 3)
 
   @flask_api.METHODS.post('/')
   def handle_post_request(self, data=None):
+    print('GOT THE REQUEST LMAO')
     pr = data.get('pull_request', None)
     if not pr:
-      return 500, 'missing pull request'
+      raise flask_api.ServiceError(500, 'Only supports pull request')
 
-    head = pr['head_repo']['clone_url']
-    head_branch = pr['head_branch']
-    base = pr['base_repo']['clone_url']
-    base_branch = pr['base_branch']
-    print('will now clone {} and {}, merge {} into {}, and build!'.format(
-      head, base, head_branch, base_branch))
-    job = WebhookBuildTask(head, head_branch, base, base_branch)
-    self._jobs[job._id] = job    
-    return self.HAL(job)
+    if data.get('action', None) == 'opened':
+      return self.HAL(self._CIProcessPool.StartJob(pr))
+
+    raise flask_api.ServiceError(500, 'Only supports opened issues')
 
   @flask_api.METHODS.get('/')
   def handle_get_req(self):
-    return self.HALList(self._jobs.values())
+    query_index = request.args.get('index', 0)
+    return self.HALList(self._CIProcessPool.GetNJobs(query_index, 10))
 
   @flask_api.METHODS.get('/<req_id>')
   def get_specific_req(self, req_id):
-    return self._jobs.get(req_id, {})
+    job = self._CIProcessPool.GetJob(req_id)
+    if job is None:
+      raise flask_api.ServiceError(404, 'Not Found')
+    return self.HAL(job, full=True)
 
 
 def main():
