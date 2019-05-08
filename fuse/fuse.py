@@ -112,7 +112,7 @@ if not _libfuse_path:
         _libfuse_path = find_library('fuse')
 
 if not _libfuse_path:
-    raise EnvironmentError('Unable to find libfuse')
+    raise EnvironmentError('Unable to find libfuse: {}'.format(find_library('fuse')))
 else:
     _libfuse = ctypes.CDLL(_libfuse_path)
 

@@ -50,13 +50,18 @@ def populate_template(template_contents, **kwargs):
 @using(populate_template)
 @buildrule
 def python_container(target, name, main_executable, **kwargs):
+  import os
   binaries = kwargs.get('binaries', [])
+  if binaries:
+    binaries = [os.path.join('bin', b) for b in binaries]
+    kwargs['binaries'] = binaries
+  main_executable = os.path.join('bin', main_executable)
+
   with open('impulse/hive/templates/python.dockerfile.template', 'r') as inp:
     with open('Dockerfile', 'w+') as outp:
       for q in populate_template(inp.readlines(),
-        binaries=binaries,
-        main_executable=main_executable,
-        **kwargs):
+                                 main_executable=main_executable,
+                                 **kwargs):
         outp.write(q)
   for binary in binaries:
     target.AddFile(binary)

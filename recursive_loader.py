@@ -170,7 +170,6 @@ class RecursiveFileParser(object):
     try:
       return [f[len(build_directory)+1:] for f in glob.glob(pattern)] or []
     except Exception as e:
-      print(e)
       return []
 
   def _get_buildfile_from_stack(self):
@@ -229,6 +228,12 @@ class RecursiveFileParser(object):
         if target._converted:
           yield target._converted
     return set(converted_targets())
+
+  def ConvertAllTestTargets(self):
+    for target, parsed in self._targets.items():
+      if parsed._rule_type.endswith('_test'):
+        self.ConvertTarget(target)
+        yield target
 
 
 def generate_graph(build_target):
