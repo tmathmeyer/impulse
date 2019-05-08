@@ -229,6 +229,12 @@ class RecursiveFileParser(object):
           yield target._converted
     return set(converted_targets())
 
+  def ConvertAllTestTargets(self):
+    for target, parsed in self._targets.items():
+      if parsed._rule_type.endswith('_test'):
+        self.ConvertTarget(target)
+        yield target
+
 
 def generate_graph(build_target):
   re = RecursiveFileParser()

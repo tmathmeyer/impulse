@@ -1,5 +1,6 @@
 """IdeMpotent Python bUiLd SystEm"""
 
+import glob
 import os
 import time
 
@@ -52,13 +53,42 @@ def test(target:impulse_paths.BuildTarget,
 
   graph = recursive_loader.generate_graph(bt)
 
-  pool = threaded_dependence.DependentPool(6, len(graph))
+  pool = threaded_dependence.DependentPool(debug, 6, len(graph))
   pool.input_job_graph(graph).start()
   pool.join()
 
   cmdline = '{} {}'.format(ruleinfo.output,
     'export_results' if export else 'run')
   os.system(cmdline)
+
+
+@arguments
+def testsuite(project:str=None, debug:bool=False, fakeroot:args.Directory=None):
+  if debug:
+    status_out.DEBUG = True
+
+  if fakeroot:
+    os.environ['impulse_root'] = fakeroot
+
+  directory = os.getcwd()
+  if project:
+    directory = os.path.join(impulse_paths.root(), project)
+
+  rfp = recursive_loader.RecursiveFileParser()
+  for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
+    rfp._ParseFile(filename)
+
+  builders = list(rfp.ConvertAllTestTargets())
+  
+  graph = rfp.GetAllConvertedTargets()
+  pool = threaded_dependence.DependentPool(debug, 6, len(graph))
+  pool.input_job_graph(graph).start()
+  pool.join()
+
+  for builder in builders:
+    ruleinfo = builder.GetRuleInfo()
+    cmdline = '{} {}'.format(ruleinfo.output, 'run')
+    os.system(cmdline)
 
 
 

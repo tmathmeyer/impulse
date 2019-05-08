@@ -84,7 +84,9 @@ class ResourceProvider(object):
         kwargs['data'] = flask.request.get_json()
 
       try:
-        return flask.jsonify(handler(self, *args, **kwargs)), 200
+        val = handler(self, *args, **kwargs)
+        print(val)
+        return flask.jsonify(val), 200
       except ServiceError as e:
         return e.err_msg, e.err_code
 

@@ -13,7 +13,6 @@ class WebHookResourceProvider(flask_api.ResourceProvider):
 
   @flask_api.METHODS.post('/')
   def handle_post_request(self, data=None):
-    print('GOT THE REQUEST LMAO')
     pr = data.get('pull_request', None)
     if not pr:
       raise flask_api.ServiceError(500, 'Only supports pull request')

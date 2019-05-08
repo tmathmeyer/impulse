@@ -27,6 +27,16 @@ python_container (
     "impulse",
   ],
   pip_packages = [
-    "Flask"
+    "Flask",
+    "fusepy",
+  ],
+  alpine_packages = [
+    "git",
+    "fuse",
+    "zip",
+    "unzip",
+  ],
+  environment = [
+    "FUSE_LIBRARY_PATH=/usr/lib/libfuse.so.2",
   ],
 )

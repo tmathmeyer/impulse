@@ -59,6 +59,7 @@ def py_binary(target, name, **kwargs):
 @buildrule
 def py_test(target, name, srcs, **kwargs):
   # Create the init files
+  import os
   directory = target.GetPackageDirectory()
   while directory:
     _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
@@ -71,7 +72,7 @@ def py_test(target, name, srcs, **kwargs):
   main_exec = 'from impulse.testing import testmain\ntestmain.main()\n'
   main_contents = ''
   package = '.'.join(target.package_target.GetPackagePathDirOnly().split('/'))
-  import os
+
   for src in srcs:
     main_contents += import_fmt.format(package, os.path.splitext(src)[0])
   main_contents += main_exec
