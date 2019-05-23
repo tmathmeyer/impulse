@@ -14,6 +14,9 @@ py_binary (
     "//impulse/util:temp_dir",
     "//impulse/rpc:rpc",
   ],
+  data = [
+    "frontend.html",
+  ],
 )
 
 python_container (

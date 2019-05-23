@@ -1,14 +1,5 @@
 FROM python:3.7-alpine
 
-RUN mkdir -p bin
-COPY {main_executable} bin/
-RUN chmod +x {main_executable}
-
-{{binaries}}
-COPY {.} bin/
-RUN chmod +x {.}
-{{/binaries}}
-
 {{pip_packages}}
 RUN pip install {.}
 {{/pip_packages}}
@@ -20,6 +11,15 @@ RUN apk add --no-cache {.}
 {{environment}}
 ENV {.}
 {{/environment}}
+
+RUN mkdir -p bin
+COPY {main_executable} bin/
+RUN chmod +x {main_executable}
+
+{{binaries}}
+COPY {.} bin/
+RUN chmod +x {.}
+{{/binaries}}
 
 CMD ["modprobe", "fuse"]
 CMD ["./{main_executable}"]

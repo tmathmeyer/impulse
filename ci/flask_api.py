@@ -2,18 +2,21 @@
 import abc
 import collections
 import flask
+import pkgutil
 import types
+
 
 VERSION = 'v0'
 VERBS = ('get', 'put', 'patch', 'post', 'delete')
+__METHOD = collections.namedtuple('__METHOD', VERBS)
 
-_Method = collections.namedtuple('_Method', VERBS)
 
 class ServiceError(Exception):
   def __init__(self, err_code, err_msg=''):
     super(ServiceError, self).__init__('{}: {}'.format(err_code, err_msg))
     self.err_code = err_code
     self.err_msg = err_msg
+
 
 def make_verb_decorator(verb_name):
   def decorator(sub_path_component):
@@ -23,7 +26,9 @@ def make_verb_decorator(verb_name):
     return decorator_handler
   return decorator
 
-METHODS = _Method(**{k: make_verb_decorator(k) for k in VERBS})
+
+METHODS = __METHOD(**{k: make_verb_decorator(k) for k in VERBS})
+
 
 def _url_path_join(*args):
   components = ['']
@@ -33,11 +38,20 @@ def _url_path_join(*args):
       components.append(stripped)
   return '/'.join(components)
 
+
 class ResourceProvider(object):
-  def __init__(self, resource_name, flask_app):
+  def __init__(self, resource_name, flask_app, explorer=False):
     self._resource = resource_name
     self._version = VERSION
+    if explorer:
+      self.__setup_api_explorer(flask_app, resource_name)
     self.__parse_rest_verbs(flask_app)
+
+  def __setup_api_explorer(self, flask_app, resource):
+    if not hasattr(flask_app, '_API_EXPLORER'):
+      flask_app._API_EXPLORER = APIExplorer(flask_app)
+    flask_app._API_EXPLORER.explore_resource(resource)
+
 
   def HAL(self, resource, full=False):
     if full:
@@ -107,3 +121,20 @@ class Resource(object, metaclass=abc.ABCMeta):
   @abc.abstractmethod
   def get_id(self):
     pass
+
+
+
+
+
+
+class APIExplorer():
+  def __init__(self, flask_app):
+    self._flask = flask_app
+    self._flask.route('/api/explore')(self.serve_explorer_page)
+
+  def serve_explorer_page(self):
+    return pkgutil.get_data('impulse/ci', 'frontend.html')
+
+  def explore_resource(self, _):
+    pass
+

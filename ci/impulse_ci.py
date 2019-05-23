@@ -8,7 +8,8 @@ from impulse.rpc import rpc
 
 class WebHookResourceProvider(flask_api.ResourceProvider):
   def __init__(self, flask):
-    super(WebHookResourceProvider, self).__init__('webhooks', flask)
+    super(WebHookResourceProvider, self).__init__(
+      'webhooks', flask, explorer=True)
     self._CIProcessPool = rpc.RPC(build_task.ProcessPool, 3)
 
   @flask_api.METHODS.post('/')

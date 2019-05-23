@@ -2,6 +2,7 @@
 import inspect
 import multiprocessing as mp
 import os
+import sys
 import traceback
 import uuid
 
@@ -37,7 +38,8 @@ def QueueAwaitResponse(iQueue, oQueue, rpc):
     value = QueueRead(iQueue)
     if value.get_uuid() == rpc.get_uuid():
       if type(value) is Throw:
-        raise value.exc
+        value.PrintExceptionBacktrace()
+        raise ValueError('foo')
       if type(value) is Value:
         return value.value
       if type(value) is RCWrapper:
@@ -92,6 +94,12 @@ class Throw(PyRPC):
   def __init__(self, exc):
     super().__init__()
     self.exc = exc
+    self.backtrace = [(x.filename, x.lineno) for x in
+                      traceback.extract_tb(sys.exc_info()[2])]
+
+  def PrintExceptionBacktrace(self):
+    for ind, bt in enumerate(self.backtrace):
+      print('{}{}::{}'.format('  ' * ind, bt[0], bt[1]))
 
 
 class RPCall(PyRPC):

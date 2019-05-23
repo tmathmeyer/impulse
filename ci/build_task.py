@@ -34,8 +34,11 @@ class ProcessPool(object):
 
   def GetNJobs(self, start, count):
     self.MessageLoop()
-    build_ids = self.BuildsInOrder[0-start-count:0-start]
-    return [self.BuildMap[b_id] for b_id in build_ids]
+    if start == 0:
+      build_ids = self.BuildsInOrder[0-start-count:]
+    else:
+      build_ids = self.BuildsInOrder[0-start-count:0-start]
+    return build_ids[::-1]
 
   def GetJob(self, b_id):
     self.MessageLoop()
@@ -106,10 +109,10 @@ class JSONWrapper(object):
       return convert(self._json_dict[attr])
 
 
-def CO(*args, **kwargs):
+def CO(cmd, **kwargs):
   kwargs.update({'stderr': subprocess.STDOUT})
   try:
-    return str(subprocess.check_output(*args, **kwargs).decode('utf-8'))
+    return str(subprocess.check_output(cmd, **kwargs).decode('utf-8'))
   except subprocess.CalledProcessError as e:
     return str(e.output.decode('utf-8'))
 
@@ -168,9 +171,9 @@ class WebhookBuildTask(flask_api.Resource):
         os.system('git clone http://192.168.0.100:10080/ted/impulse')
       os.system('ln -s impulse/rules rules')
       self._enter_new_step('Running Tests')
-      os.system('/bin/impulse testsuite --debug --fakeroot {} 1>&2'.format(os.getcwd()))
-      self._add_step_entry('stdout',
-        CO('/bin/impulse testsuite --debug --fakeroot {}'.format(os.getcwd())))
+      #self._add_step_entry('stdout',
+      #  CO(['/bin/impulse', 'testsuite', '--debug', '--fakeroot', os.getcwd()]))
+      self._add_step_entry('stdout', CO(['ls', '-lash', '/bin']))
 
 
   def ensure_secure_branch_name(self, branch_name):
@@ -191,11 +194,11 @@ class WebhookBuildTask(flask_api.Resource):
     self.ensure_secure_branch_name(name)
     remote_cmd = 'git remote add {} {}'.format(name, upstream)
     self._get_entry_in_step('steps').append({
-      remote_cmd: CO(remote_cmd, shell=True)
+      remote_cmd: CO(remote_cmd.split(), shell=True)
     })
     pull_cmd = 'git pull {}'.format(name)
     self._get_entry_in_step('steps').append({
-      pull_cmd: CO(pull_cmd, shell=True)
+      pull_cmd: CO(pull_cmd.split(), shell=True)
     })
 
   def checkout_and_merge(self, head_branch, base_branch):
@@ -205,20 +208,20 @@ class WebhookBuildTask(flask_api.Resource):
     checkout_b = 'git checkout --track base/{}'.format(base_branch)
     rebase = 'git rebase {}'.format(head_branch)
     self._get_entry_in_step('steps').append({
-      checkout_a: CO(checkout_a, shell=True)
+      checkout_a: CO(checkout_a.split(), shell=True)
     })
     self._get_entry_in_step('steps').append({
-      checkout_b: CO(checkout_b, shell=True)
+      checkout_b: CO(checkout_b.split(), shell=True)
     })
     self._get_entry_in_step('steps').append({
-      rebase: CO(rebase, shell=True)
+      rebase: CO(rebase.split(), shell=True)
     })
 
   def prepare_git_repo(self):
     self._enter_new_step('Git')
     self._add_step_entry('steps', [])
     self._get_entry_in_step('steps').append({
-      'git init': CO('git init', shell=True)
+      'git init': CO(['git', 'init'], shell=True)
     })
     self.add_upstream_branch('head', self._get('head_repo'))
     self.add_upstream_branch('base', self._get('base_repo'))

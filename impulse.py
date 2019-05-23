@@ -15,6 +15,33 @@ arguments = args.ArgumentParser(complete=True)
 
 
 @arguments
+def run(target:impulse_paths.BuildTarget,
+         export:bool=False,
+         debug:bool=False,
+         fakeroot:args.Directory=None):
+  """Builds a testcase and executes it."""
+  if fakeroot:
+    os.environ['impulse_root'] = fakeroot
+
+  bt = impulse_paths.convert_to_build_target(
+    target, impulse_paths.relative_pwd(), True)
+
+  ruleinfo = bt.GetRuleInfo()
+
+  if not ruleinfo.type.endswith('_binary'):
+    print('Can only test a binary target')
+    return
+
+  graph = recursive_loader.generate_graph(bt)
+
+  pool = threaded_dependence.DependentPool(debug, 6, len(graph))
+  pool.input_job_graph(graph).start()
+  pool.join()
+
+  os.system(ruleinfo.output)
+
+
+@arguments
 def build(target:impulse_paths.BuildTarget,
           debug:bool=False,
           fakeroot:args.Directory=None):
@@ -33,10 +60,10 @@ def build(target:impulse_paths.BuildTarget,
   pool.input_job_graph(graph).start()
 
 
-
 @arguments
 def test(target:impulse_paths.BuildTarget,
          export:bool=False,
+         debug:bool=False,
          fakeroot:args.Directory=None):
   """Builds a testcase and executes it."""
   if fakeroot:
@@ -89,7 +116,6 @@ def testsuite(project:str=None, debug:bool=False, fakeroot:args.Directory=None):
     ruleinfo = builder.GetRuleInfo()
     cmdline = '{} {}'.format(ruleinfo.output, 'run')
     os.system(cmdline)
-
 
 
 @arguments

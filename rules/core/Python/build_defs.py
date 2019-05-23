@@ -22,7 +22,7 @@ def _write_file(target, name, contents):
 @using(_add_files, _write_file)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
-  _add_files(target, srcs)
+  _add_files(target, srcs + kwargs.get('data', []))
 
   # Create the init files
   directory = target.GetPackageDirectory()
@@ -41,7 +41,7 @@ def py_binary(target, name, **kwargs):
     directory = os.path.dirname(directory)
 
   # Track any additional sources
-  _add_files(target, kwargs.get('srcs', []))
+  _add_files(target, kwargs.get('srcs', []) + kwargs.get('data', []))
 
   # Create the __main__ file
   main_fmt = 'from {package} import {name}\n{name}.main()\n'
