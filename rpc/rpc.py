@@ -39,7 +39,7 @@ def QueueAwaitResponse(iQueue, oQueue, rpc):
     if value.get_uuid() == rpc.get_uuid():
       if type(value) is Throw:
         value.PrintExceptionBacktrace()
-        raise ValueError('foo')
+        return []
       if type(value) is Value:
         return value.value
       if type(value) is RCWrapper:
@@ -98,6 +98,7 @@ class Throw(PyRPC):
                       traceback.extract_tb(sys.exc_info()[2])]
 
   def PrintExceptionBacktrace(self):
+    print(self.exc)
     for ind, bt in enumerate(self.backtrace):
       print('{}{}::{}'.format('  ' * ind, bt[0], bt[1]))
 
@@ -200,3 +201,9 @@ class RPC(object):
     if self._process.is_alive():
       QueueWrite(self._outQueue, Delete())
       self._process.join()
+
+
+def RPCClass(decorated):
+  def Decorator(*args, **kwargs):
+    return RPC(decorated, *args, **kwargs)
+  return Decorator

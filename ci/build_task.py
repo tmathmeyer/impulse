@@ -7,9 +7,9 @@ import threading
 import uuid
 
 
-from impulse.ci import flask_api
 from impulse.util import temp_dir
 from impulse.rpc import rpc
+from impulse.hal import api
 
 
 

@@ -8,11 +8,11 @@ py_binary (
   srcs = [
     "build_task.py",
     "impulse_ci.py",
-    "flask_api.py",
   ],
   deps = [
     "//impulse/util:temp_dir",
     "//impulse/rpc:rpc",
+    "//impulse/hal:hal"
   ],
   data = [
     "frontend.html",
@@ -40,5 +40,18 @@ python_container (
   ],
   environment = [
     "FUSE_LIBRARY_PATH=/usr/lib/libfuse.so.2",
+  ],
+)
+
+py_binary (
+  name = "ci_server",
+  srcs = [
+    "build.py",
+    "ci_server.py",
+    "ci_pooling.py"
+  ],
+  deps = [
+    "//impulse/hal:hal",
+    "//impulse/rpc:rpc",
   ],
 )

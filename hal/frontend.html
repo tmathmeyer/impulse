@@ -113,7 +113,7 @@ body {
   </div>
   <div id="UrlSelection">
     <div class="button" id="GO">GO</div>
-    <input type="text" id="UrlField">
+    <input type="text" id="UrlField" value="/api/explore">
     </input>
   </div>
   <div class="json-format-box" id="JSONDisplay">
@@ -148,7 +148,7 @@ function JSON2HTML(J) {
     for (var key in J) {
       var value = J[key]
       if (key == 'href') {
-        value = "<z class='url' onClick='LoadUrl()'>" + value + "</z>";
+        value = "<z class='url' onClick='LoadUrl(this)'>" + value + "</z>";
       } else {
         value = JSON2HTML(value);
       }
@@ -161,7 +161,6 @@ function JSON2HTML(J) {
     return "<z class='dateime'>" + J + "</z>";
   }
 
-  console.log(J);
   return "<z class='" + typeof(J) + "'>" + sanitizeHtml(J) + "</z>";
 }
 
@@ -185,7 +184,7 @@ function GetSelectedVerbElement() {
               console.log(err);
               // TODO: dunno.
             } finally {
-              MR.target.setAttribute('content', '');
+              //MR.target.setAttribute('content', '');
             }
           }
         }
@@ -201,15 +200,19 @@ function GetSelectedVerbElement() {
 
 
 function SetStatus(status) {
-  if (!(status instanceof String)) {
+  if (typeof(status) === 'object') {
     status = JSON.stringify(status);
   }
-  console.log(status);
   document.getElementById('JSONDisplay').setAttribute('content', status);
 }
 
 function AccessToken() {
   return '';
+}
+
+function LoadUrl(x) {
+  document.getElementById('UrlField').value = x.textContent;
+  MakeRequest(x.textContent)
 }
 
 function MakeRequest(url) {
