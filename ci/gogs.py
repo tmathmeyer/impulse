@@ -3,7 +3,6 @@ import os
 import subprocess
 
 from impulse.hal import api
-from impulse.ci import ci_pooling
 from impulse.util import temp_dir
 
 GIT_URL = re.compile(
@@ -181,10 +180,10 @@ class Build(api.Resource('gogs-pr')):
 
 
 class BuildManager(api.ProvidesResources(Build)):
-  def __init__(self):
+  def __init__(self, builders):
     super().__init__(explorer=True)
     self._builds = {}
-    self._builder_pool = ci_pooling.BuilderPool(4)
+    self._builder_pool = builders
 
   @api.METHODS.post('/')
   def handle_webhook(self, build:Build):

@@ -255,10 +255,14 @@ def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
     if method in ('POST', 'PATCH', 'PUT'):
       assert 'return' not in handler_typehints.keys()
       assert len(handler_typehints) == 1
-      conv_type_name, conv_type = list(handler_typehints.items())[0]
+      type_name, conv_type = list(handler_typehints.items())[0]
 
       try:
-        kwargs[conv_type_name] = instantiate(conv_type, flask.request.get_json())
+        kwargs[type_name] = instantiate(conv_type, flask.request.get_json())
+        kwargs[type_name]._HalURL = 'http:/' + _url_path_join(
+          flask.request.host,
+          provider._get_provider_url_stub(),
+          kwargs[type_name]._get_HAL_id())
       except InstantiationError as e:
         return 'Error - Instantiation: ' + str(e.chain), 500
 
@@ -266,7 +270,7 @@ def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
         ret = handler_function(provider, *args, **kwargs)
         if ret != None:
           return str(ret), 500
-        return flask.jsonify(_HAL(provider, kwargs[conv_type_name])), 200
+        return flask.jsonify(_HAL(provider, kwargs[type_name])), 200
       except ServiceError as e:
         return e.err_msg, e.err_code
 

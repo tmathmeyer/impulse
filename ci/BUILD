@@ -31,6 +31,7 @@ py_binary (
   name = "ci_server",
   srcs = [
     "github.py",
+    "githubauth.py",
     "gogs.py",
     "ci_server.py",
     "ci_pooling.py"
