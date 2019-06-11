@@ -77,9 +77,9 @@ class RuleSpec(object):
   def __init__(self, target, callspec):
     self.type = callspec[1].get('called_as')[0]
     self.name = callspec[1].get('name')
+    output_type = 'BINARIES' if self.type.endswith('_binary') else 'PACKAGES'
     self.output = os.path.join(
-      output_directory(), 'BINARIES', target.target_path[2:], self.name)
-
+      output_directory(), output_type, target.target_path[2:], self.name)
 
 
 class ParsedTarget(object):

@@ -1,209 +1,310 @@
 
-import inspect
 import multiprocessing as mp
 import os
 import sys
 import traceback
 import uuid
 
+from multiprocessing import managers as MM
+backup_ap = MM.AutoProxy
+def redef(token, serializer, manager=None, authkey=None, exposed=None,
+          incref=True, manager_owned=True):
+  return backup_ap(token, serializer, manager, authkey, exposed, incref)
+MM.AutoProxy = redef
 
-OKBLUE = '\033[91m'
-OKGREEN = '\033[92m'
-OKPOO = '\033[95m'
+
+
+
+DEBUG = False
+BLUE = '\033[91m'
+GREEN = '\033[92m'
+GREY = '\033[95m'
 ENDC = '\033[0m'
-debug = False
 
+class RPCMessage(object):
+  def __init__(self, response:'NamedQueue'):
+    self._response_queue = response
+    self.token = str(uuid.uuid4())
 
-def QueueRead(q):
-  if debug:
-    print('{}{}: reading from: {}{}'.format(
-      OKPOO, os.getpid(), str(id(q))[-2:], ENDC))
-  x = q.get()
-  if debug:
-    print('{}{}: read({}):  ({}) - {}{}'.format(
-      OKBLUE, os.getpid(), str(id(q))[-2:], inspect.stack()[1][2], x, ENDC))
-  return x
-
-
-def QueueWrite(q, v):
-  if debug:
-    print('{}{}: write({}): ({}) - {}{}'.format(
-      OKGREEN, os.getpid(), str(id(q))[-2:], inspect.stack()[1][2], v, ENDC))
-  q.put(v)
-
-
-def QueueAwaitResponse(iQueue, oQueue, rpc):
-  QueueWrite(oQueue, rpc)
-  while True:
-    value = QueueRead(iQueue)
-    if value.get_uuid() == rpc.get_uuid():
-      if type(value) is Throw:
-        value.PrintExceptionBacktrace()
-        return []
-      if type(value) is Value:
-        return value.value
-      if type(value) is RCWrapper:
-        value.set_queues(iQueue, oQueue)
-      return value
-    iQueue.put(value)
-
-
-class PyRPC(object):
-  def __init__(self):
-    self.__uuid = str(uuid.uuid4())
+  def SendResponse(self, inQueue:'NamedQueue', clazz, *args, **kwargs):
+    write_out = clazz(inQueue, *args, **kwargs)
+    write_out.token = self.token
+    self._response_queue.Write(write_out)
+    return write_out
 
   def __repr__(self):
-    return '{}::{}'.format(self.__class__.__name__, self.__uuid.split('-')[1])
-
-  def get_uuid(self):
-    return self.__uuid
-
-  def set_uuid(self, uuid):
-    self.__uuid = uuid
-    return self
+    return '{}::{}({})'.format(self.__class__.__name__,
+      self.token.split('-')[1], {
+        k:v for k,v in self.__dict__.items()
+        if not (k.startswith('_') or k == 'token')
+      })
 
 
-class Delete(PyRPC):
-  def __init__(self):
-    super().__init__()
+class NamedQueue(object):
+  def __init__(self, manager:mp.Manager, name:str):
+    self._queue = manager.Queue()
+    self._name = name
+    self._waiting = {}
+
+  def SubQueue(self):
+    return NamedQueue(mp.Manager(), '{}::{}'.format(self._name, '1'))
+
+  def Read(self) -> RPCMessage:
+    if DEBUG:
+      print('{} :: reading from: {}'.format(
+        os.environ.get('_NAME', '_'), self._name))
+    x = self._queue.get()
+    if DEBUG:
+      print('{} :: got value "{}" from {}'.format(
+        os.environ.get('_NAME', '_'), x, self._name))
+    return x
+
+  def ReadUntil(self, token) -> RPCMessage:
+    if DEBUG:
+      print('{} :: reading from: {}'.format(
+        os.environ.get('_NAME', '_'), self._name))
+    while True:
+      x = self._queue.get()
+      if DEBUG:
+        print('{} :: got value "{}" from {}'.format(
+          os.environ.get('_NAME', '_'), x, self._name))
+      if x.token == token:
+        return x
+      elif x.token in self._waiting:
+        self._waiting[x.token].Write(x)
+      else:
+        self._queue.put(x)
+
+  def Write(self, value:RPCMessage):
+    if DEBUG:
+      print('{} :: writing "{}" to {}'.format(
+        os.environ.get('_NAME', '_'), value, self._name))
+    self._queue.put(value)
 
 
-class Value(PyRPC):
-  def __init__(self, value):
-    super().__init__()
-    self.value = value
-
-
-class GetAttr(PyRPC):
-  def __init__(self, attr):
-    super().__init__()
-    self.attr = attr
-
-  def __repr__(self):
-    return '{} (attr: {})'.format(super().__repr__(), self.attr)
-
-
-class SetAttr(PyRPC):
-  def __init__(self, attr, val):
-    super().__init__()
+class RPCSetAttr(RPCMessage):
+  def __init__(self, response:NamedQueue, attr:str, val):
+    super().__init__(response)
     self.attr = attr
     self.val = val
 
+    
+class RPCSetitem(RPCMessage):
+  def __init__(self, response:NamedQueue, key:str, val):
+    super().__init__(response)
+    self.key = key
+    self.val = val
 
-class Throw(PyRPC):
-  def __init__(self, exc):
-    super().__init__()
+    
+class RPCCall(RPCMessage):
+  def __init__(self, response:NamedQueue, args, kwargs):
+    super().__init__(response)
+    self.args = args
+    self.kwargs = kwargs
+
+    
+class RPCGetAttr(RPCMessage):
+  def __init__(self, response:NamedQueue, attr:str):
+    super().__init__(response)
+    self.attr = attr
+
+    
+class RPCDelattr(RPCMessage):
+  def __init__(self, response:NamedQueue, attr:str):
+    super().__init__(response)
+    self.attr = attr
+
+    
+class RPCGetitem(RPCMessage):
+  def __init__(self, response:NamedQueue, key:str):
+    super().__init__(response)
+    self.key = key
+
+    
+class RPCDelitem(RPCMessage):
+  def __init__(self, response:NamedQueue, key:str):
+    super().__init__(response)
+    self.key = key
+
+    
+class RPCRepr(RPCMessage):
+  def __init__(self, response:NamedQueue):
+    super().__init__(response)
+
+    
+class RPCDir(RPCMessage):
+  def __init__(self, response:NamedQueue):
+    super().__init__(response)
+
+    
+class RPCHash(RPCMessage):
+  def __init__(self, response:NamedQueue):
+    super().__init__(response)
+
+    
+class RPCDel(RPCMessage):
+  def __init__(self, response:NamedQueue):
+    super().__init__(response)
+
+
+class RPCValue(RPCMessage):
+  def __init__(self, response:NamedQueue, value):
+    super().__init__(response)
+    self.value = value
+
+
+class RPCException(RPCMessage):
+  def __init__(self, response:NamedQueue, exc:Exception):
+    print(exc)
+    super().__init__(response)
     self.exc = exc
     self.backtrace = [(x.filename, x.lineno) for x in
                       traceback.extract_tb(sys.exc_info()[2])]
 
-  def PrintExceptionBacktrace(self):
+  def Print(self):
     print(self.exc)
     for ind, bt in enumerate(self.backtrace):
       print('{}{}::{}'.format('  ' * ind, bt[0], bt[1]))
 
 
-class RPCall(PyRPC):
-  def __init__(self, args, kwargs):
-    super().__init__()
+class RPCEval(RPCMessage):
+  def __init__(self, response:NamedQueue, attr, args, kwargs):
+    super().__init__(response)
     self.args = args
     self.kwargs = kwargs
+    self.attr = attr
 
 
-class RCWrapper(PyRPC):
-  def __init__(self):
-    super().__init__()
-    self._inQueue = None
-    self._outQueue = None
-
-  def set_queues(self, inQueue, outQueue):
-    self._inQueue = inQueue
-    self._outQueue = outQueue
+class RPCBoundMethod(RPCMessage):
+  def __init__(self, response:NamedQueue, attr:str, writeback:NamedQueue):
+    super().__init__(response)
+    self._writeback = writeback
+    self._attr = attr
+    self._await_response = False
 
   def __call__(self, *args, **kwargs):
-    rpc = RPCall(args, kwargs).set_uuid(self.get_uuid())
-    return QueueAwaitResponse(self._inQueue, self._outQueue, rpc)
+    E = self.SendResponse(self._writeback, RPCEval, self._attr, args, kwargs)
+    if self._await_response:
+      return AwaitResult(self._writeback, self.token)
 
 
-class CallCache(object):
-  def __init__(self):
-    self.cache = {}
-
-  def CreateCallback(self, fn, uuid):
-    cb = RCWrapper().set_uuid(uuid)
-    self.cache[cb.get_uuid()] = fn
-    return cb
-
-  def GetCallback(self, uid):
-    return self.cache[uid]
-
-  def PopCallback(self, uid):
-    fn = self.GetCallback(uid)
-    del self.cache[uid]
-    return fn
+def SendValue(V, I, Q:NamedQueue, M:RPCMessage):
+  if callable(V) and getattr(V, '__self__', None) is I:
+    M.SendResponse(Q, RPCBoundMethod, V.__name__, M._response_queue)
+  else:
+    M.SendResponse(Q, RPCValue, V)
 
 
-def WrapRemoteInstance(clazz, args, kwargs, inQueue, outQueue):
-  callCache = CallCache()
+def HandleMessage(M:RPCMessage, Q:NamedQueue, I) -> bool:
+  try:
+    if type(M) is RPCGetAttr:
+      SendValue(getattr(I, M.attr), I, Q, M)
+    elif type(M) is RPCEval:
+      V = getattr(I, M.attr)(*M.args, **M.kwargs)
+      SendValue(V, I, Q, M)
+    elif type(M) is RPCDel:
+      M.SendResponse(Q, RPCDel)
+      return False
+    elif type(M) is RPCValue:
+      print("UNHANDLED ==> {}::{}".format(M, M.value))
+    else:
+      print("UNHANDLED==>{}".format(M))
+    return True
+  except Exception as e:
+    print(e)
+    M.SendResponse(Q, RPCException, e)
+    return True
+
+
+def BindMethod(clazz, I, O):
+  clazz._I = I
+  clazz._O = O
+  return Binder
+
+
+def Binder(self, method):
+  return RPCBoundMethod(self._I, method.__name__, self._O)
+
+
+def WrapRemoteInstance(clazz, args, kwargs, read_queue:NamedQueue):
+  clazz.Bind = BindMethod(clazz, read_queue, read_queue)
   instance = clazz(*args, **kwargs)
   while True:
-    job = QueueRead(inQueue)
-    if type(job) is Delete:
-      return job
-
-    try:
-      if type(job) is GetAttr:
-        value = getattr(instance, job.attr)
-        response = Value(value)
-        if callable(value):
-          response = callCache.CreateCallback(value, job.get_uuid())
-        QueueWrite(outQueue, response.set_uuid(job.get_uuid()))
-
-      elif type(job) is SetAttr:
-        if type(job.val) is RCWrapper:
-          job.val.set_queues(inQueue, outQueue)
-        setattr(instance, job.attr, job.val)
-
-      elif type(job) is RPCall:
-        fn = callCache.GetCallback(job.get_uuid())
-        value = fn(*job.args, **job.kwargs)
-        QueueWrite(outQueue, Value(value).set_uuid(job.get_uuid()))
+    incoming = read_queue.Read()
+    if not HandleMessage(incoming, read_queue, instance):
+      return
 
 
-    except Exception as e:
-      if debug:
-        traceback.print(exc)
-      QueueWrite(outQueue, Throw(e).set_uuid(job.get_uuid()))
-      return e
+def AwaitResult(q, token):
+  result = q.ReadUntil(token)
+  assert result.token == token
+  if type(result) == RPCValue:
+    return result.value
+  if type(result) == RPCException:
+    result.Print()
+    return None
+  if type(result) == RPCBoundMethod:
+    result._await_response = True
+  return result
 
 
-class RPC(object):
-  __Initialized = False
-  def __init__(self, clazz, *args, **kwargs):
-    self._inQueue = mp.Queue()
-    self._outQueue = mp.Queue()
-    self._process = mp.Process(
-      target=WrapRemoteInstance,
-      args=(clazz, args, kwargs, self._outQueue, self._inQueue))
-    self._process.start()
-    self.__Initialized = True
+def RPC(clazz):
+  class RPCReplacement(object):
+    __Initialized = False # Needed for __setattr__
 
-  def __getattr__(self, attr):
-    if self._process.is_alive():
-      return QueueAwaitResponse(self._inQueue, self._outQueue, GetAttr(attr))
+    def __init__(self, *args, **kwargs):
+      self.__manager = mp.Manager()
+      self.__incoming_queue = NamedQueue(self.__manager, 'MAILBOX(main)')
+      self.__outgoing_queue = NamedQueue(
+        self.__manager, 'MAILBOX({}({}))'.format(clazz.__name__, args[0]))
+      self.__reprocessed_queue = NamedQueue(self.__manager, 'JUNKMAIL')
+      self.__process = mp.Process(
+        target=WrapRemoteInstance,
+        args=(clazz, args, kwargs, self.__outgoing_queue))
+      self.__process.start()
+      self.__Initialized = True
 
-  def __setattr__(self, attr, val):
-    if not self.__Initialized:
-      return super().__setattr__(attr, val)
-    QueueWrite(self._outQueue, SetAttr(attr, val))
+    def __AwaitResponse(self, clazz, *args):
+      instance = clazz(self.__incoming_queue, *args)
+      self.__outgoing_queue.Write(instance)
+      return AwaitResult(self.__incoming_queue, instance.token)
 
-  def __del__(self):
-    if self._process.is_alive():
-      QueueWrite(self._outQueue, Delete())
-      self._process.join()
+    def __setattr__(self, attr, val):
+      if not self.__Initialized:
+        return super().__setattr__(attr, val)
+      return self.__AwaitResponse(RPCSetAttr, attr, val)
+
+    def __setitem__(self, key, val):
+      return self.__AwaitResponse(RPCSetitem, key, val)
+
+    def __call__(self, *args, **kwargs):
+      return self.__AwaitResponse(RPCCall, args, kwargs)
+
+    def __getattr__(self, attr):
+      return self.__AwaitResponse(RPCGetAttr, attr)
+
+    def __getitem__(self, key):
+      return self.__AwaitResponse(RPCGetitem, key)
+
+    def __delitem__(self, key):
+      return self.__AwaitResponse(RPCDelitem, key)
+
+    def __del__(self):
+      return self.__AwaitResponse(RPCDel)
+
+    #def __repr__(self):
+    #  return self.__AwaitResponse(RPCRepr)
+
+    def __dir__(self):
+      return self.__AwaitResponse(RPCDir)
+
+    def __hash__(self):
+      return self.__AwaitResponse(RPCHash)
+
+    def __delattr__(self, attr):
+      self.__AwaitResponse(RPCDelattr, attr)
+      self.__process.join()
+
+  return RPCReplacement
 
 
-def RPCClass(decorated):
-  def Decorator(*args, **kwargs):
-    return RPC(decorated, *args, **kwargs)
-  return Decorator

@@ -271,23 +271,36 @@ def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
         return e.err_msg, e.err_code
 
     if method == 'GET':
-      result = handler_function(provider, *args, **kwargs)
-      if result == None:
-        return 'Error - handler failed to return', 500
+      try:
+        result = handler_function(provider, *args, **kwargs)
+        if result == None:
+          return 'Error - handler failed to return', 500
 
-      return_type = handler_typehints.get('return', None)
-      if (type(return_type) == list):
-        return flask.jsonify(_HAL_LIST(provider, result)), 200
+        return_type = handler_typehints.get('return', None)
+        if (type(return_type) == list):
+          return flask.jsonify(_HAL_LIST(provider, result)), 200
 
-      return flask.jsonify(_HAL(provider, result, full=True)), 200
+        return flask.jsonify(_HAL(provider, result, full=True)), 200
+      except ServiceError as e:
+        return e.err_msg, e.err_code
+
 
   __STUB_FUNCTION.__name__ = ('__api__' + full_path.replace('/', '.'))
   return __STUB_FUNCTION
 
 
+from flask.json import JSONEncoder
+class HalJSONEncoder(JSONEncoder):
+  def default(self, obj):
+    if hasattr(obj, 'SerializeToJSON'):
+      return getattr(obj, 'SerializeToJSON')()
+    return super().default(obj)
+
+
 class _FLASK_WRAPPER(object):
   def __init__(self):
     self.flask_app = flask.Flask(__name__)
+    self.flask_app.json_encoder = HalJSONEncoder
     self._explorer = None
 
   def RegisterResourceProvider(self, provider:_RESOURCE_PROVIDER):

@@ -5,11 +5,12 @@ import threading
 
 from impulse.rpc import rpc
 
-@rpc.RPCClass
+@rpc.RPC
 class BuilderPool(object):
   def __init__(self, threadcount):
     self.builders = [RunThread() for _ in range(threadcount)]
     self.backlog = queue.Queue()
+    self.exportqueue = queue.Queue()
 
   def expire(self, build):
     self._message_loop()
@@ -24,10 +25,18 @@ class BuilderPool(object):
     return [b.GetTask().get_id() for b in self.builders
             if b.status == RunThread.RUNNING]
 
+  def updates(self):
+    self._message_loop()
+    exports = []
+    while not self.exportqueue.empty():
+      exports.append(self.exportqueue.get())
+    return exports
+
   def _message_loop(self):
     open_builders = queue.Queue()
     for builder in self.builders:
       if builder.status == RunThread.FINISHED:
+        self.exportqueue.put(builder.GetTask())
         builder.status = RunThread.READY
       if builder.status == RunThread.READY:
         open_builders.put(builder)

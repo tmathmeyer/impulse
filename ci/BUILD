@@ -1,29 +1,13 @@
 load (
   "//rules/core/Python/build_defs.py",
-  "//impulse/hive/rules/build_defs.py"
-)
-
-py_binary (
-  name = "impulse_ci",
-  srcs = [
-    "build_task.py",
-    "impulse_ci.py",
-  ],
-  deps = [
-    "//impulse/util:temp_dir",
-    "//impulse/rpc:rpc",
-    "//impulse/hal:hal"
-  ],
-  data = [
-    "frontend.html",
-  ],
+  "//impulse/docker/rules/build_defs.py"
 )
 
 python_container (
   name = "ci-container",
-  main_executable = "impulse_ci",
+  main_executable = "ci_server",
   deps = [
-    ":impulse_ci",
+    ":ci_server",
     "//impulse:impulse",
   ],
   binaries = [
@@ -53,5 +37,6 @@ py_binary (
   deps = [
     "//impulse/hal:hal",
     "//impulse/rpc:rpc",
+    "//impulse/util:temp_dir",
   ],
 )

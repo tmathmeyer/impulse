@@ -46,7 +46,7 @@ def populate_template(template_contents, **kwargs):
 
 
 
-@depends_targets("//impulse/hive/templates:templates")
+@depends_targets("//impulse/docker/templates:templates")
 @using(populate_template)
 @buildrule
 def python_container(target, name, main_executable, **kwargs):
@@ -57,7 +57,7 @@ def python_container(target, name, main_executable, **kwargs):
     kwargs['binaries'] = binaries
   main_executable = os.path.join('bin', main_executable)
 
-  with open('impulse/hive/templates/python.dockerfile.template', 'r') as inp:
+  with open('impulse/docker/templates/python.dockerfile.template', 'r') as inp:
     with open('Dockerfile', 'w+') as outp:
       for q in populate_template(inp.readlines(),
                                  main_executable=main_executable,
