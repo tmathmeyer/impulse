@@ -70,7 +70,7 @@ class ShellLog(object):
 
 class Build(api.Resource('github-pr')):
   def __init__(self, action:str, number:int, sender:User,
-                     pull_request:PullRequest, repository:Repo):
+                     pull_request:PullRequest, repository:Repo, **_):
     super().__init__()
     self.user = sender
     self.action = action
@@ -188,9 +188,12 @@ class BuildManager(api.ProvidesResources(Build)):
 
   @api.METHODS.post('/')
   def handle_webhook(self, build:Build):
-    build._token = self.token
-    if build.pull_request.author_role == 'OWNER':
-      self._builder_pool.ingest(build)
+    if build.action in ('opened', 'synchronize'):
+      build._token = self.token
+      if build.pull_request.author_role == 'OWNER':
+        self._builder_pool.ingest(build)
+    else:
+      print
 
   @api.METHODS.get('/')
   def get_all_build(self) -> [Build]:
