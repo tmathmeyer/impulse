@@ -2,7 +2,7 @@
 import inspect
 
 
-STRING_SIZE = 30
+STRING_SIZE = 29
 
 
 class FailedExpectationException(Exception):
@@ -19,8 +19,8 @@ class FailedExpectationException(Exception):
     fileLocation = '{}:{}'.format(self._filename, self._lineno)
     if len(fileLocation) < STRING_SIZE:
       fileLocation += ' ' * (STRING_SIZE - len(fileLocation))
-    if len(fileLocation) > STRING_SIZE:
-      fileLocation = fileLocation[-STRING_SIZE:]
+    if len(fileLocation) > STRING_SIZE -3:
+      fileLocation = '...' + fileLocation[-STRING_SIZE+3:]
     print(fmt.format(
       fileLocation, self._assertName, self._expected, self._actual))
     if not hasattr(exporter, 'failures'):
@@ -49,7 +49,7 @@ class ReportSuccess():
 
   def print(self, exporter):
     fmt = '[ {} ] Success'
-    funcname = '{}.{}'.format(self._clazz.__name__, self._testmethod)
+    funcname = '{}.{}'.format(self._clazz.__name__, self._testmethod.__name__)
     if len(funcname) < STRING_SIZE:
       funcname += ' ' * (STRING_SIZE - len(funcname))
     if len(funcname) > STRING_SIZE:
@@ -60,7 +60,7 @@ class ReportSuccess():
     if not hasattr(exporter, 'successes'):
       exporter.successes = []
     exporter.successes.append({
-      'testcase': self._testmethod,
+      'testcase': self._testmethod.__name__,
       'classname': self._clazz.__name__
     })
 
@@ -71,7 +71,8 @@ class TestCaseDataExporter(object):
     testcaseName = stack.f_code.co_name
     testcaseFile = stack.f_code.co_filename
     raise FailedExpectationException(
-      testcaseFile, testcaseName, stack.f_lineno, assertName, expected, actual)
+      testcaseFile, testcaseName, stack.f_lineno,
+      assertName, expected, actual)
 
   def print(self):
     return getattr(self, 'failures', 0)
@@ -90,14 +91,44 @@ class TestCaseDataExporter(object):
           inst = clazz(self)
           if 'setup' in methods:
             inst.setup()
+
+          success = False
+          fn = getattr(inst, testmethod)
+          exc = None
+          f_bad = False
           try:
-            getattr(inst, testmethod)()
-            getattr(ReportSuccess(clazz, testmethod), export_as)(self)
+            fn()
+            if fn.__name__ == 'INVERSION':
+              f_bad = True
+              raise FailedExpectationException(
+                fn._fileline[0], testmethod, fn._fileline[1],
+                'ExpectFailed', 'method to fai', 'passed instead')
+            success = True
           except FailedExpectationException as e:
-            getattr(e, export_as)(self, clazz)
+            exc = e
+            if fn.__name__ == 'INVERSION':
+              success = True
+            if f_bad:
+              success = False
+            exc = e
+
+          if success:
+            getattr(ReportSuccess(clazz, fn), export_as)(self)
+          else:
+            getattr(exc, export_as)(self, clazz)
+
+
           if 'teardown' in methods:
             inst.teardown()
     return getattr(self, export_as)()
+
+
+def ExpectFailed(func):
+  def INVERSION(*a, **k):
+    return func(*a, **k)
+  INVERSION._fileline = (
+    func.__code__.co_filename, func.__code__.co_firstlineno)
+  return INVERSION
 
 
 def initializedWithStack(classmethod):
