@@ -77,9 +77,11 @@ class RuleSpec(object):
   def __init__(self, target, callspec):
     self.type = callspec[1].get('called_as')[0]
     self.name = callspec[1].get('name')
+    output_type = 'BINARIES'
+    if self.type.endswith('_container'):
+      output_type = 'PACKAGES'
     self.output = os.path.join(
-      output_directory(), 'BINARIES', target.target_path[2:], self.name)
-
+      output_directory(), output_type, target.target_path[2:], self.name)
 
 
 class ParsedTarget(object):
@@ -138,7 +140,7 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
   if target.startswith('git://'):
     giturl, target = target.split('%', 1)
     basename = os.path.basename(giturl)
-    gen_repo_name = os.path.join(os.environ['impulse_root'], basename)
+    gen_repo_name = os.path.join(root(), basename)
     if not os.path.exists(gen_repo_name):
       os.system(' '.join(['git clone', giturl, gen_repo_name]))
     return convert_to_build_target(target, '//'+basename, quit_on_err)
@@ -165,8 +167,13 @@ def is_relative_path(path):
 
 
 def get_qualified_build_file_dir(build_file_path):
-  reg = re.compile(os.path.join(os.environ['impulse_root'], '(.*)/BUILD'))
-  return '//' + reg.match(build_file_path).group(1)
+  reg = re.compile(os.path.join(root(), '(.*)/BUILD'))
+  try:
+    return '//' + reg.match(build_file_path).group(1)
+  except:
+    print('{} didnt match {}'.format(
+      os.path.join(root(), '(.*)/BUILD'), build_file_path))
+    raise
 
 
 class BuildTarget(args.ArgComplete):

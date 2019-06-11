@@ -35,14 +35,36 @@ class ParsedBuildTarget(object):
       self._converted = self._CreateConverted()
     return self._converted
 
+  def _get_all_seems_like_buildrule_patterns(self):
+    def get_all(some, probably):
+      if type(some) == str:
+        v = probably(some)
+        if v:
+          yield v
+      elif type(some) == dict:
+        for v in get_all(some.items(), probably):
+          yield v
+      else:
+        try:
+          for l in some:
+            for v in get_all(l, probably):
+              yield v
+        except TypeError:
+          pass
+    def is_buildrule(txt):
+      try:
+        return impulse_paths.convert_to_build_target(
+          txt, self._build_rule.target_path, True)
+      except:
+        return None
+    return get_all(self._args, is_buildrule)
+
   def _CreateConverted(self):
     # set(build_target.BuildTarget)
     dependencies = set()
 
     # Convert all 'deps' into edges between BuildTargets
-    for dep in self._args.get('deps', ()):
-      target = impulse_paths.convert_to_build_target(
-        dep, self._build_rule.target_path)
+    for target in self._get_all_seems_like_buildrule_patterns():
       try:
         dependencies.add(self._evaluator.ConvertTarget(target))
       except exceptions.BuildTargetMissing:
@@ -77,6 +99,12 @@ def increase_stack_arg_decorator(replacement):
   return _superdecorator
 
 
+
+def _data_buildrule(target, name, srcs):
+  for src in srcs:
+    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+
+
 class RecursiveFileParser(object):
   """Loads files based on load() and buildrule statements."""
   def __init__(self):
@@ -92,6 +120,7 @@ class RecursiveFileParser(object):
       'using': self._using,
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
+      'data': self._buildrule(_data_buildrule)
     }
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):
@@ -141,7 +170,6 @@ class RecursiveFileParser(object):
     try:
       return [f[len(build_directory)+1:] for f in glob.glob(pattern)] or []
     except Exception as e:
-      print(e)
       return []
 
   def _get_buildfile_from_stack(self):
@@ -200,6 +228,12 @@ class RecursiveFileParser(object):
         if target._converted:
           yield target._converted
     return set(converted_targets())
+
+  def ConvertAllTestTargets(self):
+    for target, parsed in self._targets.items():
+      if parsed._rule_type.endswith('_test'):
+        self.ConvertTarget(target)
+        yield target
 
 
 def generate_graph(build_target):

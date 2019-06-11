@@ -12,5 +12,6 @@ py_library(
   deps=[
     "//impulse/fuse:fuse",
     "//impulse/exceptions:exceptions",
+    "//impulse/util:temp_dir",
   ]
 )
