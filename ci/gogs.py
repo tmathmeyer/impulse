@@ -85,7 +85,7 @@ class ShellLog(object):
     return self.commands
 
 
-class Build(api.Resource('builds')):
+class Build(api.Resource('gogs-pr')):
   def __init__(self, action:str, number:str, sender:User,
                pull_request:PullRequest, repository:Repo):
     super().__init__()
@@ -95,9 +95,6 @@ class Build(api.Resource('builds')):
     self.pull_request = pull_request
     self.repository = repository
     self.log = ShellLog()
-
-  def get_full_json(self):
-    return self.hal_dict
 
   def get_core_json(self):
     return { }

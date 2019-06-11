@@ -30,7 +30,8 @@ python_container (
 py_binary (
   name = "ci_server",
   srcs = [
-    "build.py",
+    "github.py",
+    "gogs.py",
     "ci_server.py",
     "ci_pooling.py"
   ],

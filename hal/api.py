@@ -224,8 +224,8 @@ def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
   class InstantiationError(Exception):
       def __init__(self, inst, chain):
         super().__init__()
-        if not chain:
-          self.chain = [inst]
+        if not chain or type(chain) == str:
+          self.chain = [inst, chain]
         else:
           self.chain = [inst] + chain.chain
       def __repr__(self):
@@ -241,8 +241,8 @@ def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
         return clazz(**{
           k:_c(typing.get_type_hints(clazz.__init__), k, v) for k,v in d.items()
         })
-      except TypeError:
-        raise InstantiationError(str(clazz), None)
+      except TypeError as e:
+        raise InstantiationError(str(clazz), str(e))
       except InstantiationError as e:
         raise InstantiationError(str(clazz), e)
     return clazz(d)
@@ -260,7 +260,7 @@ def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
       try:
         kwargs[conv_type_name] = instantiate(conv_type, flask.request.get_json())
       except InstantiationError as e:
-        return 'Error - Instantiation: ' + str(e), 500
+        return 'Error - Instantiation: ' + str(e.chain), 500
 
       try:
         ret = handler_function(provider, *args, **kwargs)
