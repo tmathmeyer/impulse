@@ -196,7 +196,11 @@ class ExportablePackage(object):
           return self._extracted_dir, {}, exported_package
 
   def UnloadPackageDirectory(self):
-    shutil.rmtree(self._extracted_dir)
+    if self._extracted_dir and os.path.exists(self._extracted_dir):
+      try:
+        shutil.rmtree(self._extracted_dir)
+      except FileNotFoundError:
+        pass
     self._extracted_dir = None
 
   def Dependencies(self, **filters):

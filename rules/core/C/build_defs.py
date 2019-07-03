@@ -5,6 +5,7 @@ def _compile(target, compiler, name, include, srcs, objs, flags, std):
   else:
     cmd_fmt = '{compiler} -o {name} {include} {srcs} {objs} {flags}'
   command = cmd_fmt.format(**locals())
+  print(command)
   if os.system(command):
     target.ExecutionFailed(command)
   return name
@@ -18,6 +19,9 @@ def _get_include_dirs(target, includes):
 
 def _get_objects(target):
   for deplib in target.Dependencies(package_ruletype='cpp_object'):
+    for obj in deplib.IncludedFiles():
+      yield obj
+  for deplib in target.Dependencies(package_ruletype='cpp_library'):
     for obj in deplib.IncludedFiles():
       yield obj
 
@@ -52,6 +56,24 @@ def cpp_object(target, name, srcs, **kwargs):
     objs=' '.join(objects),
     flags=' '.join(flags),
     std=kwargs.get('std', 'c++17'))
+
+  target.AddFile(binary)
+
+@using(_compile, _get_objects)
+@buildrule
+def cpp_library(target, name, deps, **kwargs):
+  objects = list(_get_objects(target))
+  flags = set(kwargs.get('flags', []))
+  flags.update(['-r'])
+  binary = _compile(
+    target=target,
+    compiler=kwargs.get('compiler', 'ld'),
+    name=os.path.join(target.GetPackageDirectory(), name+'.o'),
+    objs=' '.join(objects),
+    flags=' '.join(flags),
+    std='',
+    include='',
+    srcs='')
 
   target.AddFile(binary)
 
