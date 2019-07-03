@@ -1,13 +1,15 @@
 def _compile(target, compiler, name, include, srcs, objs, flags, std):
-  import os
+  import subprocess
   if std:
     cmd_fmt = '{compiler} -o {name} {include} {srcs} {objs} {flags} -std={std}'
   else:
     cmd_fmt = '{compiler} -o {name} {include} {srcs} {objs} {flags}'
   command = cmd_fmt.format(**locals())
-  print(command)
-  if os.system(command):
-    target.ExecutionFailed(command)
+  result = subprocess.run(command,
+    encoding='utf-8', shell=True,
+    stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+  if result.returncode:
+    target.ExecutionFailed(command, result.stderr)
   return name
 
 
@@ -46,7 +48,7 @@ def c_header(target, name, srcs, **kwargs):
 def cpp_object(target, name, srcs, **kwargs):
   objects = list(_get_objects(target))
   flags = set(kwargs.get('flags', []))
-  flags.update(['-Wall', '-c'])
+  flags.update(['-Wall', '-c', '-fdiagnostics-color=always'])
   binary = _compile(
     target=target,
     compiler=kwargs.get('compiler', 'g++'),
@@ -83,7 +85,7 @@ def cpp_library(target, name, deps, **kwargs):
 def cpp_binary(target, name, **kwargs):
   objects = _get_objects(target)
   flags = set(kwargs.get('flags', []))
-  flags.update(['-Wall'])
+  flags.update(['-Wall', '-fdiagnostics-color=always'])
   binary = _compile(
     target=target,
     compiler=kwargs.get('compiler', 'g++'),
@@ -110,7 +112,7 @@ def cpp_test(target, name, **kwargs):
   objects = _get_objects(target)
   # We need the -lpthread for gtest
   flags = set(kwargs.get('flags', []))
-  flags.update(['-Wextra', '-Wall', '-lpthread'])
+  flags.update(['-Wextra', '-Wall', '-lpthread', '-fdiagnostics-color=always'])
 
   include_dirs = kwargs.get('include_dirs', []) + [
     'googletest/googletest/include',
