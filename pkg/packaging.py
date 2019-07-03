@@ -112,9 +112,9 @@ class ExportablePackage(object):
   def GetPackageDirectory(self):
     return self.package_target.GetPackagePathDirOnly()
 
-  def ExecutionFailed(self, command):
+  def ExecutionFailed(self, command, stderr):
     raise exceptions.BuildDefsRaisesException(self.package_target.target_name,
-      self.package_ruletype, command)
+      self.package_ruletype, command + "\n\n" + stderr)
 
   def Export(self) -> ExportedPackage:
     with open('pkg_contents.json', 'w+') as f:
