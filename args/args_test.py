@@ -8,9 +8,9 @@ import os
 def CreateTemporaryDirectory():
   result = temp_dir.ScopedTempDirectory(delete_non_empty=True)
   result.__enter__()
-  os.system('mkdir exceptions')
-  os.system('mkdir rpc')
-  os.system('mkdir rules')
+  os.system('mkdir example')
+  os.system('mkdir rapid')
+  os.system('mkdir rasin')
   os.system('mkdir foobar')
 
   return result
@@ -26,19 +26,19 @@ class TestDirectoryCompletion(unittest.TestCase):
 
   def test_get_directories(self):
     expanded_from_e = list(args.Directory._get_directories('e'))
-    self.assertEqual(set(expanded_from_e), set(['exceptions']))
+    self.assertEqual(set(expanded_from_e), set(['example']))
     expanded_from_r = list(args.Directory._get_directories('r'))
-    self.assertEqual(set(expanded_from_r), set(['rpc', 'rules']))
-    expanded_from_rpc = list(args.Directory._get_directories('rpc'))
-    self.assertEqual(set(expanded_from_rpc), set(['rpc']))
+    self.assertEqual(set(expanded_from_r), set(['rapid', 'rasin']))
+    expanded_from_rpc = list(args.Directory._get_directories('rapid'))
+    self.assertEqual(set(expanded_from_rpc), set(['rapid']))
 
   def test_get_completion(self):
     expanded_from_e = list(args.Directory.get_completion_list('e?'))
-    self.assertEqual(set(expanded_from_e), set(['exceptions', 'exceptions/']))
+    self.assertEqual(set(expanded_from_e), set(['example', 'example/']))
     expanded_from_r = list(args.Directory.get_completion_list('r?'))
-    self.assertEqual(set(expanded_from_r), set(['rpc', 'rules']))
-    expanded_from_rpc = list(args.Directory.get_completion_list('rpc?'))
-    self.assertEqual(set(expanded_from_rpc), set(['rpc', 'rpc/']))
+    self.assertEqual(set(expanded_from_r), set(['rapid', 'rasin']))
+    expanded_from_rpc = list(args.Directory.get_completion_list('rapid?'))
+    self.assertEqual(set(expanded_from_rpc), set(['rapid', 'rapid/']))
 
 
 class TestArgumentParserDecorator(unittest.TestCase):
@@ -175,7 +175,7 @@ class TestArgumentParserComplete(unittest.TestCase):
     def example(foo:args.Directory):
       pass
     ap._handle_completion(['example', 'r?'], self.assertCalledWithArgs(
-      ['rules'], ['rpc']))
+      ['rasin'], ['rapid']))
 
   def test_completion_directory_flag(self):
     ap = args.ArgumentParser()
@@ -185,4 +185,4 @@ class TestArgumentParserComplete(unittest.TestCase):
     ap._handle_completion(['example', '--?'], self.assertCalledWithArgs(
       ['--foo']))
     ap._handle_completion(['example', '--foo', 'r?'], self.assertCalledWithArgs(
-      ['rules'], ['rpc']))
+      ['rasin'], ['rapid']))
