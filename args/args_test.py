@@ -21,6 +21,9 @@ class TestDirectoryCompletion(unittest.TestCase):
   def setup(self):
     self.deleteme = CreateTemporaryDirectory()
 
+  def teardown(self):
+    self.deleteme.__exit__()
+
   def test_get_directories(self):
     expanded_from_e = list(args.Directory._get_directories('e'))
     self.assertEqual(set(expanded_from_e), set(['exceptions']))
@@ -39,6 +42,12 @@ class TestDirectoryCompletion(unittest.TestCase):
 
 
 class TestArgumentParserDecorator(unittest.TestCase):
+
+  def setup(self):
+    self.deleteme = CreateTemporaryDirectory()
+
+  def teardown(self):
+    self.deleteme.__exit__()
 
   def test_zero_args(self):
     ap = args.ArgumentParser(False)
@@ -139,6 +148,12 @@ class TestArgumentParserDecorator(unittest.TestCase):
 
 
 class TestArgumentParserComplete(unittest.TestCase):
+
+  def setup(self):
+    self.deleteme = CreateTemporaryDirectory()
+
+  def teardown(self):
+    self.deleteme.__exit__()
 
   def test_completion_method(self):
     ap = args.ArgumentParser()

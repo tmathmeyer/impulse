@@ -26,6 +26,3 @@ class ScopedTempDirectory(object):
         os.system('rm -rf {}'.format(self._temp_directory))
       else:
         os.rmdir(self._temp_directory)
-
-  def __del__(self):
-    self.__exit__()
