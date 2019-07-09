@@ -16,5 +16,6 @@ py_test(
   ],
   deps = [
     ":args",
+    "//impulse/util:temp_dir"
   ]
 )
