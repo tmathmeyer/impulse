@@ -18,3 +18,10 @@ class TestArgs(unittest.TestCase):
       pass
     def typelesskwarg(_kwarg=1):
       pass
+
+
+class TestDirectoryCompletion(unittest.TestCase):
+  
+  def test_get_directories(self):
+    self.assertEqual(list(args.Directory._get_directories('e')),
+                     ['exceptions'])

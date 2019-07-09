@@ -9,3 +9,13 @@ py_library(
     "args.py",
   ],
 )
+
+py_test(
+  name = "args_unittest",
+  srcs = [
+    "args_test.py",
+  ],
+  deps = [
+    ":args",
+  ]
+)

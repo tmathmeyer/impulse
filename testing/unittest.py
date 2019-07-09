@@ -1,160 +1,199 @@
 
 import inspect
+import sys
+import traceback
+
+PASSED = '\033[38;5;2m'
+FAILED = '\033[38;5;9m'
+FAILED_ = '\033[38;5;88m'
+ENDC = '\033[0m'
 
 
-STRING_SIZE = 29
+class EarlyExitPassedError(Exception):
+  pass
 
 
-class FailedExpectationException(Exception):
-  def __init__(self, filename, casename, lineno, assertName, expected, actual):
-    self._filename = filename
-    self._lineno = lineno
-    self._assertName = assertName
-    self._expected = expected
-    self._actual = actual
+class FailedAssertError(Exception):
+  def __init__(self, filename, casename, lineno, assertname, A, B):
+    super().__init__()
+    testbase = __file__[:-27]
+    if filename.startswith(testbase):
+      filename = filename[len(testbase):]
+    self._file_location = '{}:{}'.format(filename, lineno)
+    self._assertName = assertname
+    self._expected = A
+    self._actual = B
     self._casename = casename
 
-  def print(self, exporter, _):
-    fmt = '[ {} ] {} failed; expected {}, was {}'
-    fileLocation = '{}:{}'.format(self._filename, self._lineno)
-    if len(fileLocation) < STRING_SIZE:
-      fileLocation += ' ' * (STRING_SIZE - len(fileLocation))
-    if len(fileLocation) > STRING_SIZE -3:
-      fileLocation = '...' + fileLocation[-STRING_SIZE+3:]
-    print(fmt.format(
-      fileLocation, self._assertName, self._expected, self._actual))
-    if not hasattr(exporter, 'failures'):
-      exporter.failures = 1
-    else:
-      exporter.failures += 1
+  def print(self, string_len):
+    fmt = '[ {}{}{} ] {} failed; expected {}, was {}'
+    fileLocation = self._file_location
+    if len(fileLocation) < string_len:
+      fileLocation += ' ' * (string_len - len(fileLocation))
+    print(fmt.format(FAILED_, fileLocation, ENDC,
+      self._assertName, self._expected, self._actual))
 
-  def json(self, exporter, clazz):
-    if not hasattr(exporter, 'failures'):
-      exporter.failures = []
-    exporter.failures.append({
-      'filename': self._filename,
-      'testcase': self._casename,
-      'line_number': self._lineno,
-      'actual_value': self._actual,
-      'assert_type': self._assertName,
-      'expected_value': self._expected,
-      'classname': clazz.__name__,
-    })
+  def FileLocationLength(self):
+    return len(self._file_location)
 
 
-class ReportSuccess():
-  def __init__(self, clazz, testmethod):
-    self._clazz = clazz
-    self._testmethod = testmethod
-
-  def print(self, exporter):
-    fmt = '[ {} ] Success'
-    funcname = '{}.{}'.format(self._clazz.__name__, self._testmethod.__name__)
-    if len(funcname) < STRING_SIZE:
-      funcname += ' ' * (STRING_SIZE - len(funcname))
-    if len(funcname) > STRING_SIZE:
-      funcname = funcname[-STRING_SIZE:]
-    print(fmt.format(funcname))
-
-  def json(self, exporter):
-    if not hasattr(exporter, 'successes'):
-      exporter.successes = []
-    exporter.successes.append({
-      'testcase': self._testmethod.__name__,
-      'classname': self._clazz.__name__
-    })
-
-
-class TestCaseDataExporter(object):
-  def markFailed(self, stack, expected, actual):
-    assertName = inspect.currentframe().f_back.f_code.co_name
-    testcaseName = stack.f_code.co_name
-    testcaseFile = stack.f_code.co_filename
-    raise FailedExpectationException(
-      testcaseFile, testcaseName, stack.f_lineno,
-      assertName, expected, actual)
+class GenericCrashHandler(object):
+  def __init__(self, isolator, exc):
+    self.exc = exc
+    self.isolator = isolator
+    exc_type, exc, self.tb = sys.exc_info()
+    #fa = FailedAssertError('__', tb.tb_frame, None, None, None, None)
 
   def print(self):
-    return getattr(self, 'failures', 0)
-
-  def json(self):
-    return  {
-      'successes': getattr(self, 'successes', []),
-      'failures': getattr(self, 'failures', [])
-    }
-
-  def run(self, export_as='print'):
-    for clazz in TestCase.__subclasses__():
-      methods = dir(clazz)
-      for testmethod in filter(lambda f: f.startswith('test_'), methods):
-        if callable(getattr(clazz, testmethod)):
-          inst = clazz(self)
-          if 'setup' in methods:
-            inst.setup()
-
-          success = False
-          fn = getattr(inst, testmethod)
-          exc = None
-          f_bad = False
-          try:
-            fn()
-            if fn.__name__ == 'INVERSION':
-              f_bad = True
-              raise FailedExpectationException(
-                fn._fileline[0], testmethod, fn._fileline[1],
-                'ExpectFailed', 'method to fai', 'passed instead')
-            success = True
-          except FailedExpectationException as e:
-            exc = e
-            if fn.__name__ == 'INVERSION':
-              success = True
-            if f_bad:
-              success = False
-            exc = e
-
-          if success:
-            getattr(ReportSuccess(clazz, fn), export_as)(self)
-          else:
-            getattr(exc, export_as)(self, clazz)
+    print('[ {}{}{} ]'.format(FAILED_, self.isolator.__name__, ENDC))
+    print(self.exc)
+    print(traceback.print_tb(self.tb))
 
 
-          if 'teardown' in methods:
-            inst.teardown()
-    return getattr(self, export_as)()
-
-
-def ExpectFailed(func):
-  def INVERSION(*a, **k):
-    return func(*a, **k)
-  INVERSION._fileline = (
-    func.__code__.co_filename, func.__code__.co_firstlineno)
-  return INVERSION
-
-
-def initializedWithStack(classmethod):
+def call_with_stack(classmethod):
   def replacement(self, *args):
     return classmethod(self, inspect.currentframe().f_back, *args)
   return replacement
 
 
-tests = TestCaseDataExporter()
+def methods_on(cls):
+  for entry in dir(cls):
+    test = getattr(cls, entry)
+    if callable(test):
+      yield entry, test
+
+
+def ExpectRaises(errtype):
+  def decorator(fn):
+    def replacement(*args, **kwargs):
+      try:
+        fn(*args, **kwargs)
+      except errtype:
+        raise EarlyExitPassedError()
+      raise FailedAssertError(
+        fn.__code__.co_filename, fn.__name__, fn.__code__.co_firstlineno,
+        'ExpectFailed', errtype.__name__, 'Nothing Raised')
+    return replacement
+  return decorator
+
+
+def ExpectFailed(fn):
+  return ExpectRaises(FailedAssertError)(fn)
+
+
+def AssertRaiseError(assertname, stack, A, B):
+    case = stack.f_code.co_name
+    file = stack.f_code.co_filename
+    line = stack.f_lineno
+    raise FailedAssertError(file, case, line, assertname, A, B)
+
+
+class TestIsolator():
+  def __init__(self, clsname, fnname, execute, setup=None, cleanup=None):
+    self.setup = setup or self.setup
+    self.cleanup = cleanup or self.cleanup
+    self.execute = execute
+    self.__name__ = '{}.{}'.format(clsname, fnname)
+
+  def run(self):
+    self.setup(self)
+    self.execute(self)
+    self.cleanup(self)
+
+  def setup(self, _):
+    pass
+
+  def cleanup(self, _):
+    pass
+
+  @call_with_stack
+  def assertTrue(self, stack, expr):
+    if not expr:
+      AssertRaiseError('assertTrue', stack, True, False)
+
+  @call_with_stack
+  def assertFalse(self, stack, expr):
+    if expr:
+      AssertRaiseError('assertFalse', stack, False, True)
+
+  @call_with_stack
+  def assertEqual(self, stack, A, B):
+    if A != B:
+      AssertRaiseError('assertEqual', stack, A, B)
 
 
 class TestCase(object):
-  def __init__(self, exporter):
-    self._exporter = exporter
+  @classmethod
+  def RunAll(cls, export_as='print'):
+    out = {
+      'passes': [],
+      'failures': [],
+      'crashes': []
+    }
+    for clazz in TestCase.__subclasses__():
+      test_methods = []
+      setup_method = None
+      cleanup_method = None
+      for name, method in methods_on(clazz):
+        if name == 'setup':
+          setup_method = method
+        elif name == 'cleanup':
+          cleanup_method = method
+        elif name.startswith('test_'):
+          test_methods.append(method)
+      for method in test_methods:
+        cls.RunIsolated(out, TestIsolator(
+          clazz.__name__, name, method, setup_method, cleanup_method))
+    return getattr(cls, export_as)(out)
 
-  @initializedWithStack
-  def assertTrue(self, stack, expression):
-    if not expression:
-      self._exporter.markFailed(stack, True, False)
+  @classmethod
+  def RunIsolated(cls, out, isolator):
+    try:
+      isolator.run()
+    except FailedAssertError as e:
+      out['failures'].append(e)
+    except EarlyExitPassedError as e:
+      pass
+    except Exception as e:
+      out['crashes'].append(GenericCrashHandler(isolator, e))
+      return
+    out['passes'].append(isolator)
 
-  @initializedWithStack
-  def assertFalse(self, stack, expression):
-    if expression:
-      self._exporter.markFailed(stack, False, True)
+  @classmethod
+  def print(cls, out):
+    p_len = len(out['passes'])
+    f_len = len(out['failures'])
+    c_len = len(out['crashes'])
+    print('{}{} test{} passed.{}'.format(
+      PASSED, 
+      p_len, '' if p_len == 1 else 's',
+      ENDC))
 
-  @initializedWithStack
-  def assertEqual(self, stack, A, B):
-    if A != B:
-      self._exporter.markFailed(stack, A, B)
+    if (f_len):
+      print('{}{} test{} failed:{}'.format(
+        FAILED,
+        f_len, '' if f_len == 1 else 's',
+        ENDC))
+      max_len = max(f.FileLocationLength() for f in out['failures'])
+      for f in out['failures']:
+        cls.PrintFailure(f, max_len)
+      
+    if (c_len):
+      print('{}{} test{} crashed:{}'.format(
+        FAILED,
+        c_len, '' if c_len == 1 else 's',
+        ENDC))
+      for f in out['crashes']:
+        cls.PrintCrashed(f)
+
+  @classmethod
+  def PrintFailure(cls, failure:FailedAssertError, max_len:int):
+    failure.print(max_len);
+
+  @classmethod
+  def PrintCrashed(cls, crash:GenericCrashHandler):
+    crash.print();
+
+
+      
+
