@@ -124,7 +124,8 @@ class Build(api.Resource('github-pr')):
         self._log.CMD(['git', 'clone', 'https://github.com/tmathmeyer/impulse'])
       self._log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
       return self._log.CMD(
-        ['impulse', 'testsuite', '--debug', '--fakeroot', os.getcwd()])
+        ['impulse', 'testsuite', '--notermcolor',
+         '--debug', '--fakeroot', os.getcwd()])
 
   def exit_msg(self, msg):
     self.log.commands.append(msg)
