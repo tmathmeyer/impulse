@@ -14,6 +14,7 @@ copy_srcs:
 	@cp -r pkg impulse/pkg
 	@cp -r fuse impulse/fuse
 	@cp -r util impulse/util
+	@cp -r testing impulse/testing
 	@cp -r exceptions impulse/exceptions
 
 install: GENERATED/BINARIES/impulse/impulse

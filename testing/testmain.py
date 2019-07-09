@@ -6,9 +6,9 @@ arguments = args.ArgumentParser(complete=True)
 
 
 @arguments
-def run():
+def run(notermcolor:bool=False):
   """Runs unit tests."""
-  unittest.TestCase.RunAll(export_as='print')
+  unittest.TestCase.RunAll(notermcolor, export_as='print')
 
 
 def main():

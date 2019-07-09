@@ -114,7 +114,8 @@ class Build(api.Resource('gogs-pr')):
         os.system('git clone http://192.168.0.100:10080/ted/impulse')
       os.system('ln -s impulse/rules rules')
       return self.log.CMD(
-        ['impulse', 'testsuite', '--debug', '--fakeroot', os.getcwd()])
+        ['impulse', 'testsuite', '--notermcolor',
+         '--debug', '--fakeroot', os.getcwd()])
 
 
   def exit_msg(self, msg):

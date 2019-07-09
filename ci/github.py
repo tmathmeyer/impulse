@@ -114,8 +114,10 @@ class Build(api.Resource('github-pr')):
       if not os.path.exists('impulse'):
         os.system('git clone http://192.168.0.100:10080/ted/impulse')
       os.system('ln -s impulse/rules rules')
+      #TODO: build self and use that, always.
       return self._log.CMD(
-        ['impulse', 'testsuite', '--debug', '--fakeroot', os.getcwd()])
+        ['impulse', 'testsuite', '--notermcolor',
+         '--debug', '--fakeroot', os.getcwd()])
 
   def exit_msg(self, msg):
     self._log.commands.append(msg)

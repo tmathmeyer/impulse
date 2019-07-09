@@ -82,8 +82,8 @@ def docker(target:impulse_paths.BuildTarget,
 
 @command
 def test(target:impulse_paths.BuildTarget,
-         export:bool=False,
          debug:bool=False,
+         notermcolor:bool=False,
          fakeroot:args.Directory=None):
   """Builds a testcase and executes it."""
   setup(debug, fakeroot)
@@ -93,8 +93,8 @@ def test(target:impulse_paths.BuildTarget,
     print('Can only test a binary target')
     return
   build_and_await(debug, recursive_loader.generate_graph(target))
-  cmdline = '{} {}'.format(ruleinfo.output,
-    'export_results' if export else 'run')
+  cmdline = '{} {} {}'.format(
+    ruleinfo.output, 'run', '--notermcolor' if notermcolor else '')
   os.system(cmdline)
 
 
@@ -114,7 +114,10 @@ def init():
 
 
 @command
-def testsuite(project:str=None, debug:bool=False, fakeroot:args.Directory=None):
+def testsuite(project:str=None,
+              debug:bool=False,
+              notermcolor:bool=False,
+              fakeroot:args.Directory=None):
   if debug:
     status_out.DEBUG = True
 
@@ -138,7 +141,8 @@ def testsuite(project:str=None, debug:bool=False, fakeroot:args.Directory=None):
 
   for builder in builders:
     ruleinfo = builder.GetRuleInfo()
-    cmdline = '{} {}'.format(ruleinfo.output, 'run')
+    cmdline = '{} {} {}'.format(
+      ruleinfo.output, 'run', '--notermcolor' if notermcolor else '')
     os.system(cmdline)
 
 

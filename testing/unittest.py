@@ -153,7 +153,16 @@ class TestIsolator():
 
 class TestCase(object):
   @classmethod
-  def RunAll(cls, export_as='print'):
+  def RunAll(cls, notermcolor, export_as='print'):
+    if notermcolor:
+      global PASSED
+      global FAILED
+      global FAILED_
+      global ENDC
+      PASSED = ''
+      FAILED = ''
+      FAILED_ = ''
+      ENDC = ''
     out = {
       'passes': [],
       'failures': [],
