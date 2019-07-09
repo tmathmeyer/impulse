@@ -4,7 +4,6 @@ from impulse.args import args
 from impulse.util import temp_dir
 import os
 
-
 def CreateTemporaryDirectory():
   result = temp_dir.ScopedTempDirectory(delete_non_empty=True)
   result.__enter__()
@@ -113,7 +112,6 @@ class TestArgumentParserDecorator(unittest.TestCase):
         }
       },
     })
-
 
   @unittest.ExpectRaises(SyntaxError)
   def test_is_bool_needs_default(self):

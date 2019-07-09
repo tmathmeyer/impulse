@@ -16,6 +16,7 @@ copy_srcs:
 	@cp -r util impulse/util
 	@cp -r testing impulse/testing
 	@cp -r exceptions impulse/exceptions
+	@cp -r testing impulse/testing
 
 install: GENERATED/BINARIES/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'
