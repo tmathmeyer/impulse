@@ -45,14 +45,15 @@ class GenericCrashHandler(object):
     #fa = FailedAssertError('__', tb.tb_frame, None, None, None, None)
 
   def print(self):
-    print('[ {}{}{} ]'.format(FAILED_, self.isolator.__name__, ENDC))
+    print('[ {}{}{} ]'.format(FAILED_, self.isolator.name, ENDC))
     print(self.exc)
     print(traceback.print_tb(self.tb))
 
 
-def call_with_stack(classmethod):
+def call_with_stack(method):
   def replacement(self, *args):
-    return classmethod(self, inspect.currentframe().f_back, *args)
+    return method(self, inspect.currentframe().f_back, *args)
+  replacement._wrapped = method
   return replacement
 
 
@@ -93,11 +94,13 @@ class TestIsolator():
     self.setup = setup or self.setup
     self.cleanup = cleanup or self.cleanup
     self.execute = execute
-    self.__name__ = '{}.{}'.format(clsname, fnname)
+    self.name = '{}.{}'.format(clsname, fnname)
+    self.expectations = []
 
   def run(self):
     self.setup(self)
     self.execute(self)
+    self.finish_expectations()
     self.cleanup(self)
 
   def setup(self, _):
@@ -105,6 +108,11 @@ class TestIsolator():
 
   def cleanup(self, _):
     pass
+
+  def finish_expectations(self):
+    for expectation in self.expectations:
+      expectation.assertExpectationsMet()
+
 
   @call_with_stack
   def assertTrue(self, stack, expr):
@@ -119,7 +127,28 @@ class TestIsolator():
   @call_with_stack
   def assertEqual(self, stack, A, B):
     if A != B:
-      AssertRaiseError('assertEqual', stack, A, B)
+      AssertRaiseError('assertEqual', stack, B, A)
+
+  @call_with_stack
+  def assertCalledWithArgs(self, stack, *argsets):
+    class CalledWithArgsExpector():
+      def __init__(cwae):
+        cwae.actual = []
+        cwae.itr = iter(argsets)
+
+      def assertExpectationsMet(cwae):
+        sentinel = object()
+        if next(cwae.itr, sentinel) is not sentinel:
+          AssertRaiseError(
+            'assertCalledWithArgs', stack, list(argsets), cwae.actual)
+
+    cwae = CalledWithArgsExpector()
+    def called(*args):
+      self.assertEqual._wrapped(self, stack, list(args),
+        list(next(cwae.itr, ['NOT CALLED'])))
+      cwae.actual.append(list(args))
+    self.expectations.append(cwae)
+    return called
 
 
 class TestCase(object):
@@ -140,8 +169,9 @@ class TestCase(object):
         elif name == 'cleanup':
           cleanup_method = method
         elif name.startswith('test_'):
-          test_methods.append(method)
-      for method in test_methods:
+          test_methods.append((method, name))
+
+      for method, name in test_methods:
         cls.RunIsolated(out, TestIsolator(
           clazz.__name__, name, method, setup_method, cleanup_method))
     return getattr(cls, export_as)(out)

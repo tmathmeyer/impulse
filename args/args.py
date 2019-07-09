@@ -20,6 +20,7 @@ class ArgComplete(metaclass=abc.ABCMeta):
 class Directory(ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
+    assert(stub[-1] == '?')
     dirs = list(cls._get_directories(stub[:-1]))
     if len(dirs) == 1:
       yield dirs[0]
@@ -66,12 +67,14 @@ class ArgumentParser(object):
       default = info.default
 
       if argtype == inspect.Parameter.empty:
-        self._invalid_syntax(func, arg)
+        self._invalid_syntax(func, arg, 'type annotation')
         return
 
       action = 'store'
       if argtype == bool:
         action = 'store_true'
+        if default == inspect.Parameter.empty:
+          self._invalid_syntax(func, arg, 'a default value')
 
       if default == inspect.Parameter.empty:
         self._methods[methodname]['args'][arg] = argtype
@@ -94,9 +97,9 @@ class ArgumentParser(object):
         _args[arg] = userarg
     func(**_args)
 
-  def _invalid_syntax(self, func, argname):
+  def _invalid_syntax(self, func, argname, missing):
     decorator_call = inspect.stack()[2]
-    msg = 'Argument {} requires type annotation.'.format(argname)
+    msg = 'Argument {} requires {}.'.format(argname, missing)
     filepath = decorator_call.filename
     lineno = decorator_call.lineno
     codeline = decorator_call.code_context
@@ -152,13 +155,14 @@ class ArgumentParser(object):
       for value in self._handle_subargs(cmdargs, args[-2:]):
         yield value
 
-  def _print_completion(self, args):
+  def _handle_completion(self, args, fn):
+    assert(len(args) >= 1)
     # There will always be at least a '?'
     if len(args) == 1:
       command = args[0][:-1]
       for methodname in self._methods.keys():
         if methodname.startswith(command):
-          print(methodname)
+          fn(methodname)
       return
 
     # the command is now:
@@ -169,11 +173,11 @@ class ArgumentParser(object):
 
     cmdargs = self._methods[args[0]]['args']
     for value in self._handle_subargs(cmdargs, args[1:]):
-      print(value)
+      fn(value)
 
   def eval(self):
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacomplete':
-      self._print_completion(sys.argv[3:])
+      self._handle_completion(sys.argv[3:], print)
       return
 
     parsed = self._parser.parse_args()
