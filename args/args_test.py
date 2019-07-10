@@ -26,6 +26,7 @@ class TestDirectoryCompletion(unittest.TestCase):
     self.deleteme.__exit__()
 
   def test_get_directories(self):
+    os.system('test_get_directories is in dir: {}'.format(os.getcwd()))
     expanded_from_e = list(args.Directory._get_directories('e'))
     self.assertEqual(set(expanded_from_e), set(['example']))
     expanded_from_r = list(args.Directory._get_directories('r'))
