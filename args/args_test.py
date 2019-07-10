@@ -12,7 +12,8 @@ def CreateTemporaryDirectory():
   os.system('mkdir rapid')
   os.system('mkdir rasin')
   os.system('mkdir foobar')
-
+  os.system('pwd')
+  os.system('ls -lash')
   return result
 
 
