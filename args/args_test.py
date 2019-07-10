@@ -12,8 +12,6 @@ def CreateTemporaryDirectory():
   os.system('mkdir rapid')
   os.system('mkdir rasin')
   os.system('mkdir foobar')
-  os.system('pwd')
-  os.system('ls -lash')
   return result
 
 
@@ -26,7 +24,9 @@ class TestDirectoryCompletion(unittest.TestCase):
     self.deleteme.__exit__()
 
   def test_get_directories(self):
-    os.system('test_get_directories is in dir: {}'.format(os.getcwd()))
+    print('running test_get_directories')
+    os.system('pwd')
+    os.system('ls -lash')
     expanded_from_e = list(args.Directory._get_directories('e'))
     self.assertEqual(set(expanded_from_e), set(['example']))
     expanded_from_r = list(args.Directory._get_directories('r'))
@@ -35,6 +35,9 @@ class TestDirectoryCompletion(unittest.TestCase):
     self.assertEqual(set(expanded_from_rpc), set(['rapid']))
 
   def test_get_completion(self):
+    print('running test_get_completion')
+    os.system('pwd')
+    os.system('ls -lash')
     expanded_from_e = list(args.Directory.get_completion_list('e?'))
     self.assertEqual(set(expanded_from_e), set(['example', 'example/']))
     expanded_from_r = list(args.Directory.get_completion_list('r?'))
