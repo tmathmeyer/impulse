@@ -96,7 +96,7 @@ class Build(api.Resource('github-pr')):
       write_this = list(self.log.commands[-1].values())[0]
       write_this = write_this.replace('\\n', '\n')
     else:
-      write_this = self._log.format_error()
+      write_this = self.log.format_error()
 
     message = (
 """
@@ -122,10 +122,18 @@ class Build(api.Resource('github-pr')):
           return self.exit_msg('Unable to check out source files')
       if not os.path.exists('impulse'):
         self._log.CMD(['git', 'clone', 'https://github.com/tmathmeyer/impulse'])
-      self._log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
-      return self._log.CMD(
-        ['impulse', 'testsuite', '--notermcolor',
-         '--debug', '--fakeroot', os.getcwd()])
+      if not os.path.exists('rules'):
+        self._log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
+
+      if not self._log.CMD(['impulse', 'build', '--force',
+                            '--fakeroot', os.getcwd(),
+                            '//impulse:impulse']):
+        return self.exit_msg('Could not build impulse')
+      if not self._log.CMD(['./GENERATED/BINARIES/impulse/impulse',
+                            'testsuite', '--notermcolor',
+                            '--debug', '--fakeroot' os.getcwd()]):
+        return self.exit_msg('Could not run tests')
+    return True
 
   def exit_msg(self, msg):
     self.log.commands.append(msg)
@@ -155,8 +163,13 @@ class Build(api.Resource('github-pr')):
       return False
 
     remote_cmd = 'git remote add {} {}'.format(name, upstream)
+<<<<<<< HEAD
     pull_cmd = 'git fetch {}'.format(name)
     if not self._log.CMD(remote_cmd.split()):
+=======
+    pull_cmd = 'git pull {}'.format(name)
+    if not self.log.CMD(remote_cmd.split()):
+>>>>>>> fixed weird bug with running in docker
       return False
     if not self.log.CMD(pull_cmd.split()):
       return False
