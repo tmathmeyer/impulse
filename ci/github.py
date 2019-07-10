@@ -46,7 +46,7 @@ class PullRequest(api.ResourceTypeStruct()):
     self.base = base
 
 
-class ShellLog(object):
+class ShellLog(api.ResourceTypeStruct()):
   def __init__(self):
     self.commands = []
 
@@ -77,17 +77,17 @@ class Build(api.Resource('github-pr')):
     self.number = number
     self.pull_request = pull_request
     self.repository = repository
-    self._log = ShellLog()
+    self.log = ShellLog()
 
   def get_core_json(self):
     return { }
 
   def Run(self):
     if self._Run():
-      write_this = list(self._log.commands[-1].values())[0]
+      write_this = list(self.log.commands[-1].values())[0]
       write_this = write_this.replace('\\n', '\n')
     else:
-      write_this = self._log.format_error()
+      write_this = self.log.format_error()
 
     message = (
 """
@@ -112,15 +112,20 @@ class Build(api.Resource('github-pr')):
         if not self.prepare_git_repo():
           return self.exit_msg('Unable to check out source files')
       if not os.path.exists('impulse'):
-        os.system('git clone http://192.168.0.100:10080/ted/impulse')
-      os.system('ln -s impulse/rules rules')
-      #TODO: build self and use that, always.
-      return self._log.CMD(
-        ['impulse', 'testsuite', '--notermcolor',
+        self.log.CMD(
+          ['git', 'clone', 'https://github.com/tmathmeyer/impulse.git'])
+
+      if not self.log.CMD(['ln', '-s', 'impulse/rules', 'rules']):
+        return False
+      if not self.log.CMD(['impulse', 'build', '--debug', '--fakeroot',
+                           os.getcwd(), '//impulse:impulse']):
+        return False
+      return self.log.CMD(
+        ['./GENERATED/BINARIES/impulse/impulse', 'testsuite', '--notermcolor',
          '--debug', '--fakeroot', os.getcwd()])
 
   def exit_msg(self, msg):
-    self._log.commands.append(msg)
+    self.log.commands.append(msg)
     return False
 
   def ensure_secure_branch_name(self, branch_name:str) -> bool:
@@ -128,7 +133,7 @@ class Build(api.Resource('github-pr')):
     return match is not None
 
   def prepare_git_repo(self) -> bool:
-    if not self._log.CMD(['git', 'init']):
+    if not self.log.CMD(['git', 'init']):
       return False
     head_clone_url = self.pull_request.head.repo.clone_url
     base_clone_url = self.pull_request.base.repo.clone_url
@@ -148,9 +153,9 @@ class Build(api.Resource('github-pr')):
 
     remote_cmd = 'git remote add {} {}'.format(name, upstream)
     pull_cmd = 'git pull {}'.format(name)
-    if not self._log.CMD(remote_cmd.split()):
+    if not self.log.CMD(remote_cmd.split()):
       return False
-    if not self._log.CMD(pull_cmd.split()):
+    if not self.log.CMD(pull_cmd.split()):
       return False
     return True
 
@@ -172,11 +177,11 @@ class Build(api.Resource('github-pr')):
     checkout_a = 'git checkout --track head/{}'.format(head_branch)
     checkout_b = 'git checkout --track base/{}'.format(base_branch)
     rebase = 'git rebase {}'.format(head_branch)
-    if not self._log.CMD(checkout_a.split()):
+    if not self.log.CMD(checkout_a.split()):
       return False
-    if not self._log.CMD(checkout_b.split()):
+    if not self.log.CMD(checkout_b.split()):
       return False
-    if not self._log.CMD(rebase.split()):
+    if not self.log.CMD(rebase.split()):
       return False
     return True
 

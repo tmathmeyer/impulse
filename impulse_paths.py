@@ -23,7 +23,7 @@ def root():
 
 def relative_pwd():
   impulse_root = root()
-  pwd = os.environ.get('PWD', None)
+  pwd = os.getcwd()
   if not pwd:
     raise ValueError('Unable to determine current directory')
 
