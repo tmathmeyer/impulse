@@ -165,10 +165,13 @@ class RecursiveFileParser(object):
 
   def _find_files_pattern(self, p):
     build_file = self._get_buildfile_from_stack()
-    build_directory = impulse_paths.get_qualified_build_file_dir(build_file)[2:]
+    build_directory = impulse_paths.get_qualified_build_file_dir(build_file)
+    build_directory = impulse_paths.expand_fully_qualified_path(build_directory)
     pattern = os.path.join(build_directory, p)
     try:
-      return [f[len(build_directory)+1:] for f in glob.glob(pattern)] or []
+      files = glob.glob(pattern)
+      files = [f[len(build_directory)+1:] for f in files]
+      return files
     except Exception as e:
       return []
 
