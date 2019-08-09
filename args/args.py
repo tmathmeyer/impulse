@@ -3,6 +3,7 @@ import abc
 import argparse
 import inspect
 import os
+import shlex
 import subprocess
 import sys
 
@@ -20,8 +21,7 @@ class ArgComplete(metaclass=abc.ABCMeta):
 class Directory(ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
-    assert(stub[-1] == '?')
-    dirs = list(cls._get_directories(stub[:-1]))
+    dirs = list(cls._get_directories(stub))
     if len(dirs) == 1:
       yield dirs[0]
       yield dirs[0] + '/'
@@ -105,79 +105,90 @@ class ArgumentParser(object):
     codeline = decorator_call.code_context
     raise SyntaxError(msg, (filepath, lineno, 0, codeline))
 
-  def _get_options_for_param(self, argtype, param):
-    assert(param[-1] == '?')
-    if argtype not in (str, None):
-      for result in argtype.get_completion_list(param):
-        yield result
+  def _get_sub_completion(self, needs_new_token, cmdargs, args):
+    # dropped command and binary
+    def filter_flags_opts_no_requirements(F):
+      for argname, argtype in cmdargs.items():
+        if argname.startswith('-') and argname.startswith(F):
+          yield argname
+        elif not argname.startswith('-') and not F.startswith('-') and argtype:
+          yield from argtype.get_completion_list(F)
 
-  def _provide_all_flags_and_options(self, cmdargs):
-    for argname, argtype in cmdargs.items():
-      if argname.startswith('-'):
-        yield argname
+    # If we have no args at all, populate everything
+    if not len(args):
+      assert needs_new_token
+      yield from filter_flags_opts_no_requirements('')
+
+    elif len(args) == 1:
+      if args[0].startswith('-'):
+        if needs_new_token:
+          assert args[0] in cmdargs
+        flag_param_type = cmdargs.get(args[0], None)
+        if flag_param_type:
+          # this flag has a value, so we should try to populate it
+          yield from flag_param_type.get_completion_list('')
+          if not needs_new_token:
+            # There could be substring flags too
+            yield from filter_flags_opts_no_requirements(args[0])
+        else:
+          yield from filter_flags_opts_no_requirements('')
       else:
-        for value in self._get_options_for_param(argtype, '?'):
-          yield value
+        yield from filter_flags_opts_no_requirements(
+          '' if needs_new_token else args[0])
 
-  def _handle_subargs(self, cmdargs, args):
-    # dropped the command and binary so far
-    if len(args) == 0:
-      raise RuntimeError('cant parse 0 subargs')
+    elif len(args) == 2:
+      (penultimate, last) = args
+      if needs_new_token:
+        yield from self._get_sub_completion(needs_new_token, cmdargs, [last])
+      elif not penultimate.startswith('-'):
+        # penultimate was not a flag, populate normally
+        yield from filter_flags_opts_no_requirements(last)
+      elif penultimate in cmdargs:
+        flag_param_type = cmdargs.get(penultimate)
+        if not flag_param_type:
+          # The --flag takes no args, so populate normally
+          yield from filter_flags_opts_no_requirements(last)
+        else:
+          yield from flag_param_type.get_completion_list(last)
 
-    if len(args) == 1:
-      if args[0] == '?': # Nothing provided, give args & opts.
-        for value in self._provide_all_flags_and_options(cmdargs):
-          yield value
-      elif args[0].startswith('-'): # Attempting to type a flag.
-        for flagname in cmdargs.keys():
-          if flagname.startswith(args[0][:-1]):
-            yield flagname
-      else: # attempting to provide a value, query every non-flag argument.
-        for argname, argtype in cmdargs.items():
-          if not argname.startswith('-'):
-            for value in self._get_options_for_param(argtype, args[0]):
-              yield value
+    else: # more than two args, trim them
+      yield from self._get_sub_completion(needs_new_token, cmdargs, args[-2:])
 
-    if len(args) == 2:
-      if args[0].startswith('--'): # Previous arg was a --flag
-        argtype = cmdargs.get(args[0], None)
-        if not argtype: # but the flag took no arguments!
-          for value in self._handle_subargs(cmdargs, args[-1:]):
-            yield value # Nothing else matters, just complete the last arg
-        else: # the flag takes arguments, get them
-          for value in self._get_options_for_param(argtype, args[1]):
-            yield value
-      else: # it wasn't a flag, so it doesn't matter
-        for value in self._handle_subargs(cmdargs, args[-1:]):
-          yield value
+  def _print_commands_matching(self, stub):
+    for methodname in self._methods.keys():
+      if methodname.startswith(stub):
+        print(methodname)
 
-    if len(args) > 2:
-      for value in self._handle_subargs(cmdargs, args[-2:]):
-        yield value
-
-  def _handle_completion(self, args, fn):
-    assert(len(args) >= 1)
-    # There will always be at least a '?'
-    if len(args) == 1:
-      command = args[0][:-1]
-      for methodname in self._methods.keys():
-        if methodname.startswith(command):
-          fn(methodname)
+  def _print_completion(self):
+    if '_LOCAL_COMP_LINE' not in os.environ:
       return
 
-    # the command is now:
-    # binary <command> {X} {Y} {Z}
-    # where Z is either '?' or '{str}?'
-    if args[0] not in self._methods:
-      return # invalid command, do not complete
+    COMP_LINE = os.environ.get('_LOCAL_COMP_LINE')
+    binary, *args = shlex.split(COMP_LINE)
+    needs_new_token = COMP_LINE.endswith(' ')
 
-    cmdargs = self._methods[args[0]]['args']
-    for value in self._handle_subargs(cmdargs, args[1:]):
-      fn(value)
+    # So far just the binary has been typed
+    if len(args) == 0:
+      if needs_new_token:
+        self._print_commands_matching('')
+      return
+
+    # The cursor has no space after the subcommand
+    if len(args) == 1 and not needs_new_token:
+      self._print_commands_matching(args[0])
+      return
+
+    if needs_new_token:
+      if args[0] not in self._methods:
+        return # invalid subcommand, do not complete anything
+
+    cmd_args = self._methods[args[0]]['args']
+    for value in self._get_sub_completion(needs_new_token, cmd_args, args[1:]):
+      print(value)
 
   def eval(self):
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacomplete':
-      self._handle_completion(sys.argv[3:], print)
+      self._print_completion()
       return
 
     parsed = self._parser.parse_args()

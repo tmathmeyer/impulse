@@ -179,18 +179,17 @@ def get_qualified_build_file_dir(build_file_path):
 class BuildTarget(args.ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
-    if stub == '?':
+    if not stub:
       for value in cls._parse_from_local_build_file():
         yield ':' + value
     elif stub.startswith(':'):
       for value in cls._parse_from_local_build_file():
-        if value.startswith(stub[1:-1]):
+        if value.startswith(stub[1:]):
           yield value
     elif stub.startswith('//'):
-      for path in cls._parse_partial_target(stub[2:]):
-        yield path
-    elif stub == '/?':
-      yield '//'
+      yield from  cls._parse_partial_target(stub[2:])
+    elif stub == '/':
+      yield from  cls._parse_partial_target(stub[1:])
 
   @classmethod
   def _parse_from_local_build_file(cls):
@@ -211,8 +210,6 @@ class BuildTarget(args.ArgComplete):
 
   @classmethod
   def _parse_targets_in_file(cls, path, target_stub):
-    if target_stub.endswith('?'):
-      target_stub = target_stub[:-1]
     build_file = os.path.join(path, 'BUILD')
     if os.path.exists(build_file):
       for target in cls._parse_from_build_file(build_file):
@@ -224,9 +221,11 @@ class BuildTarget(args.ArgComplete):
     build_root = root()
     path = os.path.join(build_root, path)
     if ':' in path:
-      for value in cls._parse_targets_in_file(*path.split(':')):
-        yield value
+      yield from cls._parse_targets_in_file(*path.split(':'))
 
     if ':' not in path:
       for directory in args.Directory.get_completion_list(path):
+        if not directory.endswith('/'):
+          for entry in cls._parse_targets_in_file(directory, ''):
+            yield '//' + directory[len(build_root)+1:] + ':' + entry
         yield '//' + directory[len(build_root)+1:]
