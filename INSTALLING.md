@@ -15,7 +15,4 @@ is the repository you're downloading impulse from.
  4. ```cd .. && impulse init```
 
 ### Completion
-copy the contents of ```complete.sh``` into
-```/usr/share/bash-completion/bash-completion```. Note that this is highly
-experimental, but also supports the auto-complete feature of any python
-binary which uses impulse-args.
+Source the file ```complete.sh``` from your shell (only bash supported for now)
