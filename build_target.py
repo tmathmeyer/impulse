@@ -34,7 +34,8 @@ class BuildTarget(threaded_dependence.DependentJob):
                      rule: impulse_paths.ParsedTarget, # The ParsedTarget
                      buildrule_name: str, # The buildrule type (ie: py_library) 
                      scope: dict, # A map from name to marshalled bytecode
-                     dependencies: set): # A set of BuildTargets dependencies
+                     dependencies: set, # A set of BuildTargets dependencies
+                     force_build:bool = False): # Always build even if recent
     super().__init__(dependencies)
 
     # These can't be unmarshalled until we're on the other thread in |run_job|
@@ -45,6 +46,7 @@ class BuildTarget(threaded_dependence.DependentJob):
     self._buildrule_pt = rule
     self._target_name = target_name
     self._buildrule_name = buildrule_name
+    self._force_build = force_build
 
     self._package = packaging.ExportablePackage(rule, buildrule_name)
 
@@ -78,6 +80,8 @@ class BuildTarget(threaded_dependence.DependentJob):
     self.check_thread()
     self._package, needs_building = self._package.NeedsBuild(
       package_dir, src_dir)
+    if self._force_build:
+      return True
     return needs_building
 
   def _CompileBuildRule(self):
