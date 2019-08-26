@@ -39,11 +39,13 @@ def fix_build_target(target:str) -> impulse_paths.ParsedTarget:
 @command
 def build(target:impulse_paths.BuildTarget,
           debug:bool=False,
+          force:bool=False,
           fakeroot:args.Directory=None):
   """Builds the given target."""
   setup(debug, fakeroot)
   target = fix_build_target(target)
-  build_and_await(debug, recursive_loader.generate_graph(target))
+  build_and_await(debug, recursive_loader.generate_graph(target,
+    force_build=force))
 
 
 @command

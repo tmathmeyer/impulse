@@ -14,13 +14,15 @@ INVALID_RULE_RECURSION_CANARY = object()
 
 
 class ParsedBuildTarget(object):
-  def __init__(self, name, func, args, build_rule, ruletype, evaluator):
+  def __init__(self, name, func, args, build_rule, ruletype, evaluator,
+               carried_args):
     self._func = marshal.dumps(func.__code__)
     self._name = name
     self._args = args
     self._build_rule = build_rule
     self._rule_type = ruletype
     self._evaluator = evaluator
+    self._carried_args = carried_args
     self._converted = None
     self._scope = {}
 
@@ -73,7 +75,7 @@ class ParsedBuildTarget(object):
     # Create a BuildTarget graph node
     return build_target.BuildTarget(
       self._name, self._func, self._args, self._build_rule,
-      self._rule_type, self._scope, dependencies)
+      self._rule_type, self._scope, dependencies, **self._carried_args)
 
   def AddScopes(self, funcs):
     if self._converted:
@@ -107,7 +109,8 @@ def _data_buildrule(target, name, srcs):
 
 class RecursiveFileParser(object):
   """Loads files based on load() and buildrule statements."""
-  def __init__(self):
+  def __init__(self, carried_args):
+    self._carried_args = carried_args
     self._targets = {} # Map[BuildTarget->ParsedBuildTarget]
     self._loaded_files = set() # We don't want to load files multiple times
 
@@ -209,7 +212,7 @@ class RecursiveFileParser(object):
 
       # Create a ParsedBuildTarget which can be converted into the graph later.
       self._targets[build_rule] = ParsedBuildTarget(
-        name, fn, kwargs, build_rule, buildrule_name, self)
+        name, fn, kwargs, build_rule, buildrule_name, self, self._carried_args)
 
       # Parse the dependencies and evaluate them too.
       for dep in kwargs.get('deps', []):
@@ -239,8 +242,8 @@ class RecursiveFileParser(object):
         yield target
 
 
-def generate_graph(build_target):
-  re = RecursiveFileParser()
+def generate_graph(build_target, **kwargs):
+  re = RecursiveFileParser(kwargs)
   re.ParseTarget(build_target)
   re.ConvertTarget(build_target)
   return re.GetAllConvertedTargets()
