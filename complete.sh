@@ -10,24 +10,24 @@ _impulseargs_complete_global() {
 
         # if the command failed => unset completion
         if [[ $? != 0 ]]; then
-          echo "failed cmd" > ~/IMPULSE_FOO
+          echo "failed cmd" > /tmp/impulse_complete_log
           unset COMPREPLY
           return
 
         # ensure that there are no spaces pasted if we end in a /
         elif [[ "$COMPREPLY" =~ [=/:]$ ]]; then
-          echo "ends in /" > ~/IMPULSE_FOO
+          echo "ends in /" > /tmp/impulse_complete_log
           compopt -o nospace
 
         # no results (?) => unset completion
         elif [ ${#COMPREPLY[@]} -eq 0 ]; then
-          echo "no results" > ~/IMPULSE_FOO
+          echo "no results" > /tmp/impulse_complete_log
           unset COMPREPLY
           return
 
         # first result is empty => unset completion
         elif [ -z "${COMPREPLY[0]}" ]; then
-          echo "first empty" > ~/IMPULSE_FOO
+          echo "first empty" > /tmp/impulse_complete_log
           unset COMPREPLY
           return
         fi
