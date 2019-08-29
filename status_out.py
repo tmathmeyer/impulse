@@ -13,6 +13,9 @@ class JobPrinter(object):
     self.debug = DEBUG
     self._print()
 
+  def add_job_count(self, new_count):
+    self._total_jobs += new_count
+
   def write_task_msg(self, mid, msg):
     self._jobs[mid] = msg
     self._print()

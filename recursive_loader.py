@@ -31,28 +31,31 @@ class ParsedBuildTarget(object):
     # we need to fail, as a cyclic graph can't be built. Conversion is
     # single threaded, so this test-and-set will suffice.
     if self._converted is INVALID_RULE_RECURSION_CANARY:
-      raise exceptions.BuildTargetCycle()
+      raise exceptions.BuildTargetCycle.Cycle(self)
     if not self._converted:
       self._converted = INVALID_RULE_RECURSION_CANARY
-      self._converted = self._CreateConverted()
+      try:
+        self._converted = self._CreateConverted()
+      except exceptions.BuildTargetCycle as e:
+        raise e.ChainException(self)
     return self._converted
 
   def _get_all_seems_like_buildrule_patterns(self):
     def get_all(some, probably):
-      if type(some) == str:
-        v = probably(some)
-        if v:
+      if type(some) == dict:
+        for v in get_all(list(some.items()), probably):
           yield v
-      elif type(some) == dict:
-        for v in get_all(some.items(), probably):
-          yield v
-      else:
+      elif type(some) in (list, tuple):
         try:
           for l in some:
             for v in get_all(l, probably):
               yield v
         except TypeError:
           pass
+      else:
+        v = probably(some)
+        if v:
+          yield v
     def is_buildrule(txt):
       try:
         return impulse_paths.convert_to_build_target(
@@ -64,18 +67,17 @@ class ParsedBuildTarget(object):
   def _CreateConverted(self):
     # set(build_target.BuildTarget)
     dependencies = set()
-
     # Convert all 'deps' into edges between BuildTargets
     for target in self._get_all_seems_like_buildrule_patterns():
       try:
-        dependencies.add(self._evaluator.ConvertTarget(target))
+        dependencies |= self._evaluator.ConvertTarget(target)
       except exceptions.BuildTargetMissing:
         raise exceptions.BuildTargetMissingFrom(str(target), self._build_rule)
 
     # Create a BuildTarget graph node
-    return build_target.BuildTarget(
+    return set([build_target.BuildTarget(
       self._name, self._func, self._args, self._build_rule,
-      self._rule_type, self._scope, dependencies, **self._carried_args)
+      self._rule_type, self._scope, dependencies, **self._carried_args)])
 
   def AddScopes(self, funcs):
     if self._converted:
@@ -83,6 +85,9 @@ class ParsedBuildTarget(object):
     for func in funcs:
       self._scope[func.__name__] = (marshal.dumps(func.__code__))
     return self
+
+  def GetName(self):
+    return str(self._name)
 
 
 def increase_stack_arg_decorator(replacement):
@@ -123,11 +128,12 @@ class RecursiveFileParser(object):
       'using': self._using,
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
-      'data': self._buildrule(_data_buildrule)
+      'data': self._buildrule(_data_buildrule),
+      'git_repo': build_target.ParsedGitTarget,
     }
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):
-    self._ParseFile(target.GetBuildFileForTarget())
+    target.ParseFile(self, self._ParseFile)
 
   def ConvertTarget(self, target):
     if target not in self._targets:
@@ -233,7 +239,10 @@ class RecursiveFileParser(object):
       for target in self._targets.values():
         if target._converted:
           yield target._converted
-    return set(converted_targets())
+    result = set()
+    for c in converted_targets():
+      result |= c
+    return result
 
   def ConvertAllTestTargets(self):
     for target, parsed in self._targets.items():
