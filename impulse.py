@@ -27,7 +27,7 @@ def setup(debug:bool, fakeroot:str):
 
 def build_and_await(debug:bool, graph:set):
   pool = threaded_dependence.DependentPool(
-    debug, 1 if debug else 6, len(graph))
+    debug, 6 if debug else 6, len(graph))
   pool.input_job_graph(graph).start()
   pool.join()
 
