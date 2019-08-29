@@ -25,5 +25,6 @@ py_library(
         "//impulse/pkg:packaging",
         "//impulse/exceptions:exceptions",
         "//impulse/util:temp_dir",
+        "//impulse/util:tree_builder",
     ],
 )
