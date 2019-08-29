@@ -30,13 +30,14 @@ class BuildTarget(threaded_dependence.DependentJob):
 
   def __init__(self, target_name: str, # The name of the target to build
                      func, # A marshalled function bytecode blob
-                     args: dict, # The build target parameters to call func with
+                     args: dict, # The build target parameters to call func
                      rule: impulse_paths.ParsedTarget, # The ParsedTarget
-                     buildrule_name: str, # The buildrule type (ie: py_library) 
+                     buildrule_name: str, # The buildrule type, ex: c_header
                      scope: dict, # A map from name to marshalled bytecode
                      dependencies: set, # A set of BuildTargets dependencies
+                     can_access_internal: bool = False, # Has internal access
                      force_build:bool = False): # Always build even if recent
-    super().__init__(dependencies)
+    super().__init__(dependencies, can_access_internal)
 
     # These can't be unmarshalled until we're on the other thread in |run_job|
     self._marshalled_func = func
@@ -48,7 +49,8 @@ class BuildTarget(threaded_dependence.DependentJob):
     self._buildrule_name = buildrule_name
     self._force_build = force_build
 
-    self._package = packaging.ExportablePackage(rule, buildrule_name)
+    self._package = packaging.ExportablePackage(
+      rule, buildrule_name, can_access_internal)
 
   def __eq__(self, other):
     return (other.__class__ == self.__class__ and
@@ -62,6 +64,10 @@ class BuildTarget(threaded_dependence.DependentJob):
 
   def __str__(self):
     return 'BuildTarget[{}]'.format(self._buildrule_pt)
+
+  def get_name(self):
+    """override"""
+    return str(self._buildrule_pt)
 
   def LoadToTemp(self, package_dir, binary_dir):
     return self._package.LoadToTemp(package_dir, binary_dir)
@@ -132,7 +138,9 @@ class BuildTarget(threaded_dependence.DependentJob):
 
 
   # Entry point where jobs start
-  def run_job(self, debug):
+  def run_job(self, debug, internal_access=None):
+    if internal_access:
+      self._package.SetInternalAccess(internal_access)
 
     rulepath = self._buildrule_pt.GetPackagePathDirOnly()
 
@@ -201,3 +209,117 @@ class BuildTarget(threaded_dependence.DependentJob):
       shutil.rmtree(rw_directory)
       for d in self.dependencies:
         d.UnloadPackageDirectory()
+
+
+class FileParserResult(object):
+  def __init__(self, name, checkout, args, pgt: 'ParsedGitTarget'):
+    self._converted = BuildTarget(
+      target_name = name,
+      func = marshal.dumps(checkout.__code__),
+      args = args,
+      rule = pgt,
+      buildrule_name = 'gitclone',
+      scope = {},
+      dependencies = set(),
+      force_build = True)
+
+  def Convert(self):
+    return set([self._converted])
+
+
+class MockConvertedTarget(object):
+  def __init__(self, chief_dependency, converted):
+    self._converted = converted
+    self._chief_dependency = chief_dependency
+
+  def Convert(self):
+    return set([self._chief_dependency])
+
+
+class ParsedGitTarget(impulse_paths.ParsedTarget):
+  def __init__(self, url, repo, target, commit='*'):
+    path, name = target.split(':')
+    super().__init__(name, path)
+    self._url = url
+    self._commit = commit
+    self._repo = repo
+
+  def _MakeCloneTarget(self):
+    target_name = f'git@{self.target_name}+clone'
+    return BuildTarget(
+      target_name = target_name,
+      func = marshal.dumps(GitClone.__code__),
+      args = {'name': self.target_name, 'url': self._url, 'repo': self._repo},
+      rule = impulse_paths.ParsedTarget(target_name, self.target_path),
+      buildrule_name = 'git_clone',
+      scope = {},
+      dependencies = set())
+
+  def _MakeCheckoutTarget(self, clone_target):
+    target_name = f'git@{self.target_name}+checkout'
+    return BuildTarget(
+      target_name = target_name,
+      func = marshal.dumps(GitCheckout.__code__),
+      args = {'name': self.target_name, 'commit': self._commit},
+      rule = impulse_paths.ParsedTarget(target_name, self.target_path),
+      buildrule_name = 'git_checkout',
+      scope = {},
+      dependencies = set([clone_target]),
+      can_access_internal = True)
+
+  def _MakeParentTarget(self, *children):
+    target_name = f'git@{self.target_name}'
+    return BuildTarget(
+      target_name = target_name,
+      func = marshal.dumps(GitRunChild.__code__),
+      args = {'name': self.target_name, 'path': self.target_path},
+      rule = impulse_paths.ParsedTarget(target_name, self.target_path),
+      buildrule_name = 'git_parent',
+      scope = {},
+      dependencies = set(children),
+      can_access_internal = True,
+      force_build=True)
+
+
+  def ParseFile(self, rfp, parser):
+    clone = self._MakeCloneTarget()
+    checkout = self._MakeCheckoutTarget(clone)
+    parent = self._MakeParentTarget(clone, checkout)
+    rfp._targets[self] = MockConvertedTarget(
+      parent, set([clone, checkout, parent]))
+
+
+def GitClone(target, name, repo, url):
+  repo_exists_path = os.path.join(impulse_paths.root(), repo)
+  if not os.path.exists(repo_exists_path):
+    command = f'git clone {url} {repo_exists_path}'
+    clone = target.RunCommand(command)
+    if clone.returncode:
+      target.ExecutionFailed(command, clone.stderr)
+  with open('gitlocation', 'w+') as f:
+    f.write(repo_exists_path)
+  target.AddFile('gitlocation')
+  target.SetInputFiles([os.path.join(
+    repo_exists_path, '.git', 'HEAD')])
+
+
+def GitCheckout(target, name, commit):
+  repo_path = None
+  with open('gitlocation', 'r') as f:
+    repo_path = f.read()
+  new_checkout = target.Internal.temp_dir.CreateDangerousLifetimeDirectory()
+  with target.Internal.temp_dir.ScopedTempDirectory(repo_path):
+    command = f'git worktree add {new_checkout} {commit}'
+    result = target.RunCommand(command)
+    if result.returncode:
+      target.ExecutionFailed(command, result.stderr)
+  with open('gitlocation', 'w+') as f:
+    f.write(new_checkout)
+  target.AddFile('gitlocation')
+
+
+def GitRunChild(target, name, path):
+  constructed = impulse_paths.ParsedTarget(name, path)
+  graph = target.Internal.recursive_loader.generate_graph(constructed)
+  target.Internal.build_queue.InjectMoreGraph(graph)
+  target.Internal.build_queue.MoveDependencyTo(constructed)

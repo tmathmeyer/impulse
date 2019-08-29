@@ -89,6 +89,9 @@ class ParsedTarget(object):
     self.target_name = target_name
     self.target_path = target_path
 
+  def ParseFile(self, _, parser):
+    parser(self.GetBuildFileForTarget())
+
   def GetBuildFileForTarget(self):
     return expand_fully_qualified_path(os.path.join(self.target_path, 'BUILD'))
 
@@ -111,6 +114,9 @@ class ParsedTarget(object):
         if call[1].get('name', None) == self.target_name:
           return RuleSpec(self, call)
 
+  def startswith(self, chunk):
+    return self.GetFullyQualifiedRulePath().startswith(chunk)
+
   def __hash__(self):
     return hash(self.GetFullyQualifiedRulePath())
 
@@ -128,6 +134,9 @@ def convert_name_to_build_target(name, loaded_from_dir):
 
 
 def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
+  if isinstance(target, ParsedTarget):
+    return target
+
   if is_relative_path(target):
     return ParsedTarget(target[1:], loaded_from_dir)
 

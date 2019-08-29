@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 import zipfile
@@ -30,7 +31,10 @@ def MD5(fname):
 
 class ExportedPackage(object):
   """Read-only package wrapper."""
-  def __init__(self, filename: str, json: dict=None, export_binary=None):
+  def __init__(self,
+               filename: str,
+               json: dict=None,
+               export_binary=None):
     self.filename = filename
     if json:
       self.__dict__.update(json)
@@ -50,9 +54,17 @@ class ExportedPackage(object):
     return str(self)
 
 
+class UtilHelper(object):
+  def __init__(self, buildqueue_ref):
+    self.temp_dir = temp_dir
+    self.recursive_loader = __import__('impulse').recursive_loader
+    self.build_queue = buildqueue_ref
+
+
 class ExportablePackage(object):
   """A wrapper class for building a package file."""
-  def __init__(self, package_target, ruletype: str):
+  def __init__(self, package_target, ruletype: str,
+               can_access_internal: bool=False):
     self.included_files = []
     self.input_files = []
     self.depends_on_targets = []
@@ -66,6 +78,18 @@ class ExportablePackage(object):
 
     self._export_binary = None
     self._extracted_dir = None
+    self._can_access_internal = can_access_internal
+    self._buildqueue_ref = None
+
+  def __getattribute__(self, attr):
+    if attr in ('Internal', 'SetInternalAccess'):
+      if self._can_access_internal:
+        if attr == 'Internal':
+          return UtilHelper(self._buildqueue_ref)
+        if attr == 'SetInternalAccess':
+          return object.__getattribute__(self, attr)
+      raise AttributeError
+    return object.__getattribute__(self, attr)
 
   def _GetJson(self) -> str:
     copydict = {}
@@ -87,6 +111,9 @@ class ExportablePackage(object):
     except IsADirectoryError:
       raise exceptions.ListedSourceNotFound(
         filename, str(self.package_target))
+
+  def SetInternalAccess(self, access):
+    self._buildqueue_ref = access
 
   def SetInputFiles(self, files:[str]):
     for f in files:
@@ -115,6 +142,13 @@ class ExportablePackage(object):
   def ExecutionFailed(self, command, stderr):
     raise exceptions.BuildDefsRaisesException(self.package_target.target_name,
       self.package_ruletype, command + "\n\n" + stderr)
+
+  def RunCommand(self, command):
+    return subprocess.run(command,
+                          encoding='utf-8',
+                          shell=True,
+                          stderr=subprocess.PIPE,
+                          stdout=subprocess.PIPE)
 
   def Export(self) -> ExportedPackage:
     with open('pkg_contents.json', 'w+') as f:
