@@ -84,6 +84,12 @@ class TaskStatus(object):
     return 'id: {}  --  {}'.format(self.id, self.job)
 
 
+class DebugNotice(object):
+  def __init__(self, t_id, msg):
+    self.id = t_id
+    self.msg = msg
+
+
 class TaskRunner(multiprocessing.Process):
   def __init__(self, id_num, debug, job_input, signal_output):
     multiprocessing.Process.__init__(self)
@@ -94,7 +100,11 @@ class TaskRunner(multiprocessing.Process):
 
   def run(self):
     while True:
-      job = self.job_input.get()
+      try:
+        job = self.job_input.get(timeout=10)
+      except:
+        self.signal_output.put(DebugNotice(self.id, 'Timed Out'))
+        continue
       if job is TASK_POISON:
         self.job_input.task_done()
         return
@@ -145,6 +155,9 @@ class DependentPool(multiprocessing.Process):
         self.job_input_queue.join()
         self.printer.finished(err=status)
         return
+      if self.debug and isinstance(status, DebugNotice):
+        self.printer.write_task_msg(debug.id, debug.msg)
+        continue
 
       if not status.finished:
         self.printer.write_task_msg(status.id, status.job)
