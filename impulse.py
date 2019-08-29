@@ -11,6 +11,7 @@ from impulse import recursive_loader
 from impulse import status_out
 from impulse.args import args
 from impulse.util import temp_dir
+from impulse.util import tree_builder
 
 
 command = args.ArgumentParser(complete=True)
@@ -46,6 +47,19 @@ def build(target:impulse_paths.BuildTarget,
   target = fix_build_target(target)
   build_and_await(debug, recursive_loader.generate_graph(target,
     force_build=force))
+
+@command
+def print_tree(target:impulse_paths.BuildTarget,
+               fakeroot:args.Directory=None):
+  """Builds the given target."""
+  setup(False, fakeroot)
+  target = fix_build_target(target)
+  tree = recursive_loader.generate_graph(target)
+  tree = tree_builder.BuildTree(tree)
+  if tree:
+    tree.Print()
+  else:
+    print('ERROR')
 
 
 @command
