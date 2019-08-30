@@ -3,7 +3,23 @@
 Impulse differentiates itself by being much simpler, while still giving developers much more control. Macros/Rules in bazel use some vile offspring of bash and makefile syntax stored in raw strings, while Rules in impulse are simple python functions.
 
 ## Installing
-see INSTALLING.md
+### requirements
+ - python >= 3.7.0
+ - linux >= 4.0
+ - bash >= 4.4 (or knowledge of completion tools in other shells)
+
+### Steps
+First, select a directory in which all projects built by impulse will live.
+Usually this is something like ```~/src```. This directory will be referenced
+as ```$impulse-root``` throughout this document. ```$impulse-repository-path```
+is the repository you're downloading impulse from.
+ 1. ```mkdir {$impulse-root} && cd {$impulse-root}```
+ 2. ```git clone {$impulse-repository-path} impulse```
+ 3. ```cd impulse && make && sudo make install``` (uses ```/usr/local/bin```)
+ 4. ```cd .. && impulse init```
+
+### Completion
+Source the file ```complete.sh``` from your shell (only bash supported for now)
 
 ## Running
 Default help menu:
@@ -131,6 +147,10 @@ cpp_test (
 )
 ```
 
+entries in deps can also be some internal builtin functions. Currently supported is ```git_repo```
+which takes url, repo, commit, target as arguments. A git repo dependency will attempt to checkout
+the repository into $IMPULSE_ROOT, make a sub-working tree checked out at |commit| and then
+build |target| as a dependency.
 
 #### Rule files
 In this directory live python-defined build rules (see [core_rules](CORE) for some examples). For rules used in many different projects, these rules _should_ live under ```$ROOT/rules/core/{lang}/build_defs.py``` however these rules may be placed anywhere located under ```$ROOT```.
