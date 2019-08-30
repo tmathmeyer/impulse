@@ -83,3 +83,8 @@ class FilesystemSyncException(Exception):
   """Raised when shit hits the fan."""
   def __init__(self):
     super().__init__('The filesystem is out of sync, please try rerunning.')
+
+
+class FatalException(Exception):
+  def __init__(self, s):
+    super().__init__(s)
