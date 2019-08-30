@@ -15,7 +15,7 @@ from impulse.util import temp_dir
 
 def EnsureDirectory(directory):
   if not os.path.exists(directory):
-    os.makedirs(directory)
+    os.makedirs(directory, exist_ok=True)
 
 
 def MD5(fname):
