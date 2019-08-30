@@ -98,6 +98,8 @@ class ExportablePackage(object):
         copydict[k] = v
       if k == 'package_target':
         copydict[k] = str(v)
+      if k == 'included_files':
+        copydict[k] = sorted(list(set(v)))
       if k == 'depends_on_targets':
         copydict[k] = [[d.package_target, d.build_timestamp] for d in v]
     return json.dumps(copydict, indent=2)
@@ -209,6 +211,21 @@ class ExportablePackage(object):
 
     return self, False
 
+  def LoadToTempAttempt(self, bin_dir):
+    with open('pkg_contents.json') as f:
+      package_contents = json.loads(f.read())
+      exported_package = ExportedPackage(
+        self.package_target.GetPackagePkgFile(), package_contents)
+      if self.is_binary_target:
+        relative_binary = os.path.join(
+          self.package_target.GetPackagePathDirOnly(),
+          self.package_target.target_name)
+        full_path_binary = os.path.join(bin_dir, relative_binary)
+        binary_location = os.path.join('bin', self.package_target.target_name)
+        return None, {binary_location: full_path_binary}, exported_package
+      else:
+        return self._extracted_dir, {}, exported_package
+
   def LoadToTemp(self, pkg_dir, bin_dir):
     # Temp directory to write to (deleted on object destruction)
     self._extracted_dir = tempfile.mkdtemp()
@@ -218,19 +235,10 @@ class ExportablePackage(object):
     with temp_dir.ScopedTempDirectory(self._extracted_dir):
       unzip = 'unzip {} 2>&1 > /dev/null'.format(package_name)
       os.system(unzip)
-      with open('pkg_contents.json') as f:
-        package_contents = json.loads(f.read())
-        exported_package = ExportedPackage(
-          self.package_target.GetPackagePkgFile(), package_contents)
-        if self.is_binary_target:
-          relative_binary = os.path.join(
-            self.package_target.GetPackagePathDirOnly(),
-            self.package_target.target_name)
-          full_path_binary = os.path.join(bin_dir, relative_binary)
-          binary_location = os.path.join('bin', self.package_target.target_name)
-          return None, {binary_location: full_path_binary}, exported_package
-        else:
-          return self._extracted_dir, {}, exported_package
+      try:
+        return self.LoadToTempAttempt(bin_dir)
+      except:
+        raise exceptions.FilesystemSyncException()
 
   def UnloadPackageDirectory(self):
     if self._extracted_dir and os.path.exists(self._extracted_dir):
