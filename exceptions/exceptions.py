@@ -77,3 +77,9 @@ class NoSuchRuleType(Exception):
   """Raised when a build rule doesn't exist."""
   def __init__(self, missing_type):
     super().__init__('No such build rule type "{}"'.format(missing_type))
+
+
+class FilesystemSyncException(Exception):
+  """Raised when shit hits the fan."""
+  def __init__(self):
+    super().__init__('The filesystem is out of sync, please try rerunning.')

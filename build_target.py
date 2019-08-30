@@ -25,7 +25,7 @@ def GetRootRelativePath(path:str):
   return None
 
 
-class BuildTarget(threaded_dependence.DependentJob):
+class BuildTarget(threaded_dependence.GraphNode):
   """A threadable graph node object representing work to do to build."""
 
   def __init__(self, target_name: str, # The name of the target to build
@@ -204,6 +204,8 @@ class BuildTarget(threaded_dependence.DependentJob):
             bindir = os.path.join(bin_directory, rulepath)
             packaging.EnsureDirectory(bindir)
             export_binary(self._target_name, package_full_path, bindir)
+    except exceptions.FilesystemSyncException:
+      raise
     finally:
       shutil.rmtree(working_directory)
       shutil.rmtree(rw_directory)
