@@ -10,6 +10,20 @@ class Messages(object):
   TIMEOUT = 'Job Waiter Timed Out'
 
 
+class InternalAccess(object):
+  def __init__(self):
+    self.added_graph:Set['GraphNode'] = set()
+    self.who_needs_me_needs_also = None
+
+  def InjectMoreGraph(self, graph):
+    self.added_graph |= graph
+
+  def MoveDependencyTo(self, rule, node=None):
+    if node:
+      self.added_graph.add(node)
+    self.who_needs_me_needs_also = rule
+
+
 class GraphNode(object):
   def __init__(self,
                dependencies:Set['GraphNode'],
@@ -207,8 +221,8 @@ class ThreadPool(multiprocessing.Process):
   def _finish_err(self, msg:str):
     for _ in range(self._pool_count):
       self._job_input_queue.put(ThreadWatchdog.POISON)
-    self._job_input_queue.join()
     self._printer.finished(err=msg)
+    self._job_input_queue.join()
     return None
 
   def _handle_good_status(self, status:JobResponse):

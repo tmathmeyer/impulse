@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import random
 import shutil
 import subprocess
 import tempfile
@@ -81,6 +82,13 @@ class ExportablePackage(object):
     self._can_access_internal = can_access_internal
     self._buildqueue_ref = None
 
+  def __getstate__(self):
+    return self.__dict__.copy()
+
+  def __setstate__(self, state):
+    self.__dict__.update(state)
+    self._extracted_dir = None
+
   def __getattribute__(self, attr):
     if attr in ('Internal', 'SetInternalAccess'):
       if self._can_access_internal:
@@ -153,6 +161,14 @@ class ExportablePackage(object):
                           stdout=subprocess.PIPE)
 
   def Export(self) -> ExportedPackage:
+    r = self.RunCommand('pwd')
+    if r.returncode:
+      raise exceptions.FatalException(f'{r.returncode} => {r.stderr}')
+
+    r = self.RunCommand('touch pkg_contents.json')
+    if r.returncode:
+      raise exceptions.FatalException('Cant create new pkg_contents.json')
+
     with open('pkg_contents.json', 'w+') as f:
       f.write(self._GetJson())
     cmd = 'zip {} pkg_contents.json {} 2>&1 > /dev/null'
@@ -212,7 +228,7 @@ class ExportablePackage(object):
     return self, False
 
   def LoadToTempAttempt(self, bin_dir):
-    with open('pkg_contents.json') as f:
+    with open('pkg_contents.json', 'r+') as f:
       package_contents = json.loads(f.read())
       exported_package = ExportedPackage(
         self.package_target.GetPackagePkgFile(), package_contents)
@@ -226,15 +242,35 @@ class ExportablePackage(object):
       else:
         return self._extracted_dir, {}, exported_package
 
+  def MakeTempDir(self):
+    exists = True
+    chrs = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+    dirname = ''
+    while exists:
+      dirname = ''.join(random.choice(chrs) for i in range(10))
+      if not os.path.exists(f'/tmp/{dirname}'):
+        exists = False
+    r = self.RunCommand(f'mkdir -p /tmp/{dirname}')
+    if r.returncode:
+      raise exceptions.FatalException(f'MKDIR FAILED -> {r.stdout}')
+    return f'/tmp/{dirname}'
+
+
   def LoadToTemp(self, pkg_dir, bin_dir):
     # Temp directory to write to (deleted on object destruction)
-    self._extracted_dir = tempfile.mkdtemp()
+    self._extracted_dir = self.MakeTempDir()
     package_name = os.path.join(pkg_dir,
       self.package_target.GetPackagePkgFile())
 
+    extract = f'unzip {package_name} -d {self._extracted_dir}'
+    r = self.RunCommand(f'test -e {self._extracted_dir}')
+    if r.returncode:
+      raise exceptions.FatalException(f'{self._extracted_dir} does not exist')
+    r = self.RunCommand(extract)
+    if r.returncode:
+      raise exceptions.FatalException(f'{extract} ===> {r.stderr}')
+
     with temp_dir.ScopedTempDirectory(self._extracted_dir):
-      unzip = 'unzip {} 2>&1 > /dev/null'.format(package_name)
-      os.system(unzip)
       try:
         return self.LoadToTempAttempt(bin_dir)
       except:
@@ -243,7 +279,7 @@ class ExportablePackage(object):
   def UnloadPackageDirectory(self):
     if self._extracted_dir and os.path.exists(self._extracted_dir):
       try:
-        shutil.rmtree(self._extracted_dir)
+        self.RunCommand(f'rm -rf {self._extracted_dir}')
       except FileNotFoundError:
         pass
     self._extracted_dir = None
