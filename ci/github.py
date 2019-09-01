@@ -207,7 +207,7 @@ class BuildManager(api.ProvidesResources(Build)):
     running_builds = self._builder_pool.running_build_ids()
     return [self._builds.get(i, None) for i in running_builds]
 
-    @api.METHODS.get('/ALL')
+  @api.METHODS.get('/ALL')
   def get_all_build(self) -> [Build]:
     self.get_updates()
     running_builds = self._builder_pool.running_build_ids()
