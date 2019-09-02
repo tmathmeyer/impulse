@@ -34,6 +34,7 @@ py_binary (
     "github.py",
     "githubauth.py",
     "gogs.py",
+    "logging.py",
     "ci_server.py",
     "ci_pooling.py"
   ],
