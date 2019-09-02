@@ -144,7 +144,7 @@ def testsuite(project:str=None,
   if project:
     directory = os.path.join(impulse_paths.root(), project)
 
-  rfp = recursive_loader.RecursiveFileParser()
+  rfp = recursive_loader.RecursiveFileParser(carried_args={})
   for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
     rfp._ParseFile(filename)
 
