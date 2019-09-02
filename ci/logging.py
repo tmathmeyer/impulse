@@ -1,19 +1,19 @@
 import sys
 
+files = set()
+
 def _do_trace(names):
   def __tracer__(frame, event, arg):
     if event == 'call':
       func_name = frame.f_code.co_name
-      if func_name == 'write':
+      if func_name in ('write', 'add', 'split'):
         return
-      if f'{frame.f_code.co_filename}.py' in names:
-        return
-      print(f'==> {func_name}')
-
-    if event in ('return', 'exception'):
-      print('ret / exc')
-
-    return
+      filen = frame.f_code.co_filename.split('/')[-1][:-3]
+      if filen in names:
+        print(f'==> ({frame.f_code.co_filename}) {func_name}')
+    
+    if event == 'exception':
+      print(arg)
   return __tracer__
 
 def EnableTracing(*module_names):
