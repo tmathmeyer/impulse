@@ -9,7 +9,7 @@ def main():
   flask_app = api.GetFlask()
   builders = ci_pooling.BuilderPool(4)
 
-  logging.EnableTracing()
+  logging.EnableTracing('ci_server', 'github', 'ci_pooling')
 
   flask_app.RegisterResourceProvider(gogs.BuildManager(builders))
   flask_app.RegisterResourceProvider(github.BuildManager(builders))
