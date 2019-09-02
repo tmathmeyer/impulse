@@ -93,7 +93,7 @@ class Build(api.Resource('github-pr')):
       write_this = list(self._log.commands[-1].values())[0]
       write_this = write_this.replace('\\n', '\n')
     else:
-      write_this += self._log.format_error()
+      write_this = self._log.format_error()
 
     message = (
 """
@@ -128,7 +128,7 @@ class Build(api.Resource('github-pr')):
     return False
 
   def ensure_secure_branch_name(self, branch_name:str) -> bool:
-    match = re.match(r'^[a-zA-Z]+$', branch_name)
+    match = re.match(r'^[a-zA-Z\-_]+$', branch_name)
     return match is not None
 
   def prepare_git_repo(self) -> bool:
@@ -210,8 +210,7 @@ class BuildManager(api.ProvidesResources(Build)):
   @api.METHODS.get('/ALL')
   def get_all_build(self) -> [Build]:
     self.get_updates()
-    running_builds = self._builder_pool.running_build_ids()
-    return list(self._builds.values())
+    return dict(self._builds.values().copy())
 
   @api.METHODS.get('/<build_id>')
   def get_build(self, build_id) -> Build:
