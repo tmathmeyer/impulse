@@ -1,5 +1,7 @@
 import sys
 
+files = set()
+
 def _do_trace(names):
   def __tracer__(frame, event, arg):
     if event == 'call':
@@ -13,6 +15,7 @@ def _do_trace(names):
     
     if event == 'exception':
       print(arg)
+      sys.stdout.flush()
   return __tracer__
 
 def EnableTracing(*module_names):
