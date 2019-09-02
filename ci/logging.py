@@ -1,7 +1,5 @@
 import sys
 
-files = set()
-
 def _do_trace(names):
   def __tracer__(frame, event, arg):
     if event == 'call':
