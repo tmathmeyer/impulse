@@ -31,6 +31,12 @@ class Directory(ArgComplete):
 
   @classmethod
   def _get_directories(cls, stub):
+    shell = '/bin/sh'
+    if not os.path.exists(shell):
+      return
+    if not os.path.islink(shell):
+      return
+
     cmd = 'compgen -o bashdefault -o default -o nospace -F _cd {}'.format(stub)
     stdout =  subprocess.Popen(cmd, shell=True,
       stdout=subprocess.PIPE, stderr=subprocess.PIPE)

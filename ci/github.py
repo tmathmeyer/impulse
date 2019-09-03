@@ -51,7 +51,13 @@ class ShellLog(object):
     self.commands = []
 
   def format_error(self):
-    return 'ERROR'
+    errmsg = 'err'
+    last_cmd = {'$?': 0}
+    if self.commands:
+      errmsg = self.commands[-1]
+      if len(self.commands) > 1:
+        last_cmd = self.commands[-2]
+    return f'{errmsg}\n\t{last_cmd}'
 
   def CMD(self, cmd) -> bool:
     result = True
@@ -112,8 +118,8 @@ class Build(api.Resource('github-pr')):
         if not self.prepare_git_repo():
           return self.exit_msg('Unable to check out source files')
       if not os.path.exists('impulse'):
-        os.system('git clone http://192.168.0.100:10080/ted/impulse')
-      os.system('ln -s impulse/rules rules')
+        self._log.CMD(['git', 'clone', 'https://github.com/tmathmeyer/impulse'])
+      self._log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
       return self._log.CMD(
         ['impulse', 'testsuite', '--debug', '--fakeroot', os.getcwd()])
 
@@ -122,7 +128,7 @@ class Build(api.Resource('github-pr')):
     return False
 
   def ensure_secure_branch_name(self, branch_name:str) -> bool:
-    match = re.match(r'^[a-zA-Z]+$', branch_name)
+    match = re.match(r'^[a-zA-Z\-_]+$', branch_name)
     return match is not None
 
   def prepare_git_repo(self) -> bool:
@@ -145,7 +151,7 @@ class Build(api.Resource('github-pr')):
       return False
 
     remote_cmd = 'git remote add {} {}'.format(name, upstream)
-    pull_cmd = 'git pull {}'.format(name)
+    pull_cmd = 'git fetch {}'.format(name)
     if not self._log.CMD(remote_cmd.split()):
       return False
     if not self._log.CMD(pull_cmd.split()):
@@ -200,6 +206,11 @@ class BuildManager(api.ProvidesResources(Build)):
     self.get_updates()
     running_builds = self._builder_pool.running_build_ids()
     return [self._builds.get(i, None) for i in running_builds]
+
+  @api.METHODS.get('/ALL')
+  def get_all_build(self) -> [Build]:
+    self.get_updates()
+    return dict(self._builds.values())
 
   @api.METHODS.get('/<build_id>')
   def get_build(self, build_id) -> Build:
