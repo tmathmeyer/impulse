@@ -211,7 +211,7 @@ class BuildManager(api.ProvidesResources(Build)):
   @api.METHODS.get('/ALL')
   def get_all_build(self) -> [Build]:
     self.get_updates()
-    return dict(self._builds.values())
+    return dict(self._builds)
 
   @api.METHODS.get('/<build_id>')
   def get_build(self, build_id) -> Build:
