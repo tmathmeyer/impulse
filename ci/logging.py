@@ -11,6 +11,7 @@ def _do_trace(names):
       filen = frame.f_code.co_filename.split('/')[-1][:-3]
       if filen in names:
         print(f'==> ({frame.f_code.co_filename}) {func_name}')
+        sys.stdout.flush()
     
     if event == 'exception':
       print(arg)
