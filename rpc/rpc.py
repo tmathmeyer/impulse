@@ -53,21 +53,25 @@ class NamedQueue(object):
     if DEBUG:
       print('{} :: reading from: {}'.format(
         os.environ.get('_NAME', '_'), self._name))
+      sys.stdout.flush()
     x = self._queue.get()
     if DEBUG:
       print('{} :: got value "{}" from {}'.format(
         os.environ.get('_NAME', '_'), x, self._name))
+      sys.stdout.flush()
     return x
 
   def ReadUntil(self, token) -> RPCMessage:
     if DEBUG:
       print('{} :: reading from: {}'.format(
         os.environ.get('_NAME', '_'), self._name))
+      sys.stdout.flush()
     while True:
       x = self._queue.get()
       if DEBUG:
         print('{} :: got value "{}" from {}'.format(
           os.environ.get('_NAME', '_'), x, self._name))
+        sys.stdout.flush()
       if x.token == token:
         return x
       elif x.token in self._waiting:
@@ -79,6 +83,7 @@ class NamedQueue(object):
     if DEBUG:
       print('{} :: writing "{}" to {}'.format(
         os.environ.get('_NAME', '_'), value, self._name))
+      sys.stdout.flush()
     self._queue.put(value)
 
 

@@ -68,6 +68,9 @@ class ShellLog(object):
     except subprocess.CalledProcessError as e:
       output = str(e.output.decode('utf-8'))
       result = False
+    except Exception as e:
+      output = str(e)
+      result = False
     self.commands.append({
       ' '.join(cmd): output
     })
@@ -198,8 +201,6 @@ class BuildManager(api.ProvidesResources(Build)):
       build._token = self.token
       if build.pull_request.author_role == 'OWNER':
         self._builder_pool.ingest(build)
-    else:
-      print
 
   @api.METHODS.get('/')
   def get_all_build(self) -> [Build]:
@@ -210,7 +211,7 @@ class BuildManager(api.ProvidesResources(Build)):
   @api.METHODS.get('/ALL')
   def get_all_build(self) -> [Build]:
     self.get_updates()
-    return dict(self._builds.values())
+    return dict(self._builds)
 
   @api.METHODS.get('/<build_id>')
   def get_build(self, build_id) -> Build:
