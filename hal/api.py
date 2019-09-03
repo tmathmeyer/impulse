@@ -217,7 +217,7 @@ def _HAL(rtype, resource, full=False):
   return result
 
 def _HAL_LIST(rtype, resources):
-  return [_HAL(rtype, r) for r in resources]
+  return [_REC_HAL(rtype, r) for r in resources]
 
 
 def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
