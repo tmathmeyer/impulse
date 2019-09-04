@@ -143,7 +143,7 @@ class TestIsolator():
             'assertCalledWithArgs', stack, list(argsets), cwae.actual)
 
     cwae = CalledWithArgsExpector()
-    def called(*args):
+    def called(*args, **_):
       self.assertEqual._wrapped(self, stack, list(args),
         list(next(cwae.itr, ['NOT CALLED'])))
       cwae.actual.append(list(args))

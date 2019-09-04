@@ -160,12 +160,16 @@ class ArgumentParser(object):
     else: # more than two args, trim them
       yield from self._get_sub_completion(needs_new_token, cmdargs, args[-2:])
 
-  def _print_commands_matching(self, stub):
+  def _print_commands_matching(self, stub, operation):
     for methodname in self._methods.keys():
       if methodname.startswith(stub):
-        print(methodname)
+        operation(methodname)
 
-  def _print_completion(self):
+  def _print_completion_for_testing(self, args, tst):
+    os.environ['_LOCAL_COMP_LINE'] = 'bin ' + ' '.join(args)
+    return self._print_completion(tst)
+
+  def _print_completion(self, operation=print):
     if '_LOCAL_COMP_LINE' not in os.environ:
       return
 
@@ -176,12 +180,12 @@ class ArgumentParser(object):
     # So far just the binary has been typed
     if len(args) == 0:
       if needs_new_token:
-        self._print_commands_matching('')
+        self._print_commands_matching('', operation)
       return
 
     # The cursor has no space after the subcommand
     if len(args) == 1 and not needs_new_token:
-      self._print_commands_matching(args[0])
+      self._print_commands_matching(args[0], operation)
       return
 
     if needs_new_token:
@@ -190,7 +194,7 @@ class ArgumentParser(object):
 
     cmd_args = self._methods[args[0]]['args']
     for value in self._get_sub_completion(needs_new_token, cmd_args, args[1:]):
-      print(value)
+      operation(value)
 
   def eval(self):
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacomplete':

@@ -23,9 +23,6 @@ class TestDirectoryCompletion(unittest.TestCase):
     self.deleteme.__exit__()
 
   def test_get_directories(self):
-    print('running test_get_directories')
-    os.system('pwd')
-    os.system('ls -lash')
     os.system('compgen -o bashdefault -o default -o nospace -F _cd e')
     expanded_from_e = list(args.Directory._get_directories('e'))
     self.assertEqual(set(expanded_from_e), set(['example']))
@@ -35,14 +32,11 @@ class TestDirectoryCompletion(unittest.TestCase):
     self.assertEqual(set(expanded_from_rpc), set(['rapid']))
 
   def test_get_completion(self):
-    print('running test_get_completion')
-    os.system('pwd')
-    os.system('ls -lash')
-    expanded_from_e = list(args.Directory.get_completion_list('e?'))
+    expanded_from_e = list(args.Directory.get_completion_list('e'))
     self.assertEqual(set(expanded_from_e), set(['example', 'example/']))
-    expanded_from_r = list(args.Directory.get_completion_list('r?'))
+    expanded_from_r = list(args.Directory.get_completion_list('r'))
     self.assertEqual(set(expanded_from_r), set(['rapid', 'rasin']))
-    expanded_from_rpc = list(args.Directory.get_completion_list('rapid?'))
+    expanded_from_rpc = list(args.Directory.get_completion_list('rapid'))
     self.assertEqual(set(expanded_from_rpc), set(['rapid', 'rapid/']))
 
 
@@ -169,7 +163,7 @@ class TestArgumentParserComplete(unittest.TestCase):
     def eat():
       pass
 
-    ap._handle_completion(['e'], self.assertCalledWithArgs(
+    ap._print_completion_for_testing(['e'], self.assertCalledWithArgs(
       ('example',), ('eat',)))
 
 
@@ -178,7 +172,7 @@ class TestArgumentParserComplete(unittest.TestCase):
     @ap
     def example(foo:args.Directory):
       pass
-    ap._handle_completion(['example', 'r?'], self.assertCalledWithArgs(
+    ap._print_completion_for_testing(['example', 'r'], self.assertCalledWithArgs(
       ['rasin'], ['rapid']))
 
   def test_completion_directory_flag(self):
@@ -186,7 +180,7 @@ class TestArgumentParserComplete(unittest.TestCase):
     @ap
     def example(foo:args.Directory='rpc'):
       pass
-    ap._handle_completion(['example', '--?'], self.assertCalledWithArgs(
+    ap._print_completion_for_testing(['example', '--'], self.assertCalledWithArgs(
       ['--foo']))
-    ap._handle_completion(['example', '--foo', 'r?'], self.assertCalledWithArgs(
+    ap._print_completion_for_testing(['example', '--foo', 'r'], self.assertCalledWithArgs(
       ['rasin'], ['rapid']))
