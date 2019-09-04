@@ -163,13 +163,8 @@ class Build(api.Resource('github-pr')):
       return False
 
     remote_cmd = 'git remote add {} {}'.format(name, upstream)
-<<<<<<< HEAD
     pull_cmd = 'git fetch {}'.format(name)
     if not self._log.CMD(remote_cmd.split()):
-=======
-    pull_cmd = 'git pull {}'.format(name)
-    if not self.log.CMD(remote_cmd.split()):
->>>>>>> fixed weird bug with running in docker
       return False
     if not self.log.CMD(pull_cmd.split()):
       return False
