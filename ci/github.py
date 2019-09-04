@@ -46,7 +46,7 @@ class PullRequest(api.ResourceTypeStruct()):
     self.base = base
 
 
-class ShellLog(object):
+class ShellLog(api.ResourceTypeStruct()):
   def __init__(self):
     self.commands = []
 
@@ -86,17 +86,17 @@ class Build(api.Resource('github-pr')):
     self.number = number
     self.pull_request = pull_request
     self.repository = repository
-    self._log = ShellLog()
+    self.log = ShellLog()
 
   def get_core_json(self):
     return { }
 
   def Run(self):
     if self._Run():
-      write_this = list(self._log.commands[-1].values())[0]
+      write_this = list(self.log.commands[-1].values())[0]
       write_this = write_this.replace('\\n', '\n')
     else:
-      write_this = self._log.format_error()
+      write_this = self.log.format_error()
 
     message = (
 """
@@ -122,12 +122,21 @@ class Build(api.Resource('github-pr')):
           return self.exit_msg('Unable to check out source files')
       if not os.path.exists('impulse'):
         self._log.CMD(['git', 'clone', 'https://github.com/tmathmeyer/impulse'])
-      self._log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
-      return self._log.CMD(
-        ['impulse', 'testsuite', '--debug', '--fakeroot', os.getcwd()])
+      if not os.path.exists('rules'):
+        self._log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
+
+      if not self._log.CMD(['impulse', 'build', '--force',
+                            '--fakeroot', os.getcwd(),
+                            '//impulse:impulse']):
+        return self.exit_msg('Could not build impulse')
+      if not self._log.CMD(['./GENERATED/BINARIES/impulse/impulse',
+                            'testsuite', '--notermcolor',
+                            '--debug', '--fakeroot' os.getcwd()]):
+        return self.exit_msg('Could not run tests')
+    return True
 
   def exit_msg(self, msg):
-    self._log.commands.append(msg)
+    self.log.commands.append(msg)
     return False
 
   def ensure_secure_branch_name(self, branch_name:str) -> bool:
@@ -135,7 +144,7 @@ class Build(api.Resource('github-pr')):
     return match is not None
 
   def prepare_git_repo(self) -> bool:
-    if not self._log.CMD(['git', 'init']):
+    if not self.log.CMD(['git', 'init']):
       return False
     head_clone_url = self.pull_request.head.repo.clone_url
     base_clone_url = self.pull_request.base.repo.clone_url
@@ -157,7 +166,7 @@ class Build(api.Resource('github-pr')):
     pull_cmd = 'git fetch {}'.format(name)
     if not self._log.CMD(remote_cmd.split()):
       return False
-    if not self._log.CMD(pull_cmd.split()):
+    if not self.log.CMD(pull_cmd.split()):
       return False
     return True
 
@@ -179,11 +188,11 @@ class Build(api.Resource('github-pr')):
     checkout_a = 'git checkout --track head/{}'.format(head_branch)
     checkout_b = 'git checkout --track base/{}'.format(base_branch)
     rebase = 'git rebase {}'.format(head_branch)
-    if not self._log.CMD(checkout_a.split()):
+    if not self.log.CMD(checkout_a.split()):
       return False
-    if not self._log.CMD(checkout_b.split()):
+    if not self.log.CMD(checkout_b.split()):
       return False
-    if not self._log.CMD(rebase.split()):
+    if not self.log.CMD(rebase.split()):
       return False
     return True
 

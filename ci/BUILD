@@ -21,6 +21,7 @@ python_container (
     "fuse",
     "zip",
     "unzip",
+    "bash-completion",
   ],
   environment = [
     "FUSE_LIBRARY_PATH=/usr/lib/libfuse.so.2",

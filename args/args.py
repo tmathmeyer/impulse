@@ -21,7 +21,7 @@ class ArgComplete(metaclass=abc.ABCMeta):
 class Directory(ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
-    dirs = list(cls._get_directories(stub))
+    dirs = list(cls._get_directories(stub=stub))
     if len(dirs) == 1:
       yield dirs[0]
       yield dirs[0] + '/'
@@ -73,12 +73,14 @@ class ArgumentParser(object):
       default = info.default
 
       if argtype == inspect.Parameter.empty:
-        self._invalid_syntax(func, arg)
+        self._invalid_syntax(func, arg, 'type annotation')
         return
 
       action = 'store'
       if argtype == bool:
         action = 'store_true'
+        if default == inspect.Parameter.empty:
+          self._invalid_syntax(func, arg, 'a default value')
 
       if default == inspect.Parameter.empty:
         self._methods[methodname]['args'][arg] = argtype
@@ -101,9 +103,9 @@ class ArgumentParser(object):
         _args[arg] = userarg
     func(**_args)
 
-  def _invalid_syntax(self, func, argname):
+  def _invalid_syntax(self, func, argname, missing):
     decorator_call = inspect.stack()[2]
-    msg = 'Argument {} requires type annotation.'.format(argname)
+    msg = 'Argument {} requires {}.'.format(argname, missing)
     filepath = decorator_call.filename
     lineno = decorator_call.lineno
     codeline = decorator_call.code_context
@@ -158,12 +160,16 @@ class ArgumentParser(object):
     else: # more than two args, trim them
       yield from self._get_sub_completion(needs_new_token, cmdargs, args[-2:])
 
-  def _print_commands_matching(self, stub):
+  def _print_commands_matching(self, stub, operation):
     for methodname in self._methods.keys():
       if methodname.startswith(stub):
-        print(methodname)
+        operation(methodname)
 
-  def _print_completion(self):
+  def _print_completion_for_testing(self, args, tst):
+    os.environ['_LOCAL_COMP_LINE'] = 'bin ' + ' '.join(args)
+    return self._print_completion(tst)
+
+  def _print_completion(self, operation=print):
     if '_LOCAL_COMP_LINE' not in os.environ:
       return
 
@@ -174,12 +180,12 @@ class ArgumentParser(object):
     # So far just the binary has been typed
     if len(args) == 0:
       if needs_new_token:
-        self._print_commands_matching('')
+        self._print_commands_matching('', operation)
       return
 
     # The cursor has no space after the subcommand
     if len(args) == 1 and not needs_new_token:
-      self._print_commands_matching(args[0])
+      self._print_commands_matching(args[0], operation)
       return
 
     if needs_new_token:
@@ -188,7 +194,7 @@ class ArgumentParser(object):
 
     cmd_args = self._methods[args[0]]['args']
     for value in self._get_sub_completion(needs_new_token, cmd_args, args[1:]):
-      print(value)
+      operation(value)
 
   def eval(self):
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacomplete':
