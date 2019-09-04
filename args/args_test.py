@@ -21,7 +21,6 @@ class TestDirectoryCompletion(unittest.TestCase):
     DontRelyOnCompgen()
 
   def test_get_directories(self):
-    os.system('compgen -o bashdefault -o default -o nospace -F _cd e')
     expanded_from_e = list(args.Directory._get_directories('e'))
     self.assertEqual(set(expanded_from_e), set(['example']))
     expanded_from_r = list(args.Directory._get_directories('r'))
