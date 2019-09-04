@@ -4,23 +4,21 @@ from impulse.args import args
 from impulse.util import temp_dir
 import os
 
-def CreateTemporaryDirectory():
-  result = temp_dir.ScopedTempDirectory(delete_non_empty=True)
-  result.__enter__()
-  os.system('mkdir example')
-  os.system('mkdir rapid')
-  os.system('mkdir rasin')
-  os.system('mkdir foobar')
-  return result
+
+def ReturnDirectoryResults(stub=None):
+  for option in ('example', 'rasin', 'rapid', 'foobar'):
+    if stub and option.startswith(stub):
+      yield option
+
+
+def DontRelyOnCompgen():
+  args.Directory._get_directories = ReturnDirectoryResults
 
 
 class TestDirectoryCompletion(unittest.TestCase):
 
   def setup(self):
-    self.deleteme = CreateTemporaryDirectory()
-
-  def teardown(self):
-    self.deleteme.__exit__()
+    DontRelyOnCompgen()
 
   def test_get_directories(self):
     os.system('compgen -o bashdefault -o default -o nospace -F _cd e')
@@ -43,10 +41,7 @@ class TestDirectoryCompletion(unittest.TestCase):
 class TestArgumentParserDecorator(unittest.TestCase):
 
   def setup(self):
-    self.deleteme = CreateTemporaryDirectory()
-
-  def teardown(self):
-    self.deleteme.__exit__()
+    DontRelyOnCompgen()
 
   def test_zero_args(self):
     ap = args.ArgumentParser(False)
@@ -148,10 +143,7 @@ class TestArgumentParserDecorator(unittest.TestCase):
 class TestArgumentParserComplete(unittest.TestCase):
 
   def setup(self):
-    self.deleteme = CreateTemporaryDirectory()
-
-  def teardown(self):
-    self.deleteme.__exit__()
+    DontRelyOnCompgen()
 
   def test_completion_method(self):
     ap = args.ArgumentParser()

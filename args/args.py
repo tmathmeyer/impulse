@@ -21,7 +21,7 @@ class ArgComplete(metaclass=abc.ABCMeta):
 class Directory(ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
-    dirs = list(cls._get_directories(stub))
+    dirs = list(cls._get_directories(stub=stub))
     if len(dirs) == 1:
       yield dirs[0]
       yield dirs[0] + '/'
