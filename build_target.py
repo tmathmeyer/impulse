@@ -25,7 +25,7 @@ def GetRootRelativePath(path:str):
   return None
 
 
-class BuildTarget(threaded_dependence.DependentJob):
+class BuildTarget(threaded_dependence.GraphNode):
   """A threadable graph node object representing work to do to build."""
 
   def __init__(self, target_name: str, # The name of the target to build
@@ -204,6 +204,8 @@ class BuildTarget(threaded_dependence.DependentJob):
             bindir = os.path.join(bin_directory, rulepath)
             packaging.EnsureDirectory(bindir)
             export_binary(self._target_name, package_full_path, bindir)
+    except exceptions.FilesystemSyncException:
+      raise
     finally:
       shutil.rmtree(working_directory)
       shutil.rmtree(rw_directory)
@@ -237,7 +239,9 @@ class MockConvertedTarget(object):
 
 
 class ParsedGitTarget(impulse_paths.ParsedTarget):
-  def __init__(self, url, repo, target, commit='*'):
+  def __init__(self, url, repo, target, commit=None):
+    if ':' not in target:
+      raise impulse_paths.PathException(target, None)
     path, name = target.split(':')
     super().__init__(name, path)
     self._url = url
@@ -283,10 +287,10 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
 
   def ParseFile(self, rfp, parser):
     clone = self._MakeCloneTarget()
-    checkout = self._MakeCheckoutTarget(clone)
-    parent = self._MakeParentTarget(clone, checkout)
+    # checkout = self._MakeCheckoutTarget(clone)
+    parent = self._MakeParentTarget(clone) #, checkout)
     rfp._targets[self] = MockConvertedTarget(
-      parent, set([clone, checkout, parent]))
+      parent, set([clone, parent]))
 
 
 def GitClone(target, name, repo, url):

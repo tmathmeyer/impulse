@@ -8,10 +8,17 @@ class ScopedTempDirectory(object):
     self._delete_on_exit = not temp_directory
     self._delete_non_empty = delete_non_empty
 
+  def _getcwd(self):
+    while True:
+      try:
+        return os.getcwd()
+      except:
+        pass
+
   def __enter__(self):
     if not self._temp_directory:
       self._temp_directory = tempfile.mkdtemp()
-    self._old_directory = os.getcwd()
+    self._old_directory = self._getcwd()
     os.chdir(self._temp_directory)
 
   def __exit__(self, *args):

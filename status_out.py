@@ -18,12 +18,16 @@ class JobPrinter(object):
 
   def write_task_msg(self, mid, msg):
     self._jobs[mid] = msg
-    self._print()
+    if not self.debug:
+      self._print()
+    else:
+      print(msg)
 
   def remove_task_msg(self, mid):
     self._completed_jobs += 1
     self._jobs[mid] = 'IDLE'
-    self._print()
+    if not self.debug:
+      self._print()
 
   def _print(self):
     countline = '[{} / {}]'.format(self._completed_jobs, self._total_jobs)

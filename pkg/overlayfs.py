@@ -2,13 +2,14 @@
 
 import collections
 import errno
+import multiprocessing
 import os
 import shutil
 import signal
-import multiprocessing
+import subprocess
 
 from impulse.fuse import fuse
-
+from impulse.exceptions import exceptions
 
 def ACCESS_ERR():
   raise fuse.FuseOSError(errno.EACCES)
@@ -316,6 +317,13 @@ class FuseCTX(object):
     self._quit()
 
   def _quit(self):
-    os.system('fusermount -u {}'.format(self._mount))
+    command = 'fusermount -u {}'.format(self._mount)
+    result = subprocess.run(
+      command, encoding='utf-8',
+              shell=True,
+              stderr=subprocess.PIPE,
+              stdout=subprocess.PIPE)
+    if result.returncode:
+      raise exceptions.FilesystemSyncException()
     self._thread.join()
     signal.signal(signal.SIGINT, self._oldsignal)
