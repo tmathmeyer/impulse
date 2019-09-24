@@ -13,7 +13,39 @@ from impulse.exceptions import exceptions
 INVALID_RULE_RECURSION_CANARY = object()
 
 
-class ParsedBuildTarget(object):
+class RecursiveFilterSetter(object):
+  def __init__(self, struct, test_fn):
+    self._struct = struct
+    self._breadcrumbs = {}
+    self._converted = list(self._GenerateBreadcrumbs(test_fn))
+
+  def _GenerateBreadcrumbs(self, test_fn):
+    def iterate(crumb, current):
+      if crumb == None:
+        crumb = []
+      if type(current) == dict:
+        for key, val in current.items():
+          yield from iterate(crumb + [key], val)
+      elif type(current) == list:
+        for i, val in enumerate(current):
+          yield from iterate(crumb + [i], val)
+      else:
+        v = test_fn(current)
+        if v:
+          yield (v, crumb)
+
+    for set_to, crumb in iterate(None, self._struct):
+      obj = self._struct
+      for c in crumb[:-1]:
+        obj = obj[c]
+      obj[crumb[-1]] = set_to
+      yield set_to
+
+  def Converted(self):
+    yield from self._converted
+
+
+class ParsedBuildTarget(impulse_paths.ConvertableTargetBase):
   def __init__(self, name, func, args, build_rule, ruletype, evaluator,
                carried_args):
     self._func = marshal.dumps(func.__code__)
@@ -25,6 +57,16 @@ class ParsedBuildTarget(object):
     self._carried_args = carried_args
     self._converted = None
     self._scope = {}
+
+    def _ConvertToBuildrule(txt):
+      try:
+        return impulse_paths.convert_to_build_target(
+          txt, self._build_rule.target_path, True)
+      except:
+        return None
+
+    self._conversion_list = RecursiveFilterSetter(
+      self._args, _ConvertToBuildrule)
 
   def Convert(self):
     # If we try to convert this rule again while conversion is in progress
@@ -40,51 +82,36 @@ class ParsedBuildTarget(object):
         raise e.ChainException(self)
     return self._converted
 
-  def _get_all_seems_like_buildrule_patterns(self):
-    def get_all(some, probably):
-      if type(some) == dict:
-        for v in get_all(list(some.items()), probably):
-          yield v
-      elif type(some) in (list, tuple):
-        try:
-          for l in some:
-            for v in get_all(l, probably):
-              yield v
-        except TypeError:
-          pass
-      else:
-        v = probably(some)
-        if v:
-          yield v
-    def is_buildrule(txt):
-      try:
-        return impulse_paths.convert_to_build_target(
-          txt, self._build_rule.target_path, True)
-      except:
-        return None
-    return get_all(self._args, is_buildrule)
+  def GetGeneratedRules(self):
+    if self._converted:
+      yield self._converted
 
   def GetDependencies(self):
-    return list(self._get_all_seems_like_buildrule_patterns())
+    return self._conversion_list.Converted()
 
   def _CreateConverted(self):
     # set(build_target.BuildTarget)
     dependencies = set()
     # Convert all 'deps' into edges between BuildTargets
-    for target in self._get_all_seems_like_buildrule_patterns():
+    for target in self.GetDependencies():
       try:
-        dependencies |= self._evaluator.ConvertTarget(target)
+        dependencies.add(self._evaluator.ConvertTarget(target))
       except exceptions.BuildTargetMissing:
         raise exceptions.BuildTargetMissingFrom(str(target), self._build_rule)
 
+    def recall_convert(obj):
+      if isinstance(obj, impulse_paths.ParsedTarget):
+        return self._evaluator._targets[obj].Convert()
+    RecursiveFilterSetter(self._args, recall_convert)
+
     # Create a BuildTarget graph node
-    return set([build_target.BuildTarget(
+    return build_target.BuildTarget(
       self._name, self._func, self._args, self._build_rule,
-      self._rule_type, self._scope, dependencies, **self._carried_args)])
+      self._rule_type, self._scope, dependencies, **self._carried_args)
 
   def AddScopes(self, funcs):
-    if self._converted:
-      raise "TOO LATE" # TODO raise a real error...
+    if list(self.GetGeneratedRules()):
+      raise exceptions.FatalException(f'Failed to add scope functions to {self}')
     for func in funcs:
       self._scope[func.__name__] = (marshal.dumps(func.__code__))
     return self
@@ -245,11 +272,11 @@ class RecursiveFileParser(object):
   def GetAllConvertedTargets(self):
     def converted_targets():
       for target in self._targets.values():
-        if target._converted:
-          yield target._converted
+        if target.GetGeneratedRules():
+          yield from target.GetGeneratedRules()
     result = set()
     for c in converted_targets():
-      result |= c
+      result.add(c)
     return result
 
   def ConvertAllTestTargets(self):

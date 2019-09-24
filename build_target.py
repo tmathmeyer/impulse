@@ -164,7 +164,7 @@ class BuildTarget(threaded_dependence.GraphNode):
         pkg_directory, bin_directory)
       if directory:
         loaded_dep_dirs.append(directory)
-      self._package.AddDependency(package)
+      self._package.AddDependency(dependency, package)
       forced_files.update(files)
 
     # The actual source files - this MUST be read only!
@@ -215,9 +215,10 @@ class BuildTarget(threaded_dependence.GraphNode):
         d.UnloadPackageDirectory()
 
 
-class FileParserResult(object):
+class FileParserResult(impulse_paths.ConvertableTargetBase):
   def __init__(self, name, checkout, args, pgt: 'ParsedGitTarget'):
-    self._converted = BuildTarget(
+    self._converted = None
+    self._will_be_converted = BuildTarget(
       target_name = name,
       func = marshal.dumps(checkout.__code__),
       args = args,
@@ -228,18 +229,26 @@ class FileParserResult(object):
       force_build = True)
 
   def Convert(self):
-    return set([self._converted])
+    return self._converted
+
+  def GetGeneratedRules(self):
+    if self._converted:
+      yield self._converted
 
 
-class MockConvertedTarget(object):
+class MockConvertedTarget(impulse_paths.ConvertableTargetBase):
   def __init__(self, chief_dependency, converted):
-    self._converted_preset = converted
     self._converted = None
+    self._will_be_converted = converted
     self._chief_dependency = chief_dependency
 
   def Convert(self):
-    self._converted = self._converted_preset
-    return set([self._chief_dependency])
+    self._converted = self._will_be_converted
+    return self._chief_dependency
+
+  def GetGeneratedRules(self):
+    if self._converted:
+      yield from self._converted
 
 
 class ParsedGitTarget(impulse_paths.ParsedTarget):
@@ -327,7 +336,7 @@ def GitCheckout(target, name, commit):
 def GitRunChild(target, name, path):
   formatted_rule = ':'.join([path, name])
 
-  if target.execution_count != 0:
+  if target._execution_count != 0:
     for deplib in target.Dependencies():
       if str(deplib.package_target) == formatted_rule:
         target.AddFile(os.path.join('bin', name))

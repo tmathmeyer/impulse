@@ -1,4 +1,5 @@
 
+import abc
 import os
 import re
 
@@ -129,6 +130,16 @@ class ParsedTarget(object):
     return self.GetFullyQualifiedRulePath()
 
 
+class ConvertableTargetBase(metaclass=abc.ABCMeta):
+  @abc.abstractmethod
+  def Convert(self):
+    pass
+
+  @abc.abstractmethod
+  def GetGeneratedRules(self):
+    pass
+
+
 def convert_name_to_build_target(name, loaded_from_dir):
   return ParsedTarget(name, loaded_from_dir)
 
@@ -145,14 +156,6 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
     if len(_target) <= 1:
       raise PathException(target)
     return ParsedTarget(_target[1], _target[0])
-
-  if target.startswith('git://'):
-    giturl, target = target.split('%', 1)
-    basename = os.path.basename(giturl)
-    gen_repo_name = os.path.join(root(), basename)
-    if not os.path.exists(gen_repo_name):
-      os.system(' '.join(['git clone', giturl, gen_repo_name]))
-    return convert_to_build_target(target, '//'+basename, quit_on_err)
 
   if quit_on_err:
     raise PathException(target)

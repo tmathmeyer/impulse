@@ -255,7 +255,7 @@ class ThreadPool(multiprocessing.Process):
           needs_rerun = True
       if needs_rerun:
         self._completed.remove(node_from)
-        node_from._package.execution_count += 1
+        node_from._package._execution_count += 1
         self._graph.add(node_from)
       return needs_rerun
     return False

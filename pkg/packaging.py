@@ -77,13 +77,14 @@ class ExportablePackage(object):
     self.is_binary_target = ruletype.endswith(
       '_binary') or ruletype.endswith('_test')
     self.package_ruletype = ruletype
-    self.execution_count = 0
-
+    
+    self._execution_count = 0
     self._export_binary = None
     self._extracted_dir = None
     self._can_access_internal = can_access_internal
     self._buildqueue_ref = None
     self._binaries_location = binaries_location
+    self._packages_map = {}
 
   def __getstate__(self):
     return self.__dict__.copy()
@@ -143,9 +144,10 @@ class ExportablePackage(object):
   def AddFile(self, filename: str):
     self.included_files.append(filename)
 
-  def AddDependency(self, dependency):
-    if dependency not in self.depends_on_targets:
-      self.depends_on_targets.append(dependency)
+  def AddDependency(self, dep, exported_package):
+    if exported_package not in self.depends_on_targets:
+      self.depends_on_targets.append(exported_package)
+      self._packages_map[dep] = exported_package
 
   def GetPackageName(self):
     return self.package_target.GetPackagePkgFile()
@@ -166,6 +168,12 @@ class ExportablePackage(object):
                           shell=True,
                           stderr=subprocess.PIPE,
                           stdout=subprocess.PIPE)
+
+  def DataValueOf(self, datavalue):
+    if type(datavalue) == str:
+      yield datavalue
+    else:
+      yield from self._packages_map[datavalue].included_files
 
   def Export(self) -> ExportedPackage:
     r = self.RunCommand('pwd')

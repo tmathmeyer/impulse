@@ -12,5 +12,6 @@ py_library (
 
 py_library (
   name = "bintools",
-  srcs = ["bintools.py"]
+  srcs = ["bintools.py"],
+  deps = [":temp_dir"],
 )

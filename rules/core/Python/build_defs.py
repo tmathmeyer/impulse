@@ -8,7 +8,8 @@ def py_make_binary(package_name, package_file, binary_location):
 
 def _add_files(target, srcs):
   for src in srcs:
-    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+    for path in target.DataValueOf(src):
+      target.AddFile(os.path.join(target.GetPackageDirectory(), path))
   for deplib in target.Dependencies(package_ruletype='py_library'):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
@@ -21,9 +22,9 @@ def _write_file(target, name, contents):
   target.AddFile(name)
 
 
-def _get_tools_paths(target, targets):
+def _get_includes_paths(target, targets):
   for t in targets:
-    yield os.path.join('bin', str(t).split(':')[-1])
+    yield from target.DataValueOf(t)
 
 
 @using(_add_files, _write_file)
@@ -39,7 +40,7 @@ def py_library(target, name, srcs, **kwargs):
 
 
 @depends_targets("//impulse/util:bintools")
-@using(_add_files, _write_file, _get_tools_paths, py_make_binary)
+@using(_add_files, _write_file, _get_includes_paths, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):
   # Create the init files
@@ -51,15 +52,12 @@ def py_binary(target, name, **kwargs):
   # Track any additional sources
   _add_files(target, kwargs.get('srcs', []) + kwargs.get('data', []))
 
-  toolslist = []
-  for tool in _get_tools_paths(target, kwargs.get('tools', [])):
-    target.AddFile(tool)
-    toolslist.append(tool)
-  if toolslist:
+  includelist = []
+  for include in _get_includes_paths(target, kwargs.get('tools', [])):
+    target.AddFile(include)
+    includelist.append(include)
+  if includelist:
     _write_file(target, os.path.join('bin', '__init__.py'), '#generated')
-    tools = os.path.join('bin', '__tools__')
-    _write_file(target, tools, str(toolslist))
-    target.AddFile(tools)
 
   # Create the __main__ file
   main_fmt = 'from {package} import {name}\n{name}.main()\n'
