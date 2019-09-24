@@ -231,10 +231,12 @@ class FileParserResult(object):
 
 class MockConvertedTarget(object):
   def __init__(self, chief_dependency, converted):
-    self._converted = converted
+    self._converted_preset = converted
+    self._converted = None
     self._chief_dependency = chief_dependency
 
   def Convert(self):
+    self._converted = self._converted_preset
     return set([self._chief_dependency])
 
 
@@ -283,7 +285,6 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       dependencies = set(children),
       can_access_internal = True,
       force_build=True)
-
 
   def ParseFile(self, rfp, parser):
     clone = self._MakeCloneTarget()

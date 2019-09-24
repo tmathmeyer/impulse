@@ -10,9 +10,9 @@ class Messages(object):
   TIMEOUT = 'Job Waiter Timed Out'
 
 
-class InternalAccess(object):
+class UpdateGraphResponseData(object):
   def __init__(self):
-    self.added_graph:Set['GraphNode'] = set()
+    self.added_graph = set()
     self.who_needs_me_needs_also = None
 
   def InjectMoreGraph(self, graph):
@@ -40,7 +40,7 @@ class GraphNode(object):
   def __call__(self, debug=False):
     self.__in_thread__ = True
     if self._has_internal_access:
-      access = InternalAccess()
+      access = UpdateGraphResponseData()
       self.run_job(debug, access)
       return access
     else:
@@ -96,20 +96,6 @@ class JobResponse(object):
 
   def id(self) -> int:
     return self._id
-
-
-class UpdateGraphResponseData(object):
-  def __init__(self):
-    self.added_graph = set()
-    self.who_needs_me_needs_also = None
-
-  def InjectMoreGraph(self, graph):
-    self.added_graph |= graph
-
-  def MoveDependencyTo(self, rule, node=None):
-    if node:
-      self.added_graph.add(node)
-    self.who_needs_me_needs_also = rule
 
 
 class ThreadWatchdog(multiprocessing.Process):
@@ -259,7 +245,7 @@ class ThreadPool(multiprocessing.Process):
     self._printer.add_job_count(len(results.added_graph))
 
     if results.who_needs_me_needs_also:
-      for maybe_parent in self.graph:
+      for maybe_parent in self._graph:
         if node_from in maybe_parent.remaining_dependencies:
           for newly_added in results.added_graph:
             if newly_added.get_name() == str(results.who_needs_me_needs_also):
