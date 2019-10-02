@@ -131,7 +131,7 @@ class Build(api.Resource('github-pr')):
         return self.exit_msg('Could not build impulse')
       if not self._log.CMD(['./GENERATED/BINARIES/impulse/impulse',
                             'testsuite', '--notermcolor',
-                            '--debug', '--fakeroot' os.getcwd()]):
+                            '--debug', '--fakeroot', os.getcwd()]):
         return self.exit_msg('Could not run tests')
     return True
 
