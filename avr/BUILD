@@ -1,6 +1,7 @@
+langs("Python")
+
 load (
-    "//impulse/avr/build_defs.py",
-    "//rules/core/Python/build_defs.py"
+    "//impulse/avr/build_defs.py"
 )
 
 arduino_obj (
