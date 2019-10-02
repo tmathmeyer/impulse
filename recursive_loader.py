@@ -130,6 +130,7 @@ class RecursiveFileParser(object):
       'depends_targets': self._depends_on_targets,
       'data': self._buildrule(_data_buildrule),
       'git_repo': build_target.ParsedGitTarget,
+      'langs': self._load_core_langs,
     }
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):
@@ -233,6 +234,11 @@ class RecursiveFileParser(object):
   def _load_files(self, *args):
     for loading in args:
       self._ParseFile(impulse_paths.expand_fully_qualified_path(loading))
+
+  def _load_core_langs(self, *args):
+    for file in args:
+      self._ParseFile(impulse_paths.expand_fully_qualified_path(
+        f'//rules/core/{file}/build_defs.py'))
 
   def GetAllConvertedTargets(self):
     def converted_targets():

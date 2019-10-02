@@ -1,7 +1,4 @@
-load(
-    "//rules/core/Python/build_defs.py",
-)
-
+langs("Python")
 
 py_library(
   name="packaging",

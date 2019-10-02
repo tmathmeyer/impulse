@@ -1,5 +1,5 @@
+langs("Python")
 load (
-  "//rules/core/Python/build_defs.py",
   "//impulse/docker/rules/build_defs.py"
 )
 
