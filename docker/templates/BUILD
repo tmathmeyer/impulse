@@ -1,5 +1,4 @@
 
-
 data (
   name = "templates",
   srcs = [
