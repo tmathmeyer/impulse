@@ -96,9 +96,7 @@ Projects have one or more ```BUILD``` files defined in them. These files use a s
 #### Two examples:
 $ROOT/impulse/BUILD:
 ```python
-load(
-    "//rules/core/Python/build_defs.py",
-)
+langs("Python")
 
 py_binary(
     name = "impulse",
@@ -129,9 +127,7 @@ py_library(
 
 $ROOT/example_unittests/BUILD:
 ```python
-load (
-    "//rules/core/C/build_defs.py",
-)
+langs("C")
 
 c_header (
   name = 'argparse_h',
