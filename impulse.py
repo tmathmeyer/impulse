@@ -150,7 +150,7 @@ def testsuite(project:str=None,
   builders = list(rfp.ConvertAllTestTargets())
   
   graph = rfp.GetAllConvertedTargets()
-  pool = threaded_dependence.DependentPool(debug, 6, len(graph))
+  pool = threaded_dependence.ThreadPool(debug=debug, poolcount=6)
   pool.input_job_graph(graph).start()
   pool.join()
 

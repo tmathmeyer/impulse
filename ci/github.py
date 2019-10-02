@@ -121,15 +121,15 @@ class Build(api.Resource('github-pr')):
         if not self.prepare_git_repo():
           return self.exit_msg('Unable to check out source files')
       if not os.path.exists('impulse'):
-        self._log.CMD(['git', 'clone', 'https://github.com/tmathmeyer/impulse'])
+        self.log.CMD(['git', 'clone', 'https://github.com/tmathmeyer/impulse'])
       if not os.path.exists('rules'):
-        self._log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
+        self.log.CMD(['ln', '-s', 'impulse/rules', 'rules'])
 
-      if not self._log.CMD(['impulse', 'build', '--force',
+      if not self.log.CMD(['impulse', 'build', '--force',
                             '--fakeroot', os.getcwd(),
                             '//impulse:impulse']):
         return self.exit_msg('Could not build impulse')
-      if not self._log.CMD(['./GENERATED/BINARIES/impulse/impulse',
+      if not self.log.CMD(['./GENERATED/BINARIES/impulse/impulse',
                             'testsuite', '--notermcolor',
                             '--debug', '--fakeroot', os.getcwd()]):
         return self.exit_msg('Could not run tests')
@@ -164,7 +164,7 @@ class Build(api.Resource('github-pr')):
 
     remote_cmd = 'git remote add {} {}'.format(name, upstream)
     pull_cmd = 'git fetch {}'.format(name)
-    if not self._log.CMD(remote_cmd.split()):
+    if not self.log.CMD(remote_cmd.split()):
       return False
     if not self.log.CMD(pull_cmd.split()):
       return False
