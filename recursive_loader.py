@@ -64,6 +64,9 @@ class ParsedBuildTarget(object):
         return None
     return get_all(self._args, is_buildrule)
 
+  def GetDependencies(self):
+    return list(self._get_all_seems_like_buildrule_patterns())
+
   def _CreateConverted(self):
     # set(build_target.BuildTarget)
     dependencies = set()
@@ -222,9 +225,8 @@ class RecursiveFileParser(object):
         name, fn, kwargs, build_rule, buildrule_name, self, self._carried_args)
 
       # Parse the dependencies and evaluate them too.
-      for dep in kwargs.get('deps', []):
-        if impulse_paths.is_fully_qualified_path(dep):
-          self.ParseTarget(impulse_paths.convert_to_build_target(dep, None))
+      for dep in self._targets[build_rule].GetDependencies():
+        self.ParseTarget(dep)
 
       # The wrapper functions (using, depends, etc) need the ParsedBuildTarget
       return self._targets[build_rule]

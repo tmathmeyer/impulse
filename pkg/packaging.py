@@ -65,7 +65,8 @@ class UtilHelper(object):
 class ExportablePackage(object):
   """A wrapper class for building a package file."""
   def __init__(self, package_target, ruletype: str,
-               can_access_internal: bool=False):
+               can_access_internal: bool=False,
+               binaries_location: str=''):
     self.included_files = []
     self.input_files = []
     self.depends_on_targets = []
@@ -76,11 +77,13 @@ class ExportablePackage(object):
     self.is_binary_target = ruletype.endswith(
       '_binary') or ruletype.endswith('_test')
     self.package_ruletype = ruletype
+    self.execution_count = 0
 
     self._export_binary = None
     self._extracted_dir = None
     self._can_access_internal = can_access_internal
     self._buildqueue_ref = None
+    self._binaries_location = binaries_location
 
   def __getstate__(self):
     return self.__dict__.copy()
@@ -141,7 +144,8 @@ class ExportablePackage(object):
     self.included_files.append(filename)
 
   def AddDependency(self, dependency):
-    self.depends_on_targets.append(dependency)
+    if dependency not in self.depends_on_targets:
+      self.depends_on_targets.append(dependency)
 
   def GetPackageName(self):
     return self.package_target.GetPackagePkgFile()
@@ -152,6 +156,12 @@ class ExportablePackage(object):
   def ExecutionFailed(self, command, stderr):
     raise exceptions.BuildDefsRaisesException(self.package_target.target_name,
       self.package_ruletype, command + "\n\n" + stderr)
+
+  def WithNewDependencies(self, dependencies):
+    raise exceptions.RerunRuleException(new_dependencies=dependencies)
+
+  def GetBinariesDir(self):
+    return self._binaries_location
 
   def RunCommand(self, command):
     return subprocess.run(command,
@@ -247,7 +257,7 @@ class ExportablePackage(object):
     chrs = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     dirname = ''
     while exists:
-      dirname = ''.join(random.choice(chrs) for i in range(10))
+      dirname = '__impulse__' + ''.join(random.choice(chrs) for i in range(10))
       if not os.path.exists(f'/tmp/{dirname}'):
         exists = False
     r = self.RunCommand(f'mkdir -p /tmp/{dirname}')
@@ -258,6 +268,8 @@ class ExportablePackage(object):
 
   def LoadToTemp(self, pkg_dir, bin_dir):
     # Temp directory to write to (deleted on object destruction)
+    if self._extracted_dir:
+      self.UnloadPackageDirectory()
     self._extracted_dir = self.MakeTempDir()
     package_name = os.path.join(pkg_dir,
       self.package_target.GetPackagePkgFile())
@@ -281,7 +293,7 @@ class ExportablePackage(object):
       try:
         self.RunCommand(f'rm -rf {self._extracted_dir}')
       except FileNotFoundError:
-        pass
+        print(f'{self._extracted_dir} COULD NOT BE DELETED!')
     self._extracted_dir = None
 
   def Dependencies(self, **filters):
