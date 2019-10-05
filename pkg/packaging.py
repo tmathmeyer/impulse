@@ -157,9 +157,6 @@ class ExportablePackage(object):
     raise exceptions.BuildDefsRaisesException(self.package_target.target_name,
       self.package_ruletype, command + "\n\n" + stderr)
 
-  def WithNewDependencies(self, dependencies):
-    raise exceptions.RerunRuleException(new_dependencies=dependencies)
-
   def GetBinariesDir(self):
     return self._binaries_location
 

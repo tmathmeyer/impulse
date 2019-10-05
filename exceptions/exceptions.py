@@ -88,9 +88,3 @@ class FilesystemSyncException(Exception):
 class FatalException(Exception):
   def __init__(self, s):
     super().__init__(s)
-
-
-class RerunRuleException(Exception):
-  def __init__(self, new_dependencies):
-    super().__init__('')
-    self.new_dependencies = new_dependencies
