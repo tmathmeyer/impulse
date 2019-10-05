@@ -109,8 +109,6 @@ class BuildTarget(threaded_dependence.GraphNode):
       return buildrule(self._package, **self._buildrule_args), rule, buildfile
     except exceptions.BuildDefsRaisesException:
       raise
-    except exceptions.RerunRuleException:
-      raise
     except Exception as e:
       # TODO pull snippits of the code and highlight the erroring line,
       # then print that.

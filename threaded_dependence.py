@@ -141,8 +141,6 @@ class ThreadWatchdog(multiprocessing.Process):
 
       try:
         job_result = job()
-      except exceptions.exceptions.RerunRuleException as e:
-        pass
       except Exception as e:
         self._job_input_queue.task_done()
         self._Fail(e)
