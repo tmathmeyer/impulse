@@ -50,7 +50,8 @@ class BuildTarget(threaded_dependence.GraphNode):
     self._force_build = force_build
 
     self._package = packaging.ExportablePackage(
-      rule, buildrule_name, can_access_internal)
+      rule, buildrule_name, can_access_internal,
+      os.path.join(impulse_paths.output_directory(), 'BINARIES'))
 
   def __eq__(self, other):
     return (other.__class__ == self.__class__ and
@@ -107,6 +108,8 @@ class BuildTarget(threaded_dependence.GraphNode):
     try:
       return buildrule(self._package, **self._buildrule_args), rule, buildfile
     except exceptions.BuildDefsRaisesException:
+      raise
+    except exceptions.RerunRuleException:
       raise
     except Exception as e:
       # TODO pull snippits of the code and highlight the erroring line,
@@ -194,16 +197,17 @@ class BuildTarget(threaded_dependence.GraphNode):
           export_binary, rulefile, buildfile = self._RunBuildRule()
           self._package.SetRuleFile(GetRootRelativePath(rulefile), rulefile)
           self._package.SetBuildFile(GetRootRelativePath(buildfile), buildfile)
-          self._package = self._package.Export()
-          packaging.EnsureDirectory(os.path.dirname(package_full_path))
-          shutil.copyfile(self._package.filename, package_full_path)
-          if self._package.is_binary_target:
-            if not export_binary:
-              raise Exception('{} must return a binary exporter!'.format(
-                self._buildrule_name))
-            bindir = os.path.join(bin_directory, rulepath)
-            packaging.EnsureDirectory(bindir)
-            export_binary(self._target_name, package_full_path, bindir)
+          if not (internal_access and internal_access.rerun_more_deps):
+            self._package = self._package.Export()
+            packaging.EnsureDirectory(os.path.dirname(package_full_path))
+            shutil.copyfile(self._package.filename, package_full_path)
+            if self._package.is_binary_target:
+              if not export_binary:
+                raise Exception('{} must return a binary exporter!'.format(
+                  self._buildrule_name))
+              bindir = os.path.join(bin_directory, rulepath)
+              packaging.EnsureDirectory(bindir)
+              export_binary(self._target_name, package_full_path, bindir)
     except exceptions.FilesystemSyncException:
       raise
     finally:
@@ -288,8 +292,7 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
 
   def ParseFile(self, rfp, parser):
     clone = self._MakeCloneTarget()
-    # checkout = self._MakeCheckoutTarget(clone)
-    parent = self._MakeParentTarget(clone) #, checkout)
+    parent = self._MakeParentTarget(clone)
     rfp._targets[self] = MockConvertedTarget(
       parent, set([clone, parent]))
 
@@ -324,7 +327,33 @@ def GitCheckout(target, name, commit):
 
 
 def GitRunChild(target, name, path):
+  formatted_rule = ':'.join([path, name])
+
+  if target.execution_count != 0:
+    for deplib in target.Dependencies():
+      if str(deplib.package_target) == formatted_rule:
+        target.AddFile(os.path.join('bin', name))
+    return
+
+  def with_new_dependencies(G):
+    for node in G:
+      if formatted_rule == node.get_name():
+        return node
+
   constructed = impulse_paths.ParsedTarget(name, path)
   graph = target.Internal.recursive_loader.generate_graph(constructed)
-  target.Internal.build_queue.InjectMoreGraph(graph)
-  target.Internal.build_queue.MoveDependencyTo(constructed)
+  clone_target = target.depends_on_targets[0]
+  if clone_target.build_timestamp < target.build_timestamp:
+    pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
+    bin_directory = os.path.join(impulse_paths.root(), BINARIES_DIR)
+    _, files, _ = with_new_dependencies(graph)._package.LoadToTemp(
+      pkg_directory, bin_directory)
+    for key, val in files.items():
+      os.makedirs(os.path.dirname(key))
+      os.system(f'cp {val} {key}')
+      target.AddFile(key)
+    with_new_dependencies(graph)._package.UnloadPackageDirectory()
+  else:
+    target.Internal.build_queue.InjectMoreGraph(graph)
+    target.Internal.build_queue.RerunWithDependency(
+      set([with_new_dependencies(graph)]))

@@ -4,6 +4,7 @@ import traceback
 from typing import Set, Dict
 
 from impulse import status_out
+from impulse import exceptions
 
 class Messages(object):
   EMPTY_RESPONSE = 'Internal: Empty Response'
@@ -13,15 +14,14 @@ class Messages(object):
 class UpdateGraphResponseData(object):
   def __init__(self):
     self.added_graph = set()
-    self.who_needs_me_needs_also = None
+    self.rerun_more_deps = None
 
   def InjectMoreGraph(self, graph):
     self.added_graph |= graph
 
-  def MoveDependencyTo(self, rule, node=None):
-    if node:
-      self.added_graph.add(node)
-    self.who_needs_me_needs_also = rule
+  def RerunWithDependency(self, nodes):
+    self.added_graph |= (nodes)
+    self.rerun_more_deps = nodes
 
 
 class GraphNode(object):
@@ -141,6 +141,8 @@ class ThreadWatchdog(multiprocessing.Process):
 
       try:
         job_result = job()
+      except exceptions.exceptions.RerunRuleException as e:
+        pass
       except Exception as e:
         self._job_input_queue.task_done()
         self._Fail(e)
@@ -215,13 +217,15 @@ class ThreadPool(multiprocessing.Process):
     self._in_flight.remove(status.job())
     self._completed.add(status.job())
     response = status.result()
+    discard_node = True
     if response:
       if isinstance(response, UpdateGraphResponseData):
-        self._update_graph(status.job(), response)
+        discard_node = not self._update_graph(status.job(), response)
 
     newgraph:Set[GraphNode] = set()
     for node in self._graph:
-      node.remaining_dependencies.discard(status.job())
+      if discard_node:
+        node.remaining_dependencies.discard(status.job())
       if not node.remaining_dependencies:
         self._pending_add.add(node)
       else:
@@ -239,17 +243,24 @@ class ThreadPool(multiprocessing.Process):
 
   def _update_graph(self,
                     node_from:GraphNode,
-                    results:UpdateGraphResponseData):
+                    results:UpdateGraphResponseData) -> bool:
     results.added_graph -= self._completed
     self._graph |= results.added_graph
     self._printer.add_job_count(len(results.added_graph))
 
-    if results.who_needs_me_needs_also:
-      for maybe_parent in self._graph:
-        if node_from in maybe_parent.remaining_dependencies:
-          for newly_added in results.added_graph:
-            if newly_added.get_name() == str(results.who_needs_me_needs_also):
-              maybe_parent.remaining_dependencies.add(newly_added)
+    if results.rerun_more_deps:
+      needs_rerun = False
+      for new_addition in results.rerun_more_deps:
+        if new_addition not in self._completed:
+          node_from.remaining_dependencies.add(new_addition)
+          node_from.dependencies.add(new_addition)
+          needs_rerun = True
+      if needs_rerun:
+        self._completed.remove(node_from)
+        node_from._package.execution_count += 1
+        self._graph.add(node_from)
+      return needs_rerun
+    return False
 
   def _do_graph_loop(self):
     while True:

@@ -9,3 +9,8 @@ py_library (
   name = "tree_builder",
   srcs = ["tree_builder.py"]
 )
+
+py_library (
+  name = "bintools",
+  srcs = ["bintools.py"]
+)
