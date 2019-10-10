@@ -8,6 +8,7 @@ import subprocess
 
 from typing import Sequence, Dict
 
+from impulse import impulse_paths
 from impulse.args import args
 from impulse.util import bintools
 
@@ -43,10 +44,17 @@ def _get_arduino_devices() -> Sequence[str]:
       yield os.path.join('/dev', tty)
 
 
-class Device(object):
+class Device(args.ArgComplete):
   def __init__(self, ttydevice):
+    super().__init__(ttydevice)
     self._tty_device = ttydevice
     self._chipset = 'ATxmega32E5'  # just a guess!
+
+  @classmethod
+  def get_completion_list(cls, stub):
+    for device in  _get_arduino_devices():
+      if device.startswith(stub):
+        yield device
 
   def RunCommand(self, command):
     return subprocess.run(command,
@@ -59,7 +67,7 @@ class Device(object):
     cmd = '{} -C {} -c arduino -P {} -p {}'
     r = self.RunCommand(cmd.format(
       bintools.GetResourcePath('bin/avrdude', exe=True),
-      bintools.GetResourcePath('impulse/avr/avrdude.conf'),
+      bintools.GetResourcePath('avrdude-src/avrdude.conf'),
       self._tty_device,
       self._chipset));
     result = re.search(r'\(probably (\S+)\)', r.stderr)
@@ -69,10 +77,7 @@ class Device(object):
       self._chipset = 'unknown'
 
   def __str__(self):
-    return f'''
-IO device: {self._tty_device}
-chipset: {self._chipset}
-'''
+    return f'{{\n  IO device: {self._tty_device}\n  chipset: {self._chipset}\n}}\n'
 
   def __repr__(self):
     return str(self)
@@ -102,6 +107,12 @@ def devices():
 
   for device in devices:
     print(device)
+
+@command
+def b(device:Device,
+      target:impulse_paths.BuildTarget=None):
+  print(device)
+  print(target)
 
 
 

@@ -13,9 +13,11 @@ resource_dir = None
 def GetResourcePath(pkg_path:str, exe=False) -> str:
   global resource_dir
   if not CreateResourceDir():
-    raise LookupError('Could not load resource')
+    raise LookupError(f'Could not load resource {pkg_path}')
 
   filedata = pkgutil.get_data(*pkg_path.rsplit('/', 1))
+  if filedata is None:
+    raise LookupError(f'Could not load resource {pkg_path}')
   outdir = os.path.join(resource_dir, os.path.dirname(pkg_path))
   os.makedirs(outdir, exist_ok=True)
   filename = os.path.join(outdir, os.path.basename(pkg_path))

@@ -43,7 +43,7 @@ class ExportedPackage(object):
       self.ExportBinary = export_binary
 
   def NeedsBuild(self):
-    return self, False
+    return self, False, "Already Exported"
 
   def IncludedFiles(self):
     return [file for file in self.included_files]
@@ -173,7 +173,11 @@ class ExportablePackage(object):
     if type(datavalue) == str:
       yield datavalue
     else:
-      yield from self._packages_map[datavalue].included_files
+      package = self._packages_map[datavalue]
+      if package.is_binary_target:
+        yield 'bin/' + package.package_target.split(':')[1]
+      else:
+        yield from package.included_files
 
   def Export(self) -> ExportedPackage:
     r = self.RunCommand('pwd')
@@ -205,7 +209,7 @@ class ExportablePackage(object):
   def NeedsBuild(self, package_dir, src_dir):
     previous_build = self._GetPreviousBuild(package_dir)
     if not previous_build:
-      return self, True
+      return self, True, 'No previous build found'
 
     prev_dict = {}
     curr_dict = {}
@@ -217,18 +221,18 @@ class ExportablePackage(object):
       curr_dict[str(target.package_target)] = target.build_timestamp
 
     if len(prev_dict) != len(curr_dict):
-      return self, True
+      return self, True, f'current and previous dict differ {prev_dict}, {curr_dict}'
 
     for k in prev_dict.keys():
       if k not in curr_dict:
-        return self, True
+        return self, True, f'current and previous dict differ {prev_dict}, {curr_dict}'
       if curr_dict[k] > prev_dict[k]:
-        return self, True
+        return self, True, f'current and previous dict differ {prev_dict}, {curr_dict}'
 
     for src in previous_build['input_files']:
       full_path = os.path.join(src_dir, src[0])
       if MD5(full_path) != src[1]:
-        return self, True
+        return self, True, 'current and previous input files hash differently'
 
     check_files = []
     if previous_build.get('build_file', None):
@@ -238,9 +242,9 @@ class ExportablePackage(object):
     for f, h in check_files:
       full_path = os.path.join(src_dir, f)
       if MD5(full_path) != h:
-        return self, True
+        return self, True, 'current and previous rule or build files differ'
 
-    return self, False
+    return self, False, 'No change'
 
   def LoadToTempAttempt(self, bin_dir):
     with open('pkg_contents.json', 'r+') as f:

@@ -137,7 +137,7 @@ def increase_stack_arg_decorator(replacement):
 
 
 
-def _data_buildrule(target, name, srcs):
+def _data_buildrule(target, name, srcs, **kwargs):
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
 

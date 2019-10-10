@@ -20,6 +20,7 @@ py_binary(
   srcs = [ "arduino.py" ],
   deps = [
     "//impulse/args:args",
+    "//impulse:impulse_libs",
   ],
   tools = [
     git_repo(
@@ -27,12 +28,12 @@ py_binary(
       repo = "avrdude-src",
       target = "//avrdude-src:avrdude",
     ),
-    ":avrdude_config",
-    "//impulse:impulse"
+    git_repo(
+      url = "https://github.com/tmathmeyer/avrdude-src",
+      repo = "avrdude-src",
+      target = "//avrdude-src:avrdude_config",
+    ),
   ],
-)
-
-data(
-  name = "avrdude_config",
-  srcs = [ "avrdude.conf" ]
+  data = [
+  ],
 )

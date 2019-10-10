@@ -26,38 +26,32 @@ def _get_includes_paths(target, targets):
   for t in targets:
     yield from target.DataValueOf(t)
 
+def _generate_inits(target, directory):
+  while directory:
+    file = os.path.join(directory, '__init__.py')
+    if not os.path.exists(file):
+      _write_file(target, file, '#generated')
+    directory = os.path.dirname(directory)
 
-@using(_add_files, _write_file)
+
+@using(_add_files, _write_file, _generate_inits)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
   _add_files(target, srcs + kwargs.get('data', []))
-
-  # Create the init files
-  directory = target.GetPackageDirectory()
-  while directory:
-    _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
-    directory = os.path.dirname(directory)
+  _generate_inits(target, target.GetPackageDirectory())
 
 
 @depends_targets("//impulse/util:bintools")
-@using(_add_files, _write_file, _get_includes_paths, py_make_binary)
+@using(_add_files, _write_file, _get_includes_paths, _generate_inits, 
+       py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):
-  # Create the init files
-  directory = target.GetPackageDirectory()
-  while directory:
-    _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
-    directory = os.path.dirname(directory)
-
   # Track any additional sources
   _add_files(target, kwargs.get('srcs', []) + kwargs.get('data', []))
-
-  includelist = []
+  _generate_inits(target, target.GetPackageDirectory())
   for include in _get_includes_paths(target, kwargs.get('tools', [])):
     target.AddFile(include)
-    includelist.append(include)
-  if includelist:
-    _write_file(target, os.path.join('bin', '__init__.py'), '#generated')
+    _generate_inits(target, os.path.dirname(include))
 
   # Create the __main__ file
   main_fmt = 'from {package} import {name}\n{name}.main()\n'

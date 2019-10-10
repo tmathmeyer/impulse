@@ -85,11 +85,11 @@ class BuildTarget(threaded_dependence.GraphNode):
 
   def _NeedsBuild(self, package_dir, src_dir):
     self.check_thread()
-    self._package, needs_building = self._package.NeedsBuild(
+    self._package, needs_building, reason = self._package.NeedsBuild(
       package_dir, src_dir)
     if self._force_build:
-      return True
-    return needs_building
+      return True, 'force build'
+    return needs_building, reason
 
   def _CompileBuildRule(self):
     self.check_thread()
@@ -102,12 +102,15 @@ class BuildTarget(threaded_dependence.GraphNode):
     except Exception as e:
       raise exceptions.BuildRuleCompilationError(e)
 
-  def _RunBuildRule(self):
+  def _RunBuildRule(self, reason):
     self.check_thread()
     buildrule, rule, buildfile = self._CompileBuildRule()
     try:
+      self._buildrule_args['needs_rebuild_reason'] = reason
       return buildrule(self._package, **self._buildrule_args), rule, buildfile
     except exceptions.BuildDefsRaisesException:
+      raise
+    except exceptions.BuildTargetAlreadyBuiltException:
       raise
     except Exception as e:
       # TODO pull snippits of the code and highlight the erroring line,
@@ -171,7 +174,8 @@ class BuildTarget(threaded_dependence.GraphNode):
     ro_directory = os.path.join(impulse_paths.root())
 
     # Exit early, no work to do.
-    if not self._NeedsBuild(pkg_directory, ro_directory):
+    needs_build, reason = self._NeedsBuild(pkg_directory, ro_directory)
+    if not needs_build:
       return
 
     # This is going to be where all file writes end up
@@ -192,7 +196,7 @@ class BuildTarget(threaded_dependence.GraphNode):
         with temp_dir.ScopedTempDirectory(working_directory):
           # Set these as the hashed input files
           self._package.SetInputFiles(included_files.keys())
-          export_binary, rulefile, buildfile = self._RunBuildRule()
+          export_binary, rulefile, buildfile = self._RunBuildRule(reason)
           self._package.SetRuleFile(GetRootRelativePath(rulefile), rulefile)
           self._package.SetBuildFile(GetRootRelativePath(buildfile), buildfile)
           if not (internal_access and internal_access.rerun_more_deps):
@@ -208,6 +212,8 @@ class BuildTarget(threaded_dependence.GraphNode):
               export_binary(self._target_name, package_full_path, bindir)
     except exceptions.FilesystemSyncException:
       raise
+    except exceptions.BuildTargetAlreadyBuiltException:
+      pass
     finally:
       shutil.rmtree(working_directory)
       shutil.rmtree(rw_directory)
@@ -295,7 +301,7 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       scope = {},
       dependencies = set(children),
       can_access_internal = True,
-      force_build=True)
+      force_build=False)
 
   def ParseFile(self, rfp, parser):
     clone = self._MakeCloneTarget()
@@ -304,7 +310,7 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       parent, set([clone, parent]))
 
 
-def GitClone(target, name, repo, url):
+def GitClone(target, name, repo, url, **kwargs):
   repo_exists_path = os.path.join(impulse_paths.root(), repo)
   if not os.path.exists(repo_exists_path):
     command = f'git clone {url} {repo_exists_path}'
@@ -318,7 +324,7 @@ def GitClone(target, name, repo, url):
     repo_exists_path, '.git', 'HEAD')])
 
 
-def GitCheckout(target, name, commit):
+def GitCheckout(target, name, commit, **kwargs):
   repo_path = None
   with open('gitlocation', 'r') as f:
     repo_path = f.read()
@@ -333,13 +339,17 @@ def GitCheckout(target, name, commit):
   target.AddFile('gitlocation')
 
 
-def GitRunChild(target, name, path):
+def GitRunChild(target, name, path, needs_rebuild_reason):
   formatted_rule = ':'.join([path, name])
 
   if target._execution_count != 0:
     for deplib in target.Dependencies():
       if str(deplib.package_target) == formatted_rule:
-        target.AddFile(os.path.join('bin', name))
+        if deplib.is_binary_target:
+          target.AddFile(os.path.join('bin', name))
+        else:
+          for file in deplib.included_files:
+            target.AddFile(file)
     return
 
   def with_new_dependencies(G):
@@ -350,16 +360,22 @@ def GitRunChild(target, name, path):
   constructed = impulse_paths.ParsedTarget(name, path)
   graph = target.Internal.recursive_loader.generate_graph(constructed)
   clone_target = target.depends_on_targets[0]
+
   if clone_target.build_timestamp < target.build_timestamp:
     pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
     bin_directory = os.path.join(impulse_paths.root(), BINARIES_DIR)
-    _, files, _ = with_new_dependencies(graph)._package.LoadToTemp(
+    _, binary_files, package = with_new_dependencies(graph)._package.LoadToTemp(
       pkg_directory, bin_directory)
-    for key, val in files.items():
+    if target.build_timestamp > package.build_timestamp:
+      with_new_dependencies(graph)._package.UnloadPackageDirectory()
+      raise exceptions.BuildTargetAlreadyBuiltException()
+    # copy binaries
+    for key, val in binary_files.items():
       os.makedirs(os.path.dirname(key))
       os.system(f'cp {val} {key}')
       target.AddFile(key)
     with_new_dependencies(graph)._package.UnloadPackageDirectory()
+    return
   else:
     target.Internal.build_queue.InjectMoreGraph(graph)
     target.Internal.build_queue.RerunWithDependency(

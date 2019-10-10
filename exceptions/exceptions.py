@@ -85,6 +85,10 @@ class FilesystemSyncException(Exception):
     super().__init__('The filesystem is out of sync, please try rerunning.')
 
 
+class BuildTargetAlreadyBuiltException(Exception):
+  def __init__(self):
+    super().__init__('This buildrule has already been built!')
+
 class FatalException(Exception):
   def __init__(self, s):
     super().__init__(s)
