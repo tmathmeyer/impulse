@@ -1,8 +1,8 @@
 langs("Python")
 
 py_library(
-  name="args",
-  srcs=[
+  name = "args",
+  srcs = [
     "args.py",
   ],
 )
@@ -14,6 +14,6 @@ py_test(
   ],
   deps = [
     ":args",
-    "//impulse/util:temp_dir"
-  ]
+    "//impulse/util:temp_dir",
+  ],
 )
