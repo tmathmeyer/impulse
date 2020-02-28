@@ -2,7 +2,11 @@
 
 all: copy_srcs
 	@python3 -m impulse.impulse build //impulse:impulse --fakeroot $(shell pwd) --debug
-	@rm -rf impulse/
+	@rm -r impulse/
+
+typecheck: copy_srcs
+	@mypy impulse/impulse.py
+	@rm -r impulse/
 
 copy_srcs:
 	@rm -rf impulse/
@@ -30,5 +34,5 @@ install: GENERATED/BINARIES/impulse/impulse
 	@cp GENERATED/BINARIES/impulse/impulse /usr/local/bin/impulse
 
 clean:
-	@rm -rf GENERATED/
-	@rm -rf impulse/
+	@rm -r GENERATED/
+	@rm -r impulse/
