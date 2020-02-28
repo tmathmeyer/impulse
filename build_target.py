@@ -70,6 +70,9 @@ class BuildTarget(threaded_dependence.GraphNode):
     """override"""
     return str(self._buildrule_pt)
 
+  def data(self):
+    return self._package
+
   def LoadToTemp(self, package_dir, binary_dir):
     return self._package.LoadToTemp(package_dir, binary_dir)
 

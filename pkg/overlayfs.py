@@ -7,6 +7,7 @@ import os
 import shutil
 import signal
 import subprocess
+import typing
 
 from impulse.fuse import fuse
 from impulse.exceptions import exceptions
@@ -14,9 +15,10 @@ from impulse.exceptions import exceptions
 def ACCESS_ERR():
   raise fuse.FuseOSError(errno.EACCES)
 
-class OverlayFilesystemOperations(fuse.Operations):
+
+class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
   """Backend file operations for the overlay filesystem."""
-  def __init__(self, queue, rw_dir: str, ro_dirs: [str], shadow_files:dict):
+  def __init__(self, queue, rw_dir: str, ro_dirs:typing.List[str], shadow_files:dict):
     self.ready_queue = queue
 
     self._rw_directory = rw_dir
@@ -25,15 +27,16 @@ class OverlayFilesystemOperations(fuse.Operations):
 
      # Set of strings representing files that shouldn't be shown as
      # they have been moved away.
-    self._moved_files = set()
+    self._moved_files:typing.Set[str] = set()
 
     # A map of open file descriptors which can be used for passing through
     # operations and triggering a copy-on-write.
     # mapping from {filename -> {handle -> (handle, open-flags)}}
-    self._open_files = collections.defaultdict(dict)
+    self._open_files:typing.DefaultDict[str, dict] = collections.defaultdict(dict)
 
-
-  def _find_shadow_nodes(self, path: str, files:bool = False) -> (str, [str]):
+  def _find_shadow_nodes(
+        self, path:str, files:bool = False
+        ) -> typing.Tuple[str, typing.List[str]]:
     """Returns either the RW copy of the file, or the RO copies."""
     if path.startswith('/'):
       path = path[1:]
@@ -56,64 +59,63 @@ class OverlayFilesystemOperations(fuse.Operations):
 
     return (rw_copy, list(result))
 
-  def _live_ro_files(self):
+  def _live_ro_files(self) -> typing.Iterator[str]:
     for f in self._ro_files.keys():
       if f not in self._moved_files:
         yield f
 
-  def _get_next_element_of(self, f: str, directory: str):
+  def _get_next_element_of(self, f:str, direct:str) -> typing.Tuple[str, str]:
     ffq = self._ro_files.get(f, None)
     if not ffq:
-      return None, None
-    while len(f) >= len(directory):
+      return '', ''
+    while len(f) >= len(direct):
       b = os.path.basename(f)
       f = os.path.dirname(f)
       ffq = os.path.dirname(ffq)
-      if f == directory:
+      if f == direct:
         return b, os.path.join(ffq, b)
-    return None, None
+    return '', ''
 
-  def _chop_ro_file_to_fit(self, f: str, search: str):
+  def _chop_ro_file_to_fit(self, f:str, search:str) -> typing.Tuple[str, str]:
     ffq = self._ro_files.get(f, None)
     if not ffq:
-      return None, None
+      return '', ''
     while len(f) >= len(search):
       b = os.path.basename(f)
       if f == search:
         return b, ffq
       if f == '/':
-        return None, None
+        return '', ''
       f = os.path.dirname(f)
       ffq = os.path.dirname(ffq)
-    return None, None
+    return '', ''
 
-  def _chop_ro_file_to_fit_original(self, f: str, directory: str):
+  def _chop_ro_file_to_fit_original(self, f:str, directory:str
+                                   ) -> typing.Tuple[str, str]:
     ffq = self._ro_files.get(f, None)
     if not ffq:
-      return None, None
-
+      return '', ''
     while len(f) >= len(directory):
       b = os.path.basename(f)
       f = os.path.dirname(f)
       ffq = os.path.dirname(ffq)
       if f == directory:
         return b, os.path.join(ffq, b)
-    return None, None
+    return '', ''
 
-  def _fallback_on_read(self, path: str, operation):
+  def _fallback_on_read(self, path:str, operation):
     path, ro_nodes = self._find_shadow_nodes(path, True)
     if ro_nodes: # RW version doesn't exist
       return operation(ro_nodes[0])
     return operation(path)
 
-  def _unmap_handle(self, path, handle):
+  def _unmap_handle(self, path:str, handle:str) -> str:
     mapped_handle, flags = self._open_files[path].get(handle, (handle, 0))
     # If the file was remapped to something else, we need to open that instead.
     return handle if mapped_handle == -1 else mapped_handle
 
-  def _hide_RO_nodes(self, ro_nodes: [str]):
+  def _hide_RO_nodes(self, ro_nodes:typing.List[str]) -> None:
     self._moved_files.update(ro_nodes)
-
 
   def _change_file(self, path: str, operation, failure=ACCESS_ERR):
     writable_node, ro_nodes = self._find_shadow_nodes(path)

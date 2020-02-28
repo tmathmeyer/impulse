@@ -4,6 +4,7 @@ import glob
 import os
 import sys
 import time
+import typing
 
 from impulse import impulse_paths
 from impulse import threaded_dependence
@@ -18,21 +19,26 @@ command = args.ArgumentParser(complete=True)
 
 
 
-def setup(debug:bool, fakeroot:str):
+def setup(debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
+  """Sets up debug and path info."""
   if debug:
     status_out.DEBUG = True
-  if fakeroot:
-    os.environ['impulse_root'] = fakeroot
+  fakeroot = typing.cast(args.Directory, fakeroot)
+  if fakeroot.value():
+    os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
 
 
-def build_and_await(debug:bool, graph:set):
-  pool = threaded_dependence.ThreadPool(6, debug=debug)
+def build_and_await(debug:bool, graph:set, N:int=6) -> None:
+  """Starts a pool with N threads and waits for graph run completion."""
+  pool = threaded_dependence.ThreadPool(N, debug=debug)
   pool.Start(graph)
   pool.join()
 
 
-def fix_build_target(target:str) -> impulse_paths.ParsedTarget:
-  return impulse_paths.convert_to_build_target(target,
+def fix_build_target(target:impulse_paths.BuildTarget
+  ) -> impulse_paths.ParsedTarget:
+  """Converts some given path to a build target path."""
+  return impulse_paths.convert_to_build_target(target.value(),
     impulse_paths.relative_pwd(), True)
 
 
@@ -43,8 +49,8 @@ def build(target:impulse_paths.BuildTarget,
           fakeroot:args.Directory=None):
   """Builds the given target."""
   setup(debug, fakeroot)
-  target = fix_build_target(target)
-  build_and_await(debug, recursive_loader.generate_graph(target,
+  parsed_target = fix_build_target(target)
+  build_and_await(debug, recursive_loader.generate_graph(parsed_target,
     force_build=force))
 
 @command
@@ -52,8 +58,8 @@ def print_tree(target:impulse_paths.BuildTarget,
                fakeroot:args.Directory=None):
   """Builds the given target."""
   setup(False, fakeroot)
-  target = fix_build_target(target)
-  tree = recursive_loader.generate_graph(target)
+  parsed_target = fix_build_target(target)
+  tree = recursive_loader.generate_graph(parsed_target)
   tree = tree_builder.BuildTree(tree)
   if tree:
     tree.Print()
@@ -67,12 +73,12 @@ def run(target:impulse_paths.BuildTarget,
         fakeroot:args.Directory=None):
   """Builds a testcase and executes it."""
   setup(debug, fakeroot)
-  target = fix_build_target(target)
-  ruleinfo = target.GetRuleInfo()
+  parsed_target = fix_build_target(target)
+  ruleinfo = parsed_target.GetRuleInfo()
   if not ruleinfo.type.endswith('_binary'):
     print('Can only run a binary target')
     return
-  build_and_await(debug, recursive_loader.generate_graph(target))
+  build_and_await(debug, recursive_loader.generate_graph(parsed_target))
   os.system(ruleinfo.output)
 
 
@@ -80,13 +86,14 @@ def run(target:impulse_paths.BuildTarget,
 def docker(target:impulse_paths.BuildTarget,
            debug:bool=False,
            fakeroot:args.Directory=None):
+  """Builds a docker container from the target."""
   setup(debug, fakeroot)
-  target = fix_build_target(target)
-  ruleinfo = target.GetRuleInfo()
+  parsed_target = fix_build_target(target)
+  ruleinfo = parsed_target.GetRuleInfo()
   if not ruleinfo.type.endswith('_container'):
     print('Can only containerize a container target')
     return
-  build_and_await(debug, recursive_loader.generate_graph(target))
+  build_and_await(debug, recursive_loader.generate_graph(parsed_target))
 
   extractcmd = 'unzip {}'.format(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
@@ -102,12 +109,12 @@ def test(target:impulse_paths.BuildTarget,
          fakeroot:args.Directory=None):
   """Builds a testcase and executes it."""
   setup(debug, fakeroot)
-  target = fix_build_target(target)
-  ruleinfo = target.GetRuleInfo()
+  parsed_target = fix_build_target(target)
+  ruleinfo = parsed_target.GetRuleInfo()
   if not ruleinfo.type.endswith('_test'):
     print('Can only test a binary target')
     return
-  build_and_await(debug, recursive_loader.generate_graph(target))
+  build_and_await(debug, recursive_loader.generate_graph(parsed_target))
   cmdline = '{} {} {}'.format(
     ruleinfo.output, 'run', '--notermcolor' if notermcolor else '')
   os.system(cmdline)
@@ -133,11 +140,7 @@ def testsuite(project:str=None,
               debug:bool=False,
               notermcolor:bool=False,
               fakeroot:args.Directory=None):
-  if debug:
-    status_out.DEBUG = True
-
-  if fakeroot:
-    os.environ['impulse_root'] = fakeroot
+  setup(debug, fakeroot)
 
   directory = os.getcwd()
   if project:

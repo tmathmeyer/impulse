@@ -36,7 +36,7 @@ class ImpulseAssertWrapperError(Exception):
 class BuildTargetCycle(Exception):
   """Raised when there is a dependency cycle."""
   @classmethod
-  def Cycle(cls, pbt: 'ParsedBuildTarget'):
+  def Cycle(cls, pbt):
     return cls(cls._Message([pbt]), [pbt])
 
   @classmethod
@@ -48,7 +48,7 @@ class BuildTargetCycle(Exception):
     self._parsed_target_stack = pbts
     super().__init__(message)
 
-  def ChainException(self, pbt: 'ParsedBuildTarget'):
+  def ChainException(self, pbt):
     newstack = [pbt] + self._parsed_target_stack
     return BuildTargetCycle(
       BuildTargetCycle._Message(newstack), newstack)

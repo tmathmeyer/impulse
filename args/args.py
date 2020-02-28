@@ -3,17 +3,26 @@ import abc
 import argparse
 import inspect
 import os
+import typing
 import shlex
 import subprocess
 import sys
 
 class ArgComplete(metaclass=abc.ABCMeta):
-
-  def __init__(self, wrapped):
+  def __init__(self, wrapped:typing.Optional[str]):
     self.wrapped = wrapped
 
   @classmethod
   @abc.abstractmethod
+  def get_completion_list(self, stub):
+    raise NotImplementedError()
+
+  def value(self) -> typing.Optional[str]:
+    return self.wrapped
+
+
+class DefaultArgComplete(ArgComplete):
+  @classmethod
   def get_completion_list(self, stub):
     raise NotImplementedError()
 
@@ -95,12 +104,11 @@ class ArgumentParser(object):
 
   def _exec_func(self, func, args):
     _args = {}
-    for arg, _ in inspect.signature(func).parameters.items():
+    for arg, info in inspect.signature(func).parameters.items():
       if hasattr(args, arg):
-        userarg = getattr(args, arg)
-        if isinstance(userarg, ArgComplete):
-          userarg = userarg.wrapped
-        _args[arg] = userarg
+        _args[arg] = getattr(args, arg)
+      if issubclass(info.annotation, ArgComplete) and _args[arg] == None:
+        _args[arg] = DefaultArgComplete(None)
     func(**_args)
 
   def _invalid_syntax(self, func, argname, missing):

@@ -1,4 +1,5 @@
 
+import abc
 import hashlib
 import json
 import os
@@ -7,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import typing
 import zipfile
 
 from impulse.exceptions import exceptions
@@ -18,16 +20,43 @@ def EnsureDirectory(directory):
     os.makedirs(directory, exist_ok=True)
 
 
-def MD5(fname):
-  hash_md5 = hashlib.md5()
-  try:
-    with open(fname, "rb") as f:
-      for chunk in iter(lambda: f.read(4096), b""):
-        hash_md5.update(chunk)
-    return hash_md5.hexdigest()
-  except FileNotFoundError:
-    return '----'
+class Hasher(metaclass=abc.ABCMeta):
+  @abc.abstractmethod
+  def GetHash(self, filename:str) -> str:
+    raise NotImplementedError()
 
+  def MD5(self, filename:str) -> str:
+    hash_md5 = hashlib.md5()
+    try:
+      with open(filename, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+          hash_md5.update(chunk)
+      return hash_md5.hexdigest()
+    except FileNotFoundError:
+      return '----'
+
+
+class HashedFile(object):
+  __slots__ = ('file', 'hash')
+
+  def __init__(self, file:str, package:Hasher):
+    self.file = file
+    self.hash = package.GetHash(file)
+
+  def dict(self):
+    return {'file': self.file, 'hash': self.hash}
+
+  def __eq__(self, other:object) -> bool:
+    if type(other) != type(self):
+      return False
+    if getattr(other, 'file', None) != self.file:
+      return False
+    if getattr(other, 'hash', None) != self.hash:
+      return False
+    return True
+
+  def __hash__(self):
+    return hash(f'{self.file}//{self.hash}')
 
 
 class ExportedPackage(object):
@@ -54,6 +83,9 @@ class ExportedPackage(object):
   def __repr__(self):
     return str(self)
 
+  def __getitem__(self, name:str):
+    return getattr(self, name)
+
 
 class UtilHelper(object):
   def __init__(self, buildqueue_ref):
@@ -62,16 +94,18 @@ class UtilHelper(object):
     self.build_queue = buildqueue_ref
 
 
-class ExportablePackage(object):
+class ExportablePackage(Hasher):
   """A wrapper class for building a package file."""
+
   def __init__(self, package_target, ruletype: str,
                can_access_internal: bool=False,
                binaries_location: str=''):
-    self.included_files = []
-    self.input_files = []
-    self.depends_on_targets = []
-    self.build_file = []
-    self.rule_file = []
+    self.included_files:typing.List[str] = []
+    self.input_files:typing.Set[HashedFile] = set()
+    self.depends_on_targets:typing.List[str] = []
+    self.build_file:HashedFile
+    self.rule_file:HashedFile
+
     self.package_target = package_target
     self.build_timestamp = int(time.time())
     self.is_binary_target = ruletype.endswith(
@@ -113,11 +147,18 @@ class ExportablePackage(object):
         copydict[k] = sorted(list(set(v)))
       if k == 'depends_on_targets':
         copydict[k] = [[d.package_target, d.build_timestamp] for d in v]
+      if k == 'input_files':
+        copydict[k] = sorted(list(e.dict() for e in v), key=lambda x:x['file'])
+      if k == 'build_file':
+        copydict[k] = v.dict()
+      if k == 'rule_file':
+        copydict[k] = v.dict()
+
     return json.dumps(copydict, indent=2)
 
-  def _GetHash(self, filename: str) -> str:
+  def GetHash(self, filename:str) -> str:
     try:
-      return MD5(filename)
+      return self.MD5(filename)
     except FileNotFoundError as e:
       raise exceptions.ListedSourceNotFound(filename,
         str(self.package_target)) from e
@@ -128,19 +169,17 @@ class ExportablePackage(object):
   def SetInternalAccess(self, access):
     self._buildqueue_ref = access
 
-  def SetInputFiles(self, files:[str]):
+  def SetInputFiles(self, files:typing.List[str]):
     for f in files:
-      self.input_files.append([f, self._GetHash(f)])
+      self.input_files.add(HashedFile(f, self))
 
   def SetRuleFile(self, file:str, hashpath:str):
-    if file:
-      self.rule_file = [file, self._GetHash(hashpath)]
+    self.rule_file = HashedFile(hashpath, self)
 
   def SetBuildFile(self, file:str, hashpath:str):
-    if file:
-      self.build_file = [file, self._GetHash(hashpath)]
+    self.build_file = HashedFile(hashpath, self)
 
-  def AddFile(self, filename: str):
+  def AddFile(self, filename:str):
     self.included_files.append(filename)
 
   def AddDependency(self, dependency):
@@ -218,8 +257,8 @@ class ExportablePackage(object):
         return self, True
 
     for src in previous_build['input_files']:
-      full_path = os.path.join(src_dir, src[0])
-      if MD5(full_path) != src[1]:
+      full_path = os.path.join(src_dir, src['file'])
+      if self.MD5(full_path) != src['hash']:
         return self, True
 
     check_files = []
@@ -229,7 +268,7 @@ class ExportablePackage(object):
       check_files.append(previous_build['rule_file'])
     for f, h in check_files:
       full_path = os.path.join(src_dir, f)
-      if MD5(full_path) != h:
+      if self.MD5(full_path) != h:
         return self, True
 
     return self, False
