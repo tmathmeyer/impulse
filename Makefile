@@ -11,12 +11,19 @@ copy_srcs:
 	@cp *.py impulse/
 	@cp BUILD impulse/
 	@cp -r args impulse/args
+	@touch impulse/args/__init__.py
 	@cp -r pkg impulse/pkg
+	@touch impulse/pkg/__init__.py
 	@cp -r fuse impulse/fuse
+	@touch impulse/fuse/__init__.py
 	@cp -r util impulse/util
+	@touch impulse/util/__init__.py
 	@cp -r testing impulse/testing
+	@touch impulse/testing/__init__.py
 	@cp -r exceptions impulse/exceptions
+	@touch impulse/exceptions/__init__.py
 	@cp -r testing impulse/testing
+	@touch impulse/testing/__init__.py
 
 install: GENERATED/BINARIES/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'

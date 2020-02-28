@@ -2,3 +2,4 @@
 GENERATED
 PACKAGES
 impulse/
+.mypy_cache

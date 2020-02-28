@@ -16,13 +16,6 @@ class ScopedTempDirectory(object):
       except:
         pass
 
-  def _getcwd(self):
-    while True:
-      try:
-        return os.getcwd()
-      except:
-        pass
-
   def __enter__(self):
     self._exited = False
     if not self._temp_directory:

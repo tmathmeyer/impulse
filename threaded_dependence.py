@@ -1,7 +1,8 @@
 import abc
 import multiprocessing
+import queue
 import traceback
-from typing import Set, Dict
+from typing import Set, Dict, TypeVar, Generic
 
 from impulse import status_out
 from impulse import exceptions
@@ -23,8 +24,8 @@ class UpdateGraphResponseData(object):
     self.added_graph |= (nodes)
     self.rerun_more_deps = nodes
 
-
-class GraphNode(object):
+T = TypeVar('T')
+class GraphNode(Generic[T]):
   def __init__(self,
                dependencies:Set['GraphNode'],
                has_internal_access:bool):
@@ -63,6 +64,25 @@ class GraphNode(object):
   def get_name(self):
     pass
 
+  @abc.abstractmethod
+  def data(self) -> T:
+    pass
+
+
+class NullNode(GraphNode):
+  def __init__(self):
+    super().__init__(set(), False)
+  def run_job(*args, **kwargs):
+    raise NotImplementedError()
+  def __eq__(self, other):
+    return type(other) == NullNode
+  def __hash__(*args, **kwargs):
+    raise NotImplementedError()
+  def get_name(*args, **kwargs):
+    raise NotImplementedError()
+  def data(self):
+    raise NotImplementedError()
+
 
 class JobResponse(object):
   class LEVEL(object):
@@ -71,10 +91,10 @@ class JobResponse(object):
     YELLOW = '__L_YELLOW__'
     GREEN = '__L_GREEN__'
 
-  def __init__(self, level:LEVEL,
+  def __init__(self, level:str,
                      job_id:int,
                      job:GraphNode,
-                     message:str=None,
+                     message:str='',
                      result=None):
     self._level = level
     self._msg = message
@@ -82,7 +102,7 @@ class JobResponse(object):
     self._job = job
     self._id = job_id
 
-  def level(self) -> 'JobResponse.LEVEL':
+  def level(self) -> str:
     return self._level
 
   def message(self) -> str:
@@ -99,7 +119,7 @@ class JobResponse(object):
 
 
 class ThreadWatchdog(multiprocessing.Process):
-  POISON = '__TW_POISON__'
+  POISON = NullNode()
   __slots__ = ['_id', '_debug', '_job_input_queue', '_job_response_queue']
 
   def __init__(self,
@@ -115,7 +135,7 @@ class ThreadWatchdog(multiprocessing.Process):
 
   def _Fail(self, exc:Exception):
     self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.FATAL, self._id, None,
+        JobResponse.LEVEL.FATAL, self._id, NullNode(),
         message=str(exc)))
     if not self._debug:
       return
@@ -164,8 +184,8 @@ class ThreadPool(multiprocessing.Process):
     multiprocessing.Process.__init__(self)
 
     self._debug:bool = debug
-    self._job_response_queue = multiprocessing.Queue()
-    self._job_input_queue = multiprocessing.JoinableQueue()
+    self._job_response_queue:queue.Queue[JobResponse] = multiprocessing.Queue()
+    self._job_input_queue:queue.Queue[GraphNode] = multiprocessing.JoinableQueue()
     self._pool_count:int = poolcount
     self._printer = status_out.JobPrinter(0, poolcount)
 
@@ -255,7 +275,7 @@ class ThreadPool(multiprocessing.Process):
           needs_rerun = True
       if needs_rerun:
         self._completed.remove(node_from)
-        node_from._package.execution_count += 1
+        node_from.data().execution_count += 1
         self._graph.add(node_from)
       return needs_rerun
     return False
