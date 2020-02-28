@@ -12,6 +12,7 @@ from impulse.exceptions import exceptions
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
 from impulse.util import temp_dir
+from impulse import status_out
 
 EXPORT_DIR = impulse_paths.EXPORT_DIR
 PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')
@@ -88,8 +89,10 @@ class BuildTarget(threaded_dependence.GraphNode):
 
   def _NeedsBuild(self, package_dir, src_dir):
     self.check_thread()
-    self._package, needs_building = self._package.NeedsBuild(
+    self._package, needs_building, reason = self._package.NeedsBuild(
       package_dir, src_dir)
+    if status_out.DEBUG and needs_building:
+      print(reason)
     if self._force_build:
       return True
     return needs_building

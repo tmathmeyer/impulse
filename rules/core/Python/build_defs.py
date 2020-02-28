@@ -9,7 +9,7 @@ def py_make_binary(package_name, package_file, binary_location):
 def _add_files(target, srcs):
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
-  for deplib in target.Dependencies(package_ruletype='py_library'):
+  for deplib in target.Dependencies(tags='py_library'):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
 
@@ -29,6 +29,7 @@ def _get_tools_paths(target, targets):
 @using(_add_files, _write_file)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
+  target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
 
   # Create the init files
@@ -42,6 +43,7 @@ def py_library(target, name, srcs, **kwargs):
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):
+  target.SetTags('exe')
   # Create the init files
   directory = target.GetPackageDirectory()
   while directory:
@@ -71,11 +73,11 @@ def py_binary(target, name, **kwargs):
   return py_make_binary
 
 
-
 @depends_targets("//impulse/testing:unittest")
 @using(_add_files, _write_file, py_make_binary)
 @buildrule
 def py_test(target, name, srcs, **kwargs):
+  target.SetTags('exe', 'test')
   # Create the init files
   import os
   directory = target.GetPackageDirectory()

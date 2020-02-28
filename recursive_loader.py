@@ -40,38 +40,46 @@ class ParsedBuildTarget(object):
         raise e.ChainException(self)
     return self._converted
 
-  def _get_all_seems_like_buildrule_patterns(self):
-    def get_all(some, probably):
-      if type(some) == dict:
-        for v in get_all(list(some.items()), probably):
-          yield v
-      elif type(some) in (list, tuple):
-        try:
-          for l in some:
-            for v in get_all(l, probably):
-              yield v
-        except TypeError:
-          pass
+  def _update_arg_dependencies_get_list(self):
+    def iterate(update_object, probably):
+      if type(update_object) == dict:
+        replace = {}
+        result = []
+        for k, v in update_object.items():
+          recrep, recres = iterate(v, probably)
+          replace[k] = recrep
+          result += recres
+        return replace, result
+      elif type(update_object) in (list, tuple):
+        replace = []
+        result = []
+        for v in update_object:
+          recrep, recres = iterate(v, probably)
+          replace.append(recrep)
+          result += recres
+        return replace, result
       else:
-        v = probably(some)
-        if v:
-          yield v
+        x = probably(update_object)
+        if x is not None:
+          return x, [x]
+        return update_object, []
     def is_buildrule(txt):
       try:
         return impulse_paths.convert_to_build_target(
           txt, self._build_rule.target_path, True)
       except:
         return None
-    return get_all(self._args, is_buildrule)
+    self._args, result = iterate(self._args, is_buildrule)
+    return result
 
   def GetDependencies(self):
-    return list(self._get_all_seems_like_buildrule_patterns())
+    return list(self._update_arg_dependencies_get_list())
 
   def _CreateConverted(self):
     # set(build_target.BuildTarget)
     dependencies = set()
     # Convert all 'deps' into edges between BuildTargets
-    for target in self._get_all_seems_like_buildrule_patterns():
+    for target in self._update_arg_dependencies_get_list():
       try:
         dependencies |= self._evaluator.ConvertTarget(target)
       except exceptions.BuildTargetMissing:
@@ -109,10 +117,37 @@ def increase_stack_arg_decorator(replacement):
   return _superdecorator
 
 
-
 def _data_buildrule(target, name, srcs):
+  target.SetTags('raw')
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+
+
+def _transform_rule(target, name, tags, rule, tool=None):
+  target.SetTags(*tags)
+  import subprocess
+  
+  rule = next(target.Dependencies(
+    package_target=rule.GetFullyQualifiedRulePath()))
+  tool_pkg = next(target.Dependencies(
+    package_target=tool.GetFullyQualifiedRulePath()), None)
+
+  if tool_pkg is not None and 'exe' not in tool_pkg.tags:
+    target.ExecutionFailed('', f'{tool} is not an executable')
+
+  for f in rule.IncludedFiles():
+    if tool_pkg:
+      command = f'bin/{tool.target_name} {f}'
+      result = subprocess.run(command,
+        encoding='utf-8', shell=True,
+        stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+      if result.returncode:
+        target.ExecutionFailed(command, result.stderr)
+      for outputfile in result.stdout.split('\n'):
+        if outputfile.strip():
+          target.AddFile(outputfile.strip())
+    else:
+      target.AddFile(f)
 
 
 class RecursiveFileParser(object):
@@ -131,9 +166,10 @@ class RecursiveFileParser(object):
       'using': self._using,
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
-      'data': self._buildrule(_data_buildrule),
+      'file_set': self._buildrule(_data_buildrule),
       'git_repo': build_target.ParsedGitTarget,
       'langs': self._load_core_langs,
+      'transform': self._buildrule(_transform_rule),
     }
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):

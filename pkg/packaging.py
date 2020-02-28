@@ -72,7 +72,7 @@ class ExportedPackage(object):
       self.ExportBinary = export_binary
 
   def NeedsBuild(self):
-    return self, False
+    return self, False, None
 
   def IncludedFiles(self):
     return [file for file in self.included_files]
@@ -105,6 +105,7 @@ class ExportablePackage(Hasher):
     self.depends_on_targets:typing.List[str] = []
     self.build_file:HashedFile
     self.rule_file:HashedFile
+    self.tags:typing.Set[str] = set()
 
     self.package_target = package_target
     self.build_timestamp = int(time.time())
@@ -153,6 +154,8 @@ class ExportablePackage(Hasher):
         copydict[k] = v.dict()
       if k == 'rule_file':
         copydict[k] = v.dict()
+      if k == 'tags':
+        copydict[k] = list(v)
 
     return json.dumps(copydict, indent=2)
 
@@ -236,7 +239,7 @@ class ExportablePackage(Hasher):
   def NeedsBuild(self, package_dir, src_dir):
     previous_build = self._GetPreviousBuild(package_dir)
     if not previous_build:
-      return self, True
+      return self, True, 'No previous build'
 
     prev_dict = {}
     curr_dict = {}
@@ -248,30 +251,30 @@ class ExportablePackage(Hasher):
       curr_dict[str(target.package_target)] = target.build_timestamp
 
     if len(prev_dict) != len(curr_dict):
-      return self, True
+      return self, True, 'previous dependencies differ to current ones'
 
     for k in prev_dict.keys():
       if k not in curr_dict:
-        return self, True
+        return self, True, f'{k} (from previous build) not found in current'
       if curr_dict[k] > prev_dict[k]:
-        return self, True
+        return self, True, f'{k} (from previous build) has been rebuilt'
 
     for src in previous_build['input_files']:
       full_path = os.path.join(src_dir, src['file'])
       if self.MD5(full_path) != src['hash']:
-        return self, True
+        return self, True, f'hash of input file {full_path} has changed'
 
     check_files = []
     if previous_build.get('build_file', None):
       check_files.append(previous_build['build_file'])
     if previous_build.get('rule_file', None):
       check_files.append(previous_build['rule_file'])
-    for f, h in check_files:
-      full_path = os.path.join(src_dir, f)
-      if self.MD5(full_path) != h:
-        return self, True
+    for fh in check_files:
+      full_path = os.path.join(src_dir, fh['file'])
+      if self.MD5(full_path) != fh['hash']:
+        return self, True, f'hash of file {full_path} has changed'
 
-    return self, False
+    return self, False, None
 
   def LoadToTempAttempt(self, bin_dir):
     with open('pkg_contents.json', 'r+') as f:
@@ -333,13 +336,25 @@ class ExportablePackage(Hasher):
     self._extracted_dir = None
 
   def Dependencies(self, **filters):
-    for package in self.depends_on_targets:
-      yieldme = True
+    def yieldPackage(pkg):
       for k, v in filters.items():
-        if yieldme and getattr(package, k, None) != v:
-          yieldme = False
-      if yieldme:
+        valueof = getattr(pkg, k, None)
+        if valueof == None:
+          return False
+        if type(valueof) == str and valueof != v:
+          return False
+        if type(valueof) in (set, list, tuple) and v not in valueof:
+          return False
+        if type(v).__name__ == 'function' and not v(valueof):
+          return False
+      return True
+
+    for package in self.depends_on_targets:
+      if yieldPackage(package):
         yield package
+
+  def SetTags(self, *tags):
+    self.tags.update(set(tags))
 
   def IncludedFiles(self):
     return [f for f in self.included_files]
