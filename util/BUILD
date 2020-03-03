@@ -11,11 +11,6 @@ py_library (
 )
 
 py_library (
-  name = "bintools",
-  srcs = ["bintools.py"]
-)
-
-py_library (
   name = "interface",
   srcs = ["interface.py"]
 )

@@ -1,13 +1,14 @@
 
 import inspect
 import types
+import typing
 
 
 class _InterfaceMeta(type):
   """Checks signatures on instances of concrete classes that implement
      interface classes.
   """
-  def __new__(mcls, name, bases, namespace, **kwargs) -> 'class':
+  def __new__(mcls, name, bases, namespace, **kwargs):
     # Create the class so we can attach stuff to it
     cls = super().__new__(mcls, name, bases, namespace, **kwargs)
 
@@ -53,7 +54,7 @@ class _InterfaceMeta(type):
     return any(getattr(base, '_InterfaceParentSentinal') for base in bases)
 
   @classmethod
-  def MethodSignatures(cls, namespace) -> Mapping[str, Signature]:
+  def MethodSignatures(cls, namespace) -> typing.Dict[str, inspect.Signature]:
     methods = {}
     for name, method in namespace.items():
       if isinstance(method, types.FunctionType):
@@ -61,11 +62,13 @@ class _InterfaceMeta(type):
     return methods
 
 
-def IFace(class_def: 'class') -> 'class':
+class _InterfaceParent(metaclass=_InterfaceMeta):
+  """Parent class to get a metaclass into the |type()| call."""
+  _InterfaceParentSentinal = True
+
+
+def IFace(class_def: type) -> '_InterfaceParent':
   """Decorator method to turn a class into an interface."""
-  class InterfaceParent(metaclass=_InterfaceMeta):
-    """Parent class to get a metaclass into the |type()| call."""
-    _InterfaceParentSentinal = True
 
   # Find all the local methods
   methods = {}
@@ -73,11 +76,11 @@ def IFace(class_def: 'class') -> 'class':
     if isinstance(method, types.FunctionType):
       methods[name] = method
 
-  # Create the new type, adding InterfaceParent to the other base classes
-  created =  type(
+  # Create the new type, adding _InterfaceParent to the other base classes
+  created = typing.cast(_InterfaceParent, type(
     class_def.__name__,
-    (InterfaceParent, *class_def.__bases__),
-    methods)
+    (_InterfaceParent, *class_def.__bases__),
+    methods))
 
   # Mark it as _not_ an interface parent.
   created._InterfaceParentSentinal = False

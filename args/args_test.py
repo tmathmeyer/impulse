@@ -169,7 +169,7 @@ class TestArgumentParserComplete(unittest.TestCase):
   def test_completion_directory_flag(self):
     ap = args.ArgumentParser()
     @ap
-    def example(foo:args.Directory='rpc'):
+    def example(foo:args.Directory=None):
       pass
     ap._print_completion_for_testing(['example', '--'], self.assertCalledWithArgs(
       ['--foo']))

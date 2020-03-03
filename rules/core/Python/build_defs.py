@@ -39,7 +39,6 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
 
-@depends_targets("//impulse/util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):
@@ -52,16 +51,6 @@ def py_binary(target, name, **kwargs):
 
   # Track any additional sources
   _add_files(target, kwargs.get('srcs', []) + kwargs.get('data', []))
-
-  toolslist = []
-  for tool in _get_tools_paths(target, kwargs.get('tools', [])):
-    target.AddFile(tool)
-    toolslist.append(tool)
-  if toolslist:
-    _write_file(target, os.path.join('bin', '__init__.py'), '#generated')
-    tools = os.path.join('bin', '__tools__')
-    _write_file(target, tools, str(toolslist))
-    target.AddFile(tools)
 
   # Create the __main__ file
   main_fmt = 'from {package} import {name}\n{name}.main()\n'
