@@ -26,6 +26,17 @@ def GetRootRelativePath(path:str):
   return None
 
 
+class Any(object):
+  __slots__ = ('_objects', )
+  def __init__(self, *objs):
+    self._objects = objs
+
+  def __eq__(self, other):
+    for each in self._objects:
+      if each == other: return True
+    return False
+
+
 class BuildTarget(threaded_dependence.GraphNode):
   """A threadable graph node object representing work to do to build."""
 
@@ -95,6 +106,8 @@ class BuildTarget(threaded_dependence.GraphNode):
       print(reason)
     if self._force_build:
       return True
+    if self._buildrule_args.get('build_always', False):
+      return True
     return needs_building
 
   def _CompileBuildRule(self):
@@ -114,6 +127,8 @@ class BuildTarget(threaded_dependence.GraphNode):
     try:
       return buildrule(self._package, **self._buildrule_args), rule, buildfile
     except exceptions.BuildDefsRaisesException:
+      raise
+    except exceptions.BuildTargetNoBuildNecessary:
       raise
     except Exception as e:
       # TODO pull snippits of the code and highlight the erroring line,
@@ -214,6 +229,8 @@ class BuildTarget(threaded_dependence.GraphNode):
               export_binary(self._target_name, package_full_path, bindir)
     except exceptions.FilesystemSyncException:
       raise
+    except exceptions.BuildTargetNoBuildNecessary:
+      pass
     finally:
       shutil.rmtree(working_directory)
       shutil.rmtree(rw_directory)

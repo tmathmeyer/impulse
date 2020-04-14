@@ -9,7 +9,7 @@ def py_make_binary(package_name, package_file, binary_location):
 def _add_files(target, srcs):
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
-  for deplib in target.Dependencies(tags='py_library'):
+  for deplib in target.Dependencies(tags=Any('py_library', 'data')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
 

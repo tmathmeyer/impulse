@@ -119,6 +119,7 @@ class ExportablePackage(Hasher):
     self._can_access_internal = can_access_internal
     self._buildqueue_ref = None
     self._binaries_location = binaries_location
+    self._previous_build_timestamp = 0
 
   def __getstate__(self):
     return self.__dict__.copy()
@@ -199,8 +200,14 @@ class ExportablePackage(Hasher):
     raise exceptions.BuildDefsRaisesException(self.package_target.target_name,
       self.package_ruletype, command + "\n\n" + stderr)
 
+  def ExecutionNotRequired(self):
+    raise exceptions.BuildTargetNoBuildNecessary()
+
   def GetBinariesDir(self):
     return self._binaries_location
+
+  def GetPreviousBuildTimestamp(self):
+    return self._previous_build_timestamp
 
   def RunCommand(self, command):
     return subprocess.run(command,
@@ -240,6 +247,8 @@ class ExportablePackage(Hasher):
     previous_build = self._GetPreviousBuild(package_dir)
     if not previous_build:
       return self, True, 'No previous build'
+
+    self._previous_build_timestamp = previous_build.get('build_timestamp', 0)
 
     prev_dict = {}
     curr_dict = {}

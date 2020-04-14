@@ -73,6 +73,12 @@ class BuildTargetMissingFrom(Exception):
       target, buildrule))
 
 
+class BuildTargetNoBuildNecessary(Exception):
+  """Raised when a build target didn't actually need rebuilding."""
+  def __init__(self):
+    super().__init__('Build not necessary')
+
+
 class NoSuchRuleType(Exception):
   """Raised when a build rule doesn't exist."""
   def __init__(self, missing_type):

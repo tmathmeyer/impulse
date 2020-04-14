@@ -14,3 +14,9 @@ py_library (
   name = "interface",
   srcs = ["interface.py"]
 )
+
+py_library (
+  name = "bintools",
+  srcs = [ "resources.py" ],
+  deps = [ ":temp_dir" ],
+)

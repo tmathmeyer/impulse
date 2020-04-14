@@ -169,7 +169,7 @@ class RecursiveFileParser(object):
       'file_set': self._buildrule(_data_buildrule),
       'git_repo': build_target.ParsedGitTarget,
       'langs': self._load_core_langs,
-      'transform': self._buildrule(_transform_rule),
+      'transform': self._buildrule(_transform_rule)
     }
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):
