@@ -19,6 +19,7 @@ enum class ProtoCodes {
   kBadToken = 5,
   kRanOffEndOfTokens = 6,
   kUnsupportedLanguage = 7,
+  kInvalidPath = 8,
 };
 
 struct MemberType {

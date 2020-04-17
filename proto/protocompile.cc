@@ -73,5 +73,6 @@ int main(int argc, char** argv) {
   auto frontend = util::checkCall(impulse::proto::getFrontend(std::get<0>(args)));
   auto check_tree = util::checkCall(impulse::proto::protoParse(std::get<1>(args)));
 
-  std::move(frontend).Run(std::move(check_tree)).dump();
+  util::Status result = std::move(frontend).Run(std::move(check_tree));
+  if (!result) std::move(result).dump();
 }
