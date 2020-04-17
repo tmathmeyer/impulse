@@ -71,6 +71,8 @@ def ExpectRaises(errtype):
         fn(*args, **kwargs)
       except errtype:
         raise EarlyExitPassedError()
+      except AssertionError as e:
+        raise EarlyExitPassedError()
       raise FailedAssertError(
         fn.__code__.co_filename, fn.__name__, fn.__code__.co_firstlineno,
         'ExpectFailed', errtype.__name__, 'Nothing Raised')

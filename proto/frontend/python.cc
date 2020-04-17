@@ -117,6 +117,8 @@ void writeUnion(std::ofstream& out, const StructuralRepr& repr, int indent) {
   out << cls_idt << "def __getattribute__(self, attr):" << std::endl;
   out << method_idt << "if attr == '_actual':" << std::endl;
   out << method_idt << "  return object.__getattribute__(self, attr)" << std::endl;
+  out << method_idt << "if attr == 'getUnionKey':" << std::endl;
+  out << method_idt << "  return object.__getattribute__(self, attr)" << std::endl;
   out << method_idt << "assert attr == self._actual" << std::endl;
   out << method_idt << "return object.__getattribute__(self, attr)" << std::endl;
   out << std::endl;
@@ -164,6 +166,7 @@ util::Status generatePython(ParseTree tree) {
 
     auto writeOK = writeFile(std::move(pyfile), type);
     if (!writeOK) return writeOK;
+    puts(path.c_str());
   }
 
   return util::Status::Ok();

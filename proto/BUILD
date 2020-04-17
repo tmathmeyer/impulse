@@ -40,3 +40,13 @@ py_proto (
   name = "example",
   srcs = [ "example.proto", ],
 )
+
+py_test(
+  name = "python_gen_test",
+  srcs = [
+    "python_gen_test.py"
+  ],
+  deps = [
+    ":example",
+  ]
+)
