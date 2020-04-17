@@ -1,0 +1,37 @@
+langs("C")
+
+cpp_header (
+  name = "protocompile_h",
+  srcs = [ "protocompile.h" ],
+)
+
+cpp_header (
+  name = "protoparse_h",
+  srcs = [ "protoparse.h" ],
+  deps = [
+    ":protocompile_h",
+    "//impulse/util:status_h",
+  ],
+)
+
+cpp_object (
+  name = "protoparse",
+  srcs = [ "protoparse.cc" ],
+  deps = [
+    ":protocompile_h",
+    ":protoparse_h",
+  ]
+)
+
+cpp_binary (
+  name = "protocompile",
+  srcs = [ "protocompile.cc", ],
+  deps = [
+    ":protocompile_h",
+    ":protoparse_h",
+    ":protoparse",
+    "//impulse/proto/frontend:languages_h",
+    "//impulse/proto/frontend:python",
+    "//impulse/util:status_h",
+  ],
+)

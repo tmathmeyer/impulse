@@ -41,6 +41,16 @@ def c_header(target, name, srcs, **kwargs):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
 
+@using(_get_src_files)
+@buildrule
+def cpp_header(target, name, srcs, **kwargs):
+  target.SetTags('cpp_header')
+  for src in _get_src_files(target, srcs):
+    target.AddFile(src)
+  for deplib in target.Dependencies(tags='cpp_header'):
+    for f in deplib.IncludedFiles():
+      target.AddFile(f)
+
 
 @using(_compile, _get_include_dirs, _get_objects, _get_src_files)
 @buildrule
