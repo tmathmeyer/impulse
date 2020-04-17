@@ -38,6 +38,13 @@ def py_library(target, name, srcs, **kwargs):
     _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
     directory = os.path.dirname(directory)
 
+@depends_targets("//impulse/proto:protocompile")
+@buildrule
+def py_proto(target, name, **kwargs):
+  target.SetTags('py_library')
+  os.system('echo $PWD')
+  os.system('tree')
+
 
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary)
 @buildrule

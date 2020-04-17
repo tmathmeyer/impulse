@@ -1,4 +1,4 @@
-langs("C")
+langs("C", "Python")
 
 cpp_header (
   name = "protocompile_h",
@@ -34,4 +34,9 @@ cpp_binary (
     "//impulse/proto/frontend:python",
     "//impulse/util:status_h",
   ],
+)
+
+py_proto (
+  name = "example",
+  srcs = [ "example.proto", ],
 )
