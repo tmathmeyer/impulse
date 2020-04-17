@@ -1,5 +1,5 @@
 
-package alpha.only.packages.with.periods;
+package alpha.only.packages.containing.periods;
 
 // The basic way to define a new type is with "type":
 // its just like a c struct. 

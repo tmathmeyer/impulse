@@ -26,7 +26,7 @@ struct MemberType {
   enum class Type { kBuiltin, kList, kUserDefined };
   Type type;
   std::string value;
-  std::unique_ptr<MemberType> userDefined;
+  std::shared_ptr<MemberType> userDefined;
 };
 
 struct StructuralRepr {

@@ -13,6 +13,9 @@ namespace frontend {
 
 util::Status generatePython(ParseTree tree);
 
+void writeClass(std::ofstream&, const StructuralRepr&, int);
+void writeUnion(std::ofstream&, const StructuralRepr&, int);
+
 }  // namespace frontend
 }  // namespace proto
 }  // namespace impulse

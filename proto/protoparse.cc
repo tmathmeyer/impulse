@@ -186,6 +186,7 @@ util::ErrorOr<StructuralRepr> tokensToEnumType(std::list<std::string>& tokens,
       return check;
 
     result.enum_names.push_back(next);
+    CHECK_TOKEN_EXPLICIT(tokens, ";");
   } while(true);
   return result;
 }
