@@ -8,46 +8,22 @@
 
 #include <impulse/util/status.h>
 
+#include <impulse/proto/commandline.h>
+#include <impulse/proto/frontend/python.h>
 #include <impulse/proto/protocompile.h>
 #include <impulse/proto/protoparse.h>
-#include <impulse/proto/frontend/python.h>
-
-void help() {
-  puts("protocompile <language> <file> [optional --verbose]");
-  exit(1);
-}
 
 namespace impulse {
 namespace proto {
 
-using ArgResult = std::tuple<std::string, std::string>;
-util::ErrorOr<ArgResult> getArguments(int argc, char** argv) {
-  if (argc != 3 && argc != 4)
-    return util::Status(ProtoCodes::kInvalidArguments);
-
-  std::string verbose_flag = "--verbose";
-  if (argc == 3) {
-    if (argv[1] == verbose_flag || argv[2] == verbose_flag)
-      return util::Status(ProtoCodes::kInvalidArguments);
-    return std::make_tuple(std::string(argv[1]), std::string(argv[2]));
+util::ErrorOr<Source> parseArgs(int argc, char **argv) {
+  try {
+    auto result = static_cast<Source*>(argparse::ParseArgs<Source>(argc, argv));
+    return *result;
+  } catch(...) {
+    argparse::DisplayHelp<Source>();
+    return util::Status(ProtoCodes::kFail);
   }
-
-  std::string arg1 = "";
-  std::string arg2 = "";
-  if (argv[1] == verbose_flag) {
-    arg1 = argv[2];
-    arg2 = argv[3];
-  } else if (argv[2] == verbose_flag) {
-    arg1 = argv[1];
-    arg2 = argv[3];
-  } else if (argv[3] == verbose_flag) {
-    arg1 = argv[1];
-    arg2 = argv[2];
-  } else {
-    return util::Status(ProtoCodes::kInvalidArguments);
-  }
-
-  return std::make_tuple(arg1, arg2);
 }
 
 util::ErrorOr<util::Callback<util::Status(ParseTree)>> getFrontend(std::string lang) {
@@ -61,18 +37,17 @@ util::ErrorOr<util::Callback<util::Status(ParseTree)>> getFrontend(std::string l
 }  // namespace proto
 }  // namespace impulse
 
+using namespace argparse;
 
 int main(int argc, char** argv) {
-  if (argc != 3 && argc != 4) {
-    help();
-    exit(1);
+  auto args = util::checkCall(impulse::proto::parseArgs(argc, argv));
+  auto check_tree = util::checkCall(impulse::proto::protoParse(args[0_arg_index]));
+
+  auto language = args[1_arg_index];
+  if (language) {
+    auto frontend = util::checkCall(impulse::proto::getFrontend(language.value()));
+    util::Status result = std::move(frontend).Run(std::move(check_tree));
+    if (!result) std::move(result).dump();
   }
 
-  // TODO switch to the cppargs arg parser.
-  auto args = util::checkCall(impulse::proto::getArguments(argc, argv));
-  auto frontend = util::checkCall(impulse::proto::getFrontend(std::get<0>(args)));
-  auto check_tree = util::checkCall(impulse::proto::protoParse(std::get<1>(args)));
-
-  util::Status result = std::move(frontend).Run(std::move(check_tree));
-  if (!result) std::move(result).dump();
 }

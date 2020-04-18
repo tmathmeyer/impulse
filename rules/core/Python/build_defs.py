@@ -48,7 +48,7 @@ def py_proto(target, name, **kwargs):
     target.ExecutionFailed('prepare', 'srcs must have exactly one proto file')
 
   directory = target.GetPackageDirectory()
-  command = f'./bin/protocompile python {directory}/{kwargs["srcs"][0]}'
+  command = f'./bin/protocompile --proto {directory}/{kwargs["srcs"][0]} python'
   result = subprocess.run(command, encoding='utf-8', shell=True,
     stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 

@@ -14,6 +14,14 @@ cpp_header (
   ],
 )
 
+cpp_header (
+  name = "commandline_h",
+  srcs = [ "commandline.h" ],
+  deps = [
+    "//cppargs:argparse_h",
+  ],
+)
+
 cpp_object (
   name = "protoparse",
   srcs = [ "protoparse.cc" ],
@@ -27,12 +35,14 @@ cpp_binary (
   name = "protocompile",
   srcs = [ "protocompile.cc", ],
   deps = [
+    ":commandline_h",
     ":protocompile_h",
     ":protoparse_h",
     ":protoparse",
     "//impulse/proto/frontend:languages_h",
     "//impulse/proto/frontend:python",
     "//impulse/util:status_h",
+    "//cppargs:argparse_h",
   ],
 )
 
