@@ -147,7 +147,7 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
       raise PathException(target)
     return ParsedTarget(_target[1], _target[0])
 
-  if target.startswith('git://'):
+  if target.startswith('git://') or target.startswith('git@'):
     giturl, target = target.rsplit('//', 1)
     basename = os.path.basename(giturl)
     gen_repo_name = os.path.join(root(), basename)
