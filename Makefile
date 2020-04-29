@@ -14,6 +14,7 @@ copy_srcs:
 	@touch impulse/__init__.py
 	@cp *.py impulse/
 	@cp BUILD impulse/
+	@cp -r rules impulse/rules
 	@cp -r args impulse/args
 	@touch impulse/args/__init__.py
 	@cp -r pkg impulse/pkg
