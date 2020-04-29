@@ -38,7 +38,7 @@ def py_library(target, name, srcs, **kwargs):
     _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
     directory = os.path.dirname(directory)
 
-@depends_targets("//impulse/proto:protocompile")
+@depends_targets("git://github.com/tmathmeyer/impulse//proto:protocompile")
 @using(_write_file)
 @buildrule
 def py_proto(target, name, **kwargs):
@@ -64,10 +64,12 @@ def py_proto(target, name, **kwargs):
         _write_file(target, os.path.join(direct, '__init__.py'), '#generated')
         direct = os.path.dirname(direct)
 
+@depends_targets("git://github.com/tmathmeyer/impulse//util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):
   target.SetTags('exe')
+
   # Create the init files
   directory = target.GetPackageDirectory()
   while directory:
@@ -76,6 +78,10 @@ def py_binary(target, name, **kwargs):
 
   # Track any additional sources
   _add_files(target, kwargs.get('srcs', []) + kwargs.get('data', []))
+
+  for tool in _get_tools_paths(target, kwargs.get('tools', [])):
+    target.AddFile(tool)
+
 
   # Create the __main__ file
   main_fmt = 'from {package} import {name}\n{name}.main()\n'

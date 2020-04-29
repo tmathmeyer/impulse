@@ -50,4 +50,5 @@ int main(int argc, char** argv) {
     if (!result) std::move(result).dump();
   }
 
+  return 0;
 }

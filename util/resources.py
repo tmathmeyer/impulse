@@ -3,6 +3,7 @@ import os
 import threading
 import shutil
 import signal
+import subprocess
 import zipimport
 import zipfile
 
@@ -70,3 +71,11 @@ class ResourceOpener(object):
 
 
 Resources = ResourceOpener()
+
+
+def RunCommand(command):
+  return subprocess.run(command,
+                        encoding='utf-8',
+                        shell=True,
+                        stderr=subprocess.PIPE,
+                        stdout=subprocess.PIPE)

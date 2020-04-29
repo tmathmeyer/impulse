@@ -8,6 +8,7 @@ from impulse import impulse_paths
 from impulse import build_target
 
 from impulse.exceptions import exceptions
+from impulse.util import resources
 
 
 INVALID_RULE_RECURSION_CANARY = object()
@@ -181,11 +182,14 @@ class RecursiveFileParser(object):
     return self._targets[target].Convert()
 
   def _ParseFile(self, file: str):
+    return self._ParseFileFromLocation(file, file)
+
+  def _ParseFileFromLocation(self, file:str, location:str):
     if file not in self._loaded_files:
       self._loaded_files.add(file)
-      with open(file) as f:
+      with open(location) as f:
         try:
-          exec(compile(f.read(), file, 'exec'), self._environ)
+          exec(compile(f.read(), location, 'exec'), self._environ)
         except NameError as e:
           # TODO: this needs to be fixed, since there could be _other_ name
           # errors, not just rule-not-found ones.
@@ -275,8 +279,15 @@ class RecursiveFileParser(object):
 
   def _load_core_langs(self, *args):
     for file in args:
-      self._ParseFile(impulse_paths.expand_fully_qualified_path(
-        f'//rules/core/{file}/build_defs.py'))
+      expanded = impulse_paths.expand_fully_qualified_path(
+        f'//rules/core/{file}/build_defs.py')
+      try:
+        self._ParseFile(expanded)
+      except FileNotFoundError as e:
+        self._loaded_files.remove(expanded)
+        embeddedPath = f'impulse/rules/core/{file}/build_defs.py'
+        embeddedBuildDef = resources.Resources.Get(embeddedPath)
+        self._ParseFileFromLocation(expanded, embeddedBuildDef)
 
   def GetAllConvertedTargets(self):
     def converted_targets():

@@ -295,11 +295,14 @@ util::ErrorOr<StructuralRepr> tokensToType(std::list<std::string>& tokens,
 }
 
 util::ErrorOr<ParseTree> handleTokens(std::list<std::string> tokens) {
+  ParseTree result;
+  if (tokens.size() == 0)
+    return result;
+
   CHECK_TOKEN_EXPLICIT(tokens, "package");
   std::vector<std::string> package = tokenToPackage(pop(tokens));
   CHECK_TOKEN_EXPLICIT(tokens, ";");
   
-  ParseTree result;
   while(tokens.size()) {
     auto check_some = tokensToType(tokens, package);
     if (!check_some) return std::move(check_some).error();

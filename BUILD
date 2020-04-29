@@ -20,9 +20,11 @@ py_library(
     ],
     deps = [
         "//impulse/args:args",
-        "//impulse/pkg:packaging",
         "//impulse/exceptions:exceptions",
+        "//impulse/pkg:packaging",
+        "//impulse/rules:core_rules",
         "//impulse/util:temp_dir",
         "//impulse/util:tree_builder",
+        "//impulse/util:bintools",
     ],
 )

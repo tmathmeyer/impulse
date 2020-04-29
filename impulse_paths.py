@@ -30,7 +30,8 @@ def relative_pwd():
   if pwd.startswith(impulse_root):
     return '/' + pwd[len(impulse_root):]
 
-  raise ValueError('Impulse must be run inside {}.'.format(impulse_root))
+  raise ValueError(
+    f'Impulse must be run inside {impulse_root}\nbut you are in {pwd}')
 
 
 def output_directory():
@@ -147,11 +148,15 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
     return ParsedTarget(_target[1], _target[0])
 
   if target.startswith('git://'):
-    giturl, target = target.split('%', 1)
+    giturl, target = target.rsplit('//', 1)
     basename = os.path.basename(giturl)
     gen_repo_name = os.path.join(root(), basename)
     if not os.path.exists(gen_repo_name):
       os.system(' '.join(['git clone', giturl, gen_repo_name]))
+    if target.startswith(':'):
+      target = f'//{basename}{target}'
+    else:
+      target = f'//{basename}/{target}'
     return convert_to_build_target(target, '//'+basename, quit_on_err)
 
   if quit_on_err:

@@ -18,7 +18,7 @@ cpp_header (
   name = "commandline_h",
   srcs = [ "commandline.h" ],
   deps = [
-    "//cppargs:argparse_h",
+    "git://github.com/tmathmeyer/cppargs//:argparse_h",
   ],
 )
 
@@ -42,7 +42,7 @@ cpp_binary (
     "//impulse/proto/frontend:languages_h",
     "//impulse/proto/frontend:python",
     "//impulse/util:status_h",
-    "//cppargs:argparse_h",
+    "git://github.com/tmathmeyer/cppargs//:argparse_h",
   ],
 )
 
