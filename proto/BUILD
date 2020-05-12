@@ -10,7 +10,7 @@ cpp_header (
   srcs = [ "protoparse.h" ],
   deps = [
     ":protocompile_h",
-    "//impulse/util:status_h",
+    "//impulse/base:status_h",
   ],
 )
 
@@ -41,7 +41,7 @@ cpp_binary (
     ":protoparse",
     "//impulse/proto/frontend:languages_h",
     "//impulse/proto/frontend:python",
-    "//impulse/util:status_h",
+    "//impulse/base:status_h",
     "git://github.com/tmathmeyer/cppargs//:argparse_h",
   ],
 )

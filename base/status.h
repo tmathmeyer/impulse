@@ -6,10 +6,10 @@
 #include <map>
 #include <vector>
 
-#include <impulse/util/bind.h>
-#include <impulse/util/location.h>
+#include <impulse/base/bind.h>
+#include <impulse/base/location.h>
 
-namespace util {
+namespace base {
 
 enum class InternalCodes {
   kOk = 0,
@@ -149,6 +149,6 @@ struct CallbackDefaultConstruct<Status> {
   }
 };
 
-}  // namespace util
+}  // namespace base
 
 #endif  // CPPUTIL_STATUS_STATUS_H_

@@ -1,8 +1,8 @@
 
-#ifndef CPPUTIL_LOCATION_LOCATION_H_
-#define CPPUTIL_LOCATION_LOCATION_H_
+#ifndef IMPULSE_BASE_LOCATION_H_
+#define IMPULSE_BASE_LOCATION_H_
 
-namespace util {
+namespace base {
 
 class Location {
  public:
@@ -22,6 +22,6 @@ class Location {
       line_number(line) {}
 };
 
-}  // namespace util
+}  // namespace base
 
-#endif  // CPPUTIL_LOCATION_LOCATION_H_
+#endif  // IMPULSE_BASE_LOCATION_H_

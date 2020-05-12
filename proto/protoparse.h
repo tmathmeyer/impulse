@@ -5,17 +5,15 @@
 #include <tuple>
 #include <vector>
 
-#include <impulse/util/status.h>
+#include <impulse/base/status.h>
 
 #include <impulse/proto/protocompile.h>
 
-namespace impulse {
 namespace proto {
 
 using ParseTree = std::vector<StructuralRepr>;
-util::ErrorOr<ParseTree> protoParse(std::string filepath);
+base::ErrorOr<ParseTree> protoParse(std::string filepath);
 
 }  // namespace proto
-}  // namespace impulse
 
 #endif  // IMPULSE_PROTO_PROTOPARSE_H_

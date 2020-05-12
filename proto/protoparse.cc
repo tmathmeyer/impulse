@@ -6,12 +6,11 @@
 
 #include <impulse/proto/protoparse.h>
 
-namespace impulse {
 namespace proto {
 
-util::Status generateErrorMessage(std::string preline,
+base::Status generateErrorMessage(std::string preline,
                                   std::ifstream filestream,
-                                  util::Status errorStatus,
+                                  base::Status errorStatus,
                                   size_t line, size_t pos) {
   char c;
   while(filestream.get(c)) {
@@ -33,7 +32,7 @@ util::Status generateErrorMessage(std::string preline,
 
 }
 
-util::ErrorOr<std::list<std::string>> stripCommentsTokenize(std::ifstream i) {
+base::ErrorOr<std::list<std::string>> stripCommentsTokenize(std::ifstream i) {
   enum class State { kNormal, kComment, kBlockComment };
 
   std::list<std::string> tokens;
@@ -76,13 +75,13 @@ util::ErrorOr<std::list<std::string>> stripCommentsTokenize(std::ifstream i) {
             break;
           }
           return generateErrorMessage(error_current_line, std::move(i),
-            util::Status(ProtoCodes::kInvalidCharacter).WithData(
+            base::Status(ProtoCodes::kInvalidCharacter).WithData(
               "character", std::string(1, c)),
             line_number, char_position);
         }
         if (temporary == "/") {
           return generateErrorMessage(error_current_line, std::move(i),
-            util::Status(ProtoCodes::kInvalidCharacter).WithData(
+            base::Status(ProtoCodes::kInvalidCharacter).WithData(
               "character", temporary),
             line_number, char_position);
         }
@@ -120,7 +119,7 @@ util::ErrorOr<std::list<std::string>> stripCommentsTokenize(std::ifstream i) {
 
   if (temporary == "/") {
     return generateErrorMessage(error_current_line, std::move(i),
-      util::Status(ProtoCodes::kInvalidCharacter).WithData("character", "/"),
+      base::Status(ProtoCodes::kInvalidCharacter).WithData("character", "/"),
       line_number, char_position);
   }
 
@@ -131,7 +130,7 @@ util::ErrorOr<std::list<std::string>> stripCommentsTokenize(std::ifstream i) {
 do {                                                                  \
   std::string actual = pop(tokenlist);                                \
   if (actual != expected) {                                           \
-    return util::Status(ProtoCodes::kBadToken).WithData(              \
+    return base::Status(ProtoCodes::kBadToken).WithData(              \
       "message",                                                      \
       std::string("Expected \"") + expected                           \
                                  + "\" but found \""                  \
@@ -142,7 +141,7 @@ do {                                                                  \
 template<typename T>
 T pop(std::list<T>& list) {
   if (!list.size())
-    util::Status(ProtoCodes::kRanOffEndOfTokens).dump();
+    base::Status(ProtoCodes::kRanOffEndOfTokens).dump();
   T front = list.front();
   list.pop_front();
   return front;
@@ -157,17 +156,17 @@ std::vector<std::string> tokenToPackage(std::string pkg) {
   return package;
 }
 
-util::Status checkNameIsNotBuiltin(std::string name) {
+base::Status checkNameIsNotBuiltin(std::string name) {
   if (name == "list" || name == "bool" || name == "string")
-    return util::Status(ProtoCodes::kFail);
+    return base::Status(ProtoCodes::kFail);
   if (name == "uint8" || name == "uint16" || name == "uint32" || name == "uint64")
-    return util::Status(ProtoCodes::kFail);
+    return base::Status(ProtoCodes::kFail);
   if (name == "int8" || name == "int16" || name == "int32" || name == "int64")
-    return util::Status(ProtoCodes::kFail);
-  return util::Status::Ok();
+    return base::Status(ProtoCodes::kFail);
+  return base::Status::Ok();
 }
 
-util::ErrorOr<StructuralRepr> tokensToEnumType(std::list<std::string>& tokens,
+base::ErrorOr<StructuralRepr> tokensToEnumType(std::list<std::string>& tokens,
                                                std::vector<std::string> pkg) {
   StructuralRepr result = {};
   result.package_parts = pkg;
@@ -191,7 +190,7 @@ util::ErrorOr<StructuralRepr> tokensToEnumType(std::list<std::string>& tokens,
   return result;
 }
 
-util::ErrorOr<MemberType> tokensToMemberType(std::list<std::string>& tokens) {
+base::ErrorOr<MemberType> tokensToMemberType(std::list<std::string>& tokens) {
   std::string next = pop(tokens);
   auto check = checkNameIsNotBuiltin(next);
   MemberType result;
@@ -223,7 +222,7 @@ util::ErrorOr<MemberType> tokensToMemberType(std::list<std::string>& tokens) {
   return result;
 }
 
-util::ErrorOr<StructuralRepr> tokensToHelperType(std::list<std::string>& tokens,
+base::ErrorOr<StructuralRepr> tokensToHelperType(std::list<std::string>& tokens,
                                                  StructuralRepr::Type type,
                                                  std::vector<std::string> pkg) {
   StructuralRepr result = {};
@@ -271,17 +270,17 @@ util::ErrorOr<StructuralRepr> tokensToHelperType(std::list<std::string>& tokens,
   return result;
 }
 
-util::ErrorOr<StructuralRepr> tokensToTypeType(std::list<std::string>& tokens,
+base::ErrorOr<StructuralRepr> tokensToTypeType(std::list<std::string>& tokens,
                                                std::vector<std::string> pkg) {
   return tokensToHelperType(tokens, StructuralRepr::Type::kType, pkg);
 }
 
-util::ErrorOr<StructuralRepr> tokensToUnionType(std::list<std::string>& tokens,
+base::ErrorOr<StructuralRepr> tokensToUnionType(std::list<std::string>& tokens,
                                                 std::vector<std::string> pkg) {
   return tokensToHelperType(tokens, StructuralRepr::Type::kUnion, pkg);
 }
 
-util::ErrorOr<StructuralRepr> tokensToType(std::list<std::string>& tokens,
+base::ErrorOr<StructuralRepr> tokensToType(std::list<std::string>& tokens,
                                            std::vector<std::string> package) {
   std::string token = pop(tokens);
   if (token == "type")
@@ -290,11 +289,11 @@ util::ErrorOr<StructuralRepr> tokensToType(std::list<std::string>& tokens,
     return tokensToEnumType(tokens, package);
   if (token == "union")
     return tokensToUnionType(tokens, package);
-  return util::Status(ProtoCodes::kBadToken).WithData(
+  return base::Status(ProtoCodes::kBadToken).WithData(
     "message", "Expected (type|enum|union), but found " + token); 
 }
 
-util::ErrorOr<ParseTree> handleTokens(std::list<std::string> tokens) {
+base::ErrorOr<ParseTree> handleTokens(std::list<std::string> tokens) {
   ParseTree result;
   if (tokens.size() == 0)
     return result;
@@ -312,11 +311,11 @@ util::ErrorOr<ParseTree> handleTokens(std::list<std::string> tokens) {
   return result;
 }
 
-util::ErrorOr<ParseTree> protoParse(std::string filepath) {
+base::ErrorOr<ParseTree> protoParse(std::string filepath) {
   std::ifstream fileReader;
   fileReader.open(filepath);
   if (!fileReader)
-    return util::Status(ProtoCodes::kNoFile).WithData("path", filepath);
+    return base::Status(ProtoCodes::kNoFile).WithData("path", filepath);
   auto check_tokens = stripCommentsTokenize(std::move(fileReader));
   if (!check_tokens)
     return std::move(check_tokens).error();
@@ -324,4 +323,3 @@ util::ErrorOr<ParseTree> protoParse(std::string filepath) {
 }
 
 }  // namespace proto
-}  // namespace impulse
