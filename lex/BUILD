@@ -3,14 +3,9 @@ langs("C")
 
 cpp_header (
   name = "regex_h",
-  srcs = [ "regex.h" ]
-)
-
-cpp_object (
-  name = "regex",
-  srcs = [ "regex.cc" ],
+  srcs = [ "regex.h" ],
   deps = [
-    ":regex_h",
+    "//impulse/base:status_h",
   ]
 )
 
@@ -27,6 +22,5 @@ cpp_binary (
   srcs = [ "lex.cc" ],
   deps = [
     ":lex_h",
-    ":regex",
   ]
 )

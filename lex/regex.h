@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 
+#include <impulse/base/status.h>
+
 namespace impulse {
 namespace lex {
 

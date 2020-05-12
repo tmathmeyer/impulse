@@ -53,7 +53,6 @@ class Lexer {
 
   Lexer(std::vector<Compound> compounds) : compounds_(std::move(compounds)) {}
 
-
   std::vector<Token<Enum>> LexFile(std::string path);
 
   std::vector<Token<Enum>> Lex(std::istream& data) {
