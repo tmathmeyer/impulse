@@ -9,6 +9,7 @@
 
 #include <impulse/base/location.h>
 
+namespace impulse {
 namespace base {
 
 template<typename... Types>
@@ -260,8 +261,7 @@ inline Callback<UnboundRunType<Functor>> Bind(
   return Callback<UnboundRunType<Functor>>(std::move(invoker), loc);
 }
 
-
-
 }  // namespace base
+}  // namespace impulse
 
 #endif

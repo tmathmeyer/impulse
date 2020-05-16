@@ -2,6 +2,7 @@
 #ifndef IMPULSE_BASE_LOCATION_H_
 #define IMPULSE_BASE_LOCATION_H_
 
+namespace impulse {
 namespace base {
 
 class Location {
@@ -23,5 +24,6 @@ class Location {
 };
 
 }  // namespace base
+}  // namespace impulse
 
 #endif  // IMPULSE_BASE_LOCATION_H_

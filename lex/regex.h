@@ -12,6 +12,15 @@
 namespace impulse {
 namespace lex {
 
+enum class RegexErrors {
+  kNoContent,
+  kDuplicateGlobs,
+  kNoTerminatingDevice,
+  kBannedCharacter,
+  kBadRange,
+  kBadEscape,
+};
+
 template<typename CharacterStorage>
 class CharacterRange {
  public:
@@ -27,7 +36,11 @@ class CharacterRange {
                      std::nullopt,
                      std::nullopt) {}
 
-  CharacterRange<CharacterStorage> And(CharacterRange<CharacterStorage>&& c) {
+  base::ErrorOr<CharacterRange<CharacterStorage>> And(
+      base::ErrorOr<CharacterRange<CharacterStorage>>&& possibleStorage) {
+    if (!possibleStorage) return std::move(possibleStorage).error();
+
+    auto c = std::move(possibleStorage).value();
     if (type_ == Type::kNone)
       return c;
 
@@ -68,32 +81,6 @@ class CharacterRange {
         return false;
     }
     return false;
-  }
-
-  void Print(bool newline = true) const {
-    switch(type_) {
-      case Type::kRange:
-        printf("[%c - %c]", low_.value(), high_.value());
-        break;
-      case Type::kAll:
-        printf("any");
-        break;
-      case Type::kNone:
-        printf("none");
-        break;
-      case Type::kUnion:
-        for (const auto &e : inner_.value())
-          e.Print(false);
-        break;
-      case Type::kSelection:
-        printf("{");
-        for (const auto &e : options_.value())
-          printf("%c,", e);
-        printf("}");
-        break;
-    }
-    if (newline)
-      printf("\n");
   }
 
   bool operator<(const CharacterRange<CharacterStorage> c) const {
@@ -163,34 +150,15 @@ class RegexGraph {
     }
   }
 
-  void Print(int i = 0) {
-    if (i == 0) {
-      scroll_tok += 1;
-      i = scroll_tok;
-    } else if (i == scroll_tok) {
-      return;
-    }
-    scroll_tok = i;
-
-    printf("RegexGraphNode: %p\n", this);
-    printf("  FinalState: %s\n", finalState.has_value() ? "yes" : "no");
-    for (const auto& each : graph) {
-      printf("  ");
-      each.first.Print(false);
-      printf(": %p\n", each.second.get());
-    }
-    puts("\n");
-    for (const auto& each : graph) {
-      each.second->Print(i);
-    }
-  }
-
-  static GraphPtr Parse(std::string regex, Enum val) {
+  static base::ErrorOr<GraphPtr> Parse(std::string regex, Enum val) {
     if (regex.length() == 0)
-      return nullptr;
+      return base::Status(RegexErrors::kNoContent);
 
     std::list<char> rex(regex.begin(), regex.end());
-    return ParserHelper(rex, val);
+    auto result = ParserHelper(rex, val);
+    if (!result)
+      return std::move(result).error().WithData("Regex", regex);
+    return std::move(result).value();
   }
 
   static std::vector<GraphState> Search(
@@ -208,11 +176,6 @@ class RegexGraph {
     }
 
     while (str.size()) {
-      for (const auto& state : states) {
-        printf("\"%s\" ==> %p\n", std::get<0>(state).c_str(), std::get<1>(state).get());
-      }
-      printf("\n");
-
       char do_me = str.front();
       str.pop_front();
 
@@ -243,14 +206,12 @@ class RegexGraph {
   }
 
  private:
-  int scroll_tok = 0;
-
   // helpers
-  static GraphPtr ParserHelper(
+  static base::ErrorOr<GraphPtr> ParserHelper(
       std::list<char> regex, std::optional<Enum> val) {
 
     if (regex.size() == 0)
-      return nullptr;
+      return base::Status(RegexErrors::kNoContent);
 
     auto result = std::make_shared<RegexGraph<Enum>>();
     auto head = result;
@@ -274,8 +235,7 @@ class RegexGraph {
 
       if (do_me == '+') {
         if (was_just_iterate) {
-          puts("Found duplicate regex iterations.");
-          exit(1);
+          return base::Status(RegexErrors::kDuplicateGlobs);
         }
         previous = head;
         previous->graph[prevRange] = head;
@@ -286,8 +246,7 @@ class RegexGraph {
 
       if (do_me == '*') {
         if (was_just_iterate) {
-          puts("Found duplicate regex iterations.");
-          exit(1);
+          return base::Status(RegexErrors::kDuplicateGlobs);
         }
         previous->graph[prevRange] = previous;
         head = previous;
@@ -301,9 +260,21 @@ class RegexGraph {
         was_just_iterate = false;
         previous = head;
         head = std::make_shared<RegexGraph<Enum>>();
-        prevRange = ParseRangeInner(regex);
+        auto prevRangeCheck = ParseRangeInner(regex);
+        if (!prevRangeCheck)
+          return std::move(prevRangeCheck);
+        prevRange = std::move(prevRangeCheck).value();
         previous->graph[prevRange] = head;
         continue;
+      }
+
+      if (do_me == '\\') {
+        regex.pop_front();
+        if (!regex.size()) {
+          return base::Status(RegexErrors::kBadEscape).WithData(
+            "Character", "None");
+        }
+        do_me = getMetaChar(regex.front());
       }
 
 
@@ -347,25 +318,29 @@ class RegexGraph {
     return '\b';
   }
 
-  static CharacterRange<char> ParseRangeInner(std::list<char>& mod) {
+  static base::ErrorOr<CharacterRange<char>> ParseRangeInner(std::list<char>& mod) {
     std::vector<char> chars;
 
     while(true) {
       if (mod.size() == 0) {
-        puts("never found a ]");
-        exit(1);
+        if (chars.size() == 0)
+          return base::Status(RegexErrors::kNoTerminatingDevice);
+        return CharacterRange<char>(chars);
       }
 
       char do_me = mod.front();
+      printf("Character: %c\n", do_me);
 
       if (do_me == '.') {
-        puts(". not allowed in a [] block");
-        exit(1);
+        return base::Status(RegexErrors::kBannedCharacter)
+          .WithData("Character", ".")
+          .WithData("Reason", ". is not allowed inside []");
       }
 
       if (do_me == '[') {
-        puts("Can't start a new match block inside an existing block");
-        exit(1);
+        return base::Status(RegexErrors::kBannedCharacter)
+          .WithData("Character", "[")
+          .WithData("Reason", "[ is not allowed inside []");
       }
 
       if (do_me == ']') {
@@ -395,9 +370,9 @@ class RegexGraph {
             mod.pop_front();
             return CharacterRange(do_me, top).And(ParseRangeInner(mod));
           } else {
-            printf(
-              "Started matching range with %c but ended with %c\n", do_me, top);
-            exit(1);
+            return base::Status(RegexErrors::kBadRange)
+              .WithData("Starting Character", std::string(1, do_me))
+              .WithData("Ending Character", std::string(1, top));
           }
         }
       }
@@ -413,9 +388,9 @@ class RegexGraph {
             mod.pop_front();
             return CharacterRange(do_me, top).And(ParseRangeInner(mod));
           } else {
-            printf(
-              "Started matching range with %c but ended with %c\n", do_me, top);
-            exit(1);
+            return base::Status(RegexErrors::kBadRange)
+              .WithData("Starting Character", std::string(1, do_me))
+              .WithData("Ending Character", std::string(1, top));
           }
         }
       }
@@ -431,9 +406,9 @@ class RegexGraph {
             mod.pop_front();
             return CharacterRange(do_me, top).And(ParseRangeInner(mod));
           } else {
-            printf(
-              "Started matching range with %c but ended with %c\n", do_me, top);
-            exit(1);
+            return base::Status(RegexErrors::kBadRange)
+              .WithData("Starting Character", std::string(1, do_me))
+              .WithData("Ending Character", std::string(1, top));
           }
         }
       }

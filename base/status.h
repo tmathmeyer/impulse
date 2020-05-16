@@ -9,6 +9,7 @@
 #include <impulse/base/bind.h>
 #include <impulse/base/location.h>
 
+namespace impulse {
 namespace base {
 
 enum class InternalCodes {
@@ -50,8 +51,13 @@ class Status {
     if (internal_) {
       // Keep std:: things out, in case it gets moved into an optional,
       // vector, etc.
-      if (std::string(log.filename).find("/usr/include") == std::string::npos)
-        internal_->stack.push_back(log);
+      if (std::string(log.filename).find("/usr/include") != std::string::npos)
+        return;
+
+      if (std::string(log.filename).find("impulse/base/status.h") != std::string::npos)
+        return;
+
+      internal_->stack.push_back(log);
     }
   }
   Status& operator=(Status&&) = default;
@@ -116,11 +122,17 @@ class ErrorOr {
     return !error_.has_value() && accept.has_value();
   }
 
-  operator Acceptable() && {
-    return std::move(accept.value());
+  operator Status() && {
+    return std::move(error_.value());
   }
 
-  operator Status() && {
+  template<typename OtherError>
+  operator ErrorOr<OtherError>() && {
+    if (!error_.has_value()) {
+      return Status(InternalCodes::kFail).WithData(
+        "Reason",
+        "Bad cast from Acceptable ErrorOr<> to Unacceptable ErrorOr<>");
+    }
     return std::move(error_.value());
   }
 
@@ -139,7 +151,7 @@ T checkCall(ErrorOr<T> status) {
     Status failure = std::move(status);
     failure.dump();
   }
-  return status;
+  return std::move(status).value();
 }
 
 template<>
@@ -150,5 +162,6 @@ struct CallbackDefaultConstruct<Status> {
 };
 
 }  // namespace base
+}  // namespace impulse
 
 #endif  // CPPUTIL_STATUS_STATUS_H_

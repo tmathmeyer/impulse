@@ -85,7 +85,7 @@ class Lexer {
   }
 
   static Compound Regex(std::string value, Enum key) {
-    return RegexGraph<Enum>::Parse(value, key);
+    return base::checkCall(RegexGraph<Enum>::Parse(value, key));
   }
 
  private:
