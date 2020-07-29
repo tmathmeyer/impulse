@@ -6,7 +6,7 @@ cpp_header (
   deps = []
 )
 
-cpp_binary (
+cpp_object (
   name = "lex",
   srcs = [ "lex.cc" ],
   deps = [

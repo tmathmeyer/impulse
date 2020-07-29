@@ -20,12 +20,16 @@ enum class ProtoCodes {
   kRanOffEndOfTokens = 6,
   kUnsupportedLanguage = 7,
   kInvalidPath = 8,
+  kInvalidType = 9,
 };
 
 struct MemberType {
   enum class Type { kBuiltin, kList, kUserDefined };
   Type type;
   std::string value;
+  std::shared_ptr<MemberType> listValue;
+
+  // Should i delete?
   std::shared_ptr<MemberType> userDefined;
 };
 
@@ -38,6 +42,8 @@ struct StructuralRepr {
   std::vector<std::tuple<std::string, MemberType>> member_names;
   std::vector<StructuralRepr> subtypes;
 };
+
+using ParseTree = std::vector<StructuralRepr>;
 
 }  // namespace proto
 }  // namespace impulse

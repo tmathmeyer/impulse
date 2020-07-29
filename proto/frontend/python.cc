@@ -7,7 +7,6 @@
 #include <vector>
 
 #include <impulse/proto/protocompile.h>
-#include <impulse/proto/protoparse.h>
 
 namespace impulse {
 namespace proto {

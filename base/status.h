@@ -100,6 +100,7 @@ class Status {
     exit(code());
   };
 
+  // return true if NOT an error!
   operator bool() const {
     return internal_ == nullptr;
   }
