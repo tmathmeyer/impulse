@@ -9,11 +9,13 @@
 
 #include <impulse/proto/protocompile.h>
 
+namespace impulse {
 namespace proto {
 
 using ParseTree = std::vector<StructuralRepr>;
-base::ErrorOr<ParseTree> protoParse(std::string filepath);
+impulse::base::ErrorOr<ParseTree> protoParse(std::string filepath);
 
 }  // namespace proto
+}  // namespace impulse
 
 #endif  // IMPULSE_PROTO_PROTOPARSE_H_

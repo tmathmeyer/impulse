@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-#include <impulse/lex/regex.h>
+#include <regex>
 
 namespace impulse {
 namespace lex {
@@ -45,48 +45,20 @@ std::vector<std::tuple<size_t, std::string>> Split(std::string s) {
 template<typename Enum>
 class Lexer {
  public:
-  using Compound = typename RegexGraph<Enum>::GraphPtr;
+  struct Regex {
+    std::basic_regex<char> regex;
+    Enum type;
+  };
 
-  static std::unique_ptr<Lexer<Enum>> Create(std::vector<Compound> compounds) {
+  static Regex Matcher(std::string regex, Enum type);
+  static std::unique_ptr<Lexer<Enum>> Create(std::vector<Regex> compounds) {
     return std::make_unique<Lexer<Enum>>(std::move(compounds));
   }
 
-  Lexer(std::vector<Compound> compounds) : compounds_(std::move(compounds)) {}
+  Lexer(std::vector<Regex> compounds) : compounds_(std::move(compounds)) {}
 
   std::vector<Token<Enum>> LexFile(std::string path);
-
-  std::vector<Token<Enum>> Lex(std::istream& data) {
-    std::vector<Token<Enum>> tokens;
-    size_t lineNo = 0;
-
-    for(;;) {
-      lineNo++;
-      std::optional<LexLine> line = readline(data);
-      if (!line.has_value())
-        return tokens;
-
-      std::vector<std::tuple<size_t, std::string>> words = Split(line.value());
-      for (const auto& word : words) {
-        auto matches = RegexGraph<Enum>::Search(std::get<1>(word), compounds_);
-        if (matches.size() == 0) {
-          printf("No matches found for \"%s\"\n", std::get<1>(word).c_str());
-          exit(1);
-        }
-        if (matches.size() != 1) {
-          printf("Too many matches found for \"%s\"\n", std::get<1>(word).c_str());
-          exit(1);
-        }
-        tokens.push_back({
-          std::get<1>(word), lineNo, std::get<0>(word), line.value(),
-          std::get<1>(matches[0])->finalState.value()
-        });
-      }
-    }
-  }
-
-  static Compound Regex(std::string value, Enum key) {
-    return base::checkCall(RegexGraph<Enum>::Parse(value, key));
-  }
+  std::vector<Token<Enum>> Lex(std::istream& data);
 
  private:
   std::optional<LexLine> readline(std::istream& stream) {
@@ -102,7 +74,7 @@ class Lexer {
     return result;
   }
 
-  std::vector<Compound> compounds_;
+  std::vector<Regex> compounds_;
 };
 
 

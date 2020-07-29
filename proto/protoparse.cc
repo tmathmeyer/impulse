@@ -6,6 +6,7 @@
 
 #include <impulse/proto/protoparse.h>
 
+namespace impulse {
 namespace proto {
 
 base::Status generateErrorMessage(std::string preline,
@@ -32,7 +33,7 @@ base::Status generateErrorMessage(std::string preline,
 
 }
 
-base::ErrorOr<std::list<std::string>> stripCommentsTokenize(std::ifstream i) {
+impulse::base::ErrorOr<std::list<std::string>> stripCommentsTokenize(std::ifstream i) {
   enum class State { kNormal, kComment, kBlockComment };
 
   std::list<std::string> tokens;
@@ -166,7 +167,7 @@ base::Status checkNameIsNotBuiltin(std::string name) {
   return base::Status::Ok();
 }
 
-base::ErrorOr<StructuralRepr> tokensToEnumType(std::list<std::string>& tokens,
+impulse::base::ErrorOr<StructuralRepr> tokensToEnumType(std::list<std::string>& tokens,
                                                std::vector<std::string> pkg) {
   StructuralRepr result = {};
   result.package_parts = pkg;
@@ -190,7 +191,7 @@ base::ErrorOr<StructuralRepr> tokensToEnumType(std::list<std::string>& tokens,
   return result;
 }
 
-base::ErrorOr<MemberType> tokensToMemberType(std::list<std::string>& tokens) {
+impulse::base::ErrorOr<MemberType> tokensToMemberType(std::list<std::string>& tokens) {
   std::string next = pop(tokens);
   auto check = checkNameIsNotBuiltin(next);
   MemberType result;
@@ -222,7 +223,7 @@ base::ErrorOr<MemberType> tokensToMemberType(std::list<std::string>& tokens) {
   return result;
 }
 
-base::ErrorOr<StructuralRepr> tokensToHelperType(std::list<std::string>& tokens,
+impulse::base::ErrorOr<StructuralRepr> tokensToHelperType(std::list<std::string>& tokens,
                                                  StructuralRepr::Type type,
                                                  std::vector<std::string> pkg) {
   StructuralRepr result = {};
@@ -270,17 +271,17 @@ base::ErrorOr<StructuralRepr> tokensToHelperType(std::list<std::string>& tokens,
   return result;
 }
 
-base::ErrorOr<StructuralRepr> tokensToTypeType(std::list<std::string>& tokens,
+impulse::base::ErrorOr<StructuralRepr> tokensToTypeType(std::list<std::string>& tokens,
                                                std::vector<std::string> pkg) {
   return tokensToHelperType(tokens, StructuralRepr::Type::kType, pkg);
 }
 
-base::ErrorOr<StructuralRepr> tokensToUnionType(std::list<std::string>& tokens,
+impulse::base::ErrorOr<StructuralRepr> tokensToUnionType(std::list<std::string>& tokens,
                                                 std::vector<std::string> pkg) {
   return tokensToHelperType(tokens, StructuralRepr::Type::kUnion, pkg);
 }
 
-base::ErrorOr<StructuralRepr> tokensToType(std::list<std::string>& tokens,
+impulse::base::ErrorOr<StructuralRepr> tokensToType(std::list<std::string>& tokens,
                                            std::vector<std::string> package) {
   std::string token = pop(tokens);
   if (token == "type")
@@ -293,7 +294,7 @@ base::ErrorOr<StructuralRepr> tokensToType(std::list<std::string>& tokens,
     "message", "Expected (type|enum|union), but found " + token); 
 }
 
-base::ErrorOr<ParseTree> handleTokens(std::list<std::string> tokens) {
+impulse::base::ErrorOr<ParseTree> handleTokens(std::list<std::string> tokens) {
   ParseTree result;
   if (tokens.size() == 0)
     return result;
@@ -311,7 +312,7 @@ base::ErrorOr<ParseTree> handleTokens(std::list<std::string> tokens) {
   return result;
 }
 
-base::ErrorOr<ParseTree> protoParse(std::string filepath) {
+impulse::base::ErrorOr<ParseTree> protoParse(std::string filepath) {
   std::ifstream fileReader;
   fileReader.open(filepath);
   if (!fileReader)
@@ -323,3 +324,4 @@ base::ErrorOr<ParseTree> protoParse(std::string filepath) {
 }
 
 }  // namespace proto
+}  // namespace impulse

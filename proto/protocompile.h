@@ -6,6 +6,7 @@
 #include <vector>
 #include <impulse/base/status.h>
 
+namespace impulse {
 namespace proto {
 
 enum class ProtoCodes {
@@ -39,5 +40,6 @@ struct StructuralRepr {
 };
 
 }  // namespace proto
+}  // namespace impulse
 
 #endif  // IMPULSE_PROTO_PROTOCOMPILE_H_
