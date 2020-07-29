@@ -1,15 +1,16 @@
 
-#ifndef CPPUTIL_BIND_BIND_H_
-#define CPPUTIL_BIND_BIND_H_
+#ifndef IMPULSE_BASE_BIND_H_
+#define IMPULSE_BASE_BIND_H_
 
 #include <stddef.h>
 #include <utility>
 #include <memory>
 #include <tuple>
 
-#include <impulse/util/location.h>
+#include <impulse/base/location.h>
 
-namespace util {
+namespace impulse {
+namespace base {
 
 template<typename... Types>
 struct TypeList {};
@@ -260,8 +261,7 @@ inline Callback<UnboundRunType<Functor>> Bind(
   return Callback<UnboundRunType<Functor>>(std::move(invoker), loc);
 }
 
-
-
-}  // namespace util
+}  // namespace base
+}  // namespace impulse
 
 #endif

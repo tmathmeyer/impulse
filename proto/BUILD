@@ -6,15 +6,6 @@ cpp_header (
 )
 
 cpp_header (
-  name = "protoparse_h",
-  srcs = [ "protoparse.h" ],
-  deps = [
-    ":protocompile_h",
-    "//impulse/util:status_h",
-  ],
-)
-
-cpp_header (
   name = "commandline_h",
   srcs = [ "commandline.h" ],
   deps = [
@@ -22,14 +13,50 @@ cpp_header (
   ],
 )
 
-cpp_object (
-  name = "protoparse",
-  srcs = [ "protoparse.cc" ],
+cpp_header (
+  name = "proto_stream_parse_h",
+  srcs = [ "proto_stream_parse.h" ],
   deps = [
     ":protocompile_h",
-    ":protoparse_h",
+    ":protolex_h",
+  ],
+)
+
+cpp_header (
+  name = "protolex_h",
+  srcs = [
+    "protolex.h",
+  ],
+  deps = [
+    "//impulse/lex:lex_h",
+  ],
+)
+
+cpp_object (
+  name = "protolex",
+  srcs = [ "protolex.cc" ],
+  deps = [
+    ":protolex_h",
+    "//impulse/lex:lex_h",
+    "//impulse/lex:lex",
   ]
 )
+
+cpp_object (
+  name = "proto_stream_parse",
+  srcs = [ "proto_stream_parse.cc" ],
+  deps = [
+    ":proto_stream_parse_h",
+    "//impulse/base:status_h",
+  ]
+)
+
+
+
+
+
+
+
 
 cpp_binary (
   name = "protocompile",
@@ -37,11 +64,16 @@ cpp_binary (
   deps = [
     ":commandline_h",
     ":protocompile_h",
-    ":protoparse_h",
-    ":protoparse",
+    ":protolex_h",
+    ":proto_stream_parse_h",
+    ":protolex",
+    ":proto_stream_parse",
+
+    "//impulse/lex:lex_h",
+    "//impulse/lex:lex",
     "//impulse/proto/frontend:languages_h",
     "//impulse/proto/frontend:python",
-    "//impulse/util:status_h",
+    "//impulse/base:status_h",
     "git://github.com/tmathmeyer/cppargs//:argparse_h",
   ],
 )

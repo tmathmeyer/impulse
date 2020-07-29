@@ -7,7 +7,6 @@
 #include <vector>
 
 #include <impulse/proto/protocompile.h>
-#include <impulse/proto/protoparse.h>
 
 namespace impulse {
 namespace proto {
@@ -126,7 +125,7 @@ void writeUnion(std::ofstream& out, const StructuralRepr& repr, int indent) {
   out << method_idt << "return self._actual" << std::endl;
 }
 
-util::Status writeFile(std::ofstream out, const StructuralRepr& repr) {
+impulse::base::Status writeFile(std::ofstream out, const StructuralRepr& repr) {
   out << "from collections import namedtuple" << std::endl;
   out << "from enum import Enum, auto" << std::endl;
   out << std::endl;
@@ -138,22 +137,22 @@ util::Status writeFile(std::ofstream out, const StructuralRepr& repr) {
   else if (repr.type == StructuralRepr::Type::kUnion)
     writeUnion(out, repr, 0);
 
-  return util::Status::Ok();
+  return impulse::base::Status::Ok();
 }
 
-util::ErrorOr<std::string> getFilePath(const StructuralRepr& repr) {
+impulse::base::ErrorOr<std::string> getFilePath(const StructuralRepr& repr) {
   std::string dirSoFar = "";
   for (std::string part : repr.package_parts) {
     dirSoFar += part + "/";
     if (mkdir(dirSoFar.c_str(), 0755) != 0 && errno != EEXIST)
-      return util::Status(ProtoCodes::kInvalidPath).WithData(
+      return impulse::base::Status(ProtoCodes::kInvalidPath).WithData(
         "errno", std::to_string(errno));
   }
 
   return dirSoFar + repr.name + ".py";
 }
 
-util::Status generatePython(ParseTree tree) {
+impulse::base::Status generatePython(ParseTree tree) {
   for (const auto& type : tree) {
     auto check_filepath = getFilePath(type);
     if (!check_filepath)
@@ -162,14 +161,14 @@ util::Status generatePython(ParseTree tree) {
     const auto path = std::move(check_filepath).value();
     std::ofstream pyfile(path);
     if (!pyfile.is_open())
-      return util::Status(ProtoCodes::kInvalidPath).WithData("path", path);
+      return impulse::base::Status(ProtoCodes::kInvalidPath).WithData("path", path);
 
     auto writeOK = writeFile(std::move(pyfile), type);
     if (!writeOK) return writeOK;
     puts(path.c_str());
   }
 
-  return util::Status::Ok();
+  return impulse::base::Status::Ok();
 }
 
 }  // namespace frontend

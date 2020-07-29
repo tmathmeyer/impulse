@@ -167,7 +167,7 @@ class RecursiveFileParser(object):
       'using': self._using,
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
-      'file_set': self._buildrule(_data_buildrule),
+      'data': self._buildrule(_data_buildrule),
       'git_repo': build_target.ParsedGitTarget,
       'langs': self._load_core_langs,
       'transform': self._buildrule(_transform_rule)
