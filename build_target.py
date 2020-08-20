@@ -29,6 +29,8 @@ def GetRootRelativePath(path:str):
 def CheckRuleFile(rulefile):
   if rulefile.endswith('/impulse/impulse/recursive_loader.py'):
     return rulefile[:-28]
+  if rulefile.endswith('/impulse/impulse/build_target.py'):
+    return rulefile[:-24]
   return rulefile
 
 

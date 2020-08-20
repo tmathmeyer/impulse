@@ -14,7 +14,12 @@ py_binary (
     "//impulse/hal:logger",
     "//impulse/host:libhost",
     "//impulse/rpc:rpc",
-    "//nginxweb:nginxio"
+
+    git_repo(
+      url = "https://github.com/tmathmeyer/nginx_config_parser",
+      repo = "ngxinweb",
+      target = "//nginxweb:nginxio",
+    ),
   ],
 )
 
@@ -33,13 +38,6 @@ py_library (
   deps = [ "//impulse/hal:hal" ],
 )
 
-
-
-
-
-
-
-
 py_binary (
   name = "demo_container",
   srcs = [
@@ -48,8 +46,6 @@ py_binary (
   deps = [
     "//impulse/hal:hal",
     "//impulse/host:libhost",
-    "//impulse/rpc:rpc",
-    "//nginxweb:nginxio"
   ],
 )
 
