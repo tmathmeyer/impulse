@@ -44,28 +44,30 @@ def populate_template(template_contents, **kwargs):
         else:
           yield _format_fn(line, **kwargs)
 
-
-
-
-@depends_targets("//impulse/docker/templates:templates")
+@depends_targets("//impulse/systemd/templates:templates")
 @using(populate_template)
 @buildrule
-def python_container(target, name, main_executable, **kwargs):
-  target.SetTags('docker')
-  import os
-  binaries = kwargs.get('binaries', [])
-  if binaries:
-    binaries = [os.path.join('bin', b) for b in binaries]
-    kwargs['binaries'] = binaries
-  main_executable = os.path.join('bin', main_executable)
+def python_service(target, name, description, executable, **kwargs):
+  target.SetTags('service')
+  #fields = ['description', 'after_target', 'restart_status', 'executable']
+  with open('impulse/systemd/templates/systemd.target.template', 'r') as inp:
+    with open(f'{name}.service', 'w+') as outp:
+      for line in populate_template(inp.readlines(),
+          description=description, executable=executable,
+          after_target=kwargs.get('after_target', 'network.target'),
+          restart_status=kwargs.get('restart_status', 'always')):
+        outp.write(line)
 
-  with open('impulse/docker/templates/python.dockerfile.template', 'r') as inp:
-    with open('Dockerfile', 'w+') as outp:
-      for q in populate_template(inp.readlines(),
-                                 main_executable=main_executable,
-                                 **kwargs):
-        outp.write(q)
-  for binary in binaries:
-    target.AddFile(binary)
-  target.AddFile(main_executable)
-  target.AddFile('Dockerfile')
+  #fields = ['executable', 'service_file']
+  with open('impulse/systemd/templates/install_script.sh.template', 'r') as inp:
+    with open('install.sh', 'w+') as outp:
+      for line in populate_template(inp.readlines(),
+          executable=executable, service_file=f'{name}.service'):
+        outp.write(line)
+
+  import os
+  os.system('chmod +x install.sh')
+
+  target.AddFile(f'bin/{executable}')
+  target.AddFile(f'{name}.service')
+  target.AddFile('install.sh')

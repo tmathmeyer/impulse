@@ -255,27 +255,27 @@ def AwaitResult(q, token):
 
 def RPC(clazz):
   class RPCReplacement(object):
-    __Initialized = False # Needed for __setattr__
+    _Initialized = False # Needed for __setattr__
 
     def __init__(self, *args, **kwargs):
-      self.__manager = mp.Manager()
-      self.__incoming_queue = NamedQueue(self.__manager, 'MAILBOX(main)')
-      self.__outgoing_queue = NamedQueue(
-        self.__manager, 'MAILBOX({}({}))'.format(clazz.__name__, args[0]))
-      self.__reprocessed_queue = NamedQueue(self.__manager, 'JUNKMAIL')
-      self.__process = mp.Process(
+      self._manager = mp.Manager()
+      self._incoming_queue = NamedQueue(self._manager, 'MAILBOX(main)')
+      self._outgoing_queue = NamedQueue(
+        self._manager, 'MAILBOX({}({}))'.format(clazz.__name__, 'out'))
+      self._reprocessed_queue = NamedQueue(self._manager, 'JUNKMAIL')
+      self._process = mp.Process(
         target=WrapRemoteInstance,
-        args=(clazz, args, kwargs, self.__outgoing_queue))
-      self.__process.start()
-      self.__Initialized = True
+        args=(clazz, args, kwargs, self._outgoing_queue))
+      self._process.start()
+      self._Initialized = True
 
     def __AwaitResponse(self, clazz, *args):
-      instance = clazz(self.__incoming_queue, *args)
-      self.__outgoing_queue.Write(instance)
-      return AwaitResult(self.__incoming_queue, instance.token)
+      instance = clazz(self._incoming_queue, *args)
+      self._outgoing_queue.Write(instance)
+      return AwaitResult(self._incoming_queue, instance.token)
 
     def __setattr__(self, attr, val):
-      if not self.__Initialized:
+      if not self._Initialized:
         return super().__setattr__(attr, val)
       return self.__AwaitResponse(RPCSetAttr, attr, val)
 
@@ -295,6 +295,8 @@ def RPC(clazz):
       return self.__AwaitResponse(RPCDelitem, key)
 
     def __del__(self):
+      if not self._Initialized:
+        return
       return self.__AwaitResponse(RPCDel)
 
     #def __repr__(self):
@@ -308,7 +310,7 @@ def RPC(clazz):
 
     def __delattr__(self, attr):
       self.__AwaitResponse(RPCDelattr, attr)
-      self.__process.join()
+      self._process.join()
 
   return RPCReplacement
 

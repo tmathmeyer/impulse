@@ -1,0 +1,14 @@
+[Unit]
+Description={description}
+After={after_target}
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart={restart_status}
+RestartSec=1
+User=docker
+ExecStart=/usr/local/bin/{executable}
+
+[Install]
+WantedBy=multi-user.target

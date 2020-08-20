@@ -26,6 +26,12 @@ def GetRootRelativePath(path:str):
   return None
 
 
+def CheckRuleFile(rulefile):
+  if rulefile.endswith('/impulse/impulse/recursive_loader.py'):
+    return rulefile[:-28]
+  return rulefile
+
+
 class Any(object):
   __slots__ = ('_objects', )
   def __init__(self, *objs):
@@ -214,6 +220,7 @@ class BuildTarget(threaded_dependence.GraphNode):
           # Set these as the hashed input files
           self._package.SetInputFiles(included_files.keys())
           export_binary, rulefile, buildfile = self._RunBuildRule()
+          rulefile = CheckRuleFile(rulefile)
           self._package.SetRuleFile(GetRootRelativePath(rulefile), rulefile)
           self._package.SetBuildFile(GetRootRelativePath(buildfile), buildfile)
           if not (internal_access and internal_access.rerun_more_deps):

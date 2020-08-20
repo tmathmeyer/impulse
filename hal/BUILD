@@ -9,3 +9,14 @@ py_library (
     "frontend.html",
   ],
 )
+
+py_library (
+  name = "logger",
+  srcs = [
+    "logger.py",
+  ],
+  deps = [
+    ":hal",
+    "//impulse/rpc:rpc",
+  ],
+)

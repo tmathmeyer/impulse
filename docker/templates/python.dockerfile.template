@@ -12,6 +12,11 @@ RUN apk add --no-cache {.}
 ENV {.}
 {{/environment}}
 
+{{ports}}
+EXPOSE {.}/tcp
+EXPOSE {.}/udp
+{{/ports}}
+
 RUN mkdir -p bin
 COPY {main_executable} bin/
 RUN chmod +x {main_executable}

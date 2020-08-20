@@ -26,6 +26,7 @@ python_container (
   environment = [
     "FUSE_LIBRARY_PATH=/usr/lib/libfuse.so.2",
   ],
+  ports = [ 5566 ],
 )
 
 py_binary (

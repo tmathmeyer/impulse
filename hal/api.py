@@ -36,15 +36,19 @@ class _HAL_BASE(object):
     return {}
 
 
-def __GetResourceBase(name):
+def __GetResourceBase(name, isHal):
   class __RESOURCE_BASE(_HAL_BASE, metaclass=abc.ABCMeta):
     _resource_name = name
+    _isHal = isHal
 
     def __init__(self):
       self.__id = str(uuid.uuid4())
 
     def get_id(self):
       return self.__id
+
+    def is_hal(self):
+      return self._isHal
 
     def _get_HAL_id(self):
       return self.get_id()
@@ -94,8 +98,8 @@ def __GetResourceBase(name):
   return __RESOURCE_BASE
 
 
-def Resource(name):
-  return __GetResourceBase(name)
+def Resource(name, isHal=True):
+  return __GetResourceBase(name, isHal)
 
 
 def ResourceOf(parent, name):
@@ -179,7 +183,7 @@ def _REC_HAL(p, some):
 
 
 def _HAL(rtype, resource, full=False):
-  if full:
+  if full or not resource._isHal:
     exported = resource.__dict__
   else:
     exported = resource.get_core_json()
@@ -189,6 +193,9 @@ def _HAL(rtype, resource, full=False):
   for key, value in exported.items():
     if not key.startswith('_'):
       result[key] = _REC_HAL(rtype, value)
+
+  if not resource._isHal:
+    return result
 
   if '_RESOURCE_BASE__id' in result:
     del result['_RESOURCE_BASE__id']
@@ -284,6 +291,10 @@ def _CREATE_STUB_HANDLER(provider, verb_to_fn, full_path):
         if (type(return_type) == list):
           return flask.jsonify(_HAL_LIST(provider, result)), 200
 
+        if (return_type == str):
+          print(result)
+          return result, 200
+
         return flask.jsonify(_HAL(provider, result, full=True)), 200
       except ServiceError as e:
         return e.err_msg, e.err_code
@@ -298,7 +309,7 @@ class HalJSONEncoder(JSONEncoder):
   def default(self, obj):
     if hasattr(obj, 'SerializeToJSON'):
       return getattr(obj, 'SerializeToJSON')()
-    return super().default(obj)
+    return obj
 
 
 class _FLASK_WRAPPER(object):
