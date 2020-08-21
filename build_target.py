@@ -360,10 +360,19 @@ def GitRunChild(target, name, path):
   formatted_rule = ':'.join([path, name])
 
   if target.execution_count != 0:
-    for deplib in target.Dependencies():
-      if str(deplib.package_target) == formatted_rule:
-        target.AddFile(os.path.join('bin', name))
-    return
+    if target.is_binary_target:
+      for deplib in target.Dependencies():
+        if str(deplib.package_target) == formatted_rule:
+          target.AddFile(os.path.join('bin', name))
+      return
+    else:
+      for deplib in target.Dependencies():
+        if str(deplib.package_target) == formatted_rule:
+          target.SetTags(*deplib.tags)
+          for file in deplib.included_files:
+            target.AddFile(file)
+          return
+      return
 
   def with_new_dependencies(G):
     for node in G:
@@ -376,12 +385,17 @@ def GitRunChild(target, name, path):
   if clone_target.build_timestamp < target.build_timestamp:
     pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
     bin_directory = os.path.join(impulse_paths.root(), BINARIES_DIR)
-    _, files, _ = with_new_dependencies(graph)._package.LoadToTemp(
+    _, files, built_pkg = with_new_dependencies(graph)._package.LoadToTemp(
       pkg_directory, bin_directory)
     for key, val in files.items():
       os.makedirs(os.path.dirname(key))
       os.system(f'cp {val} {key}')
       target.AddFile(key)
+
+    target.SetTags(*built_pkg.tags)
+    for file in built_pkg.included_files:
+      target.AddFile(file)
+
     with_new_dependencies(graph)._package.UnloadPackageDirectory()
   else:
     target.Internal.build_queue.InjectMoreGraph(graph)

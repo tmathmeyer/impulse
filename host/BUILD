@@ -17,7 +17,7 @@ py_binary (
 
     git_repo(
       url = "https://github.com/tmathmeyer/nginx_config_parser",
-      repo = "ngxinweb",
+      repo = "nginxweb",
       target = "//nginxweb:nginxio",
     ),
   ],

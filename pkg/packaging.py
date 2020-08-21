@@ -285,7 +285,7 @@ class ExportablePackage(Hasher):
 
     return self, False, None
 
-  def LoadToTempAttempt(self, bin_dir):
+  def LoadToTempAttempt(self, bin_dir) -> (str, dict, 'ExportedPackage'):
     with open('pkg_contents.json', 'r+') as f:
       package_contents = json.loads(f.read())
       exported_package = ExportedPackage(
