@@ -25,7 +25,6 @@ location / {{
 
 
 ENVIRON = {
-  # 'NGINX_CONFIG': '/home/ted/git/nginxweb/nginx.conf',
   'NGINX_CONFIG': '/etc/nginx/nginx.conf',
 }
 ENVIRON.update(os.environ)
@@ -135,6 +134,7 @@ class DockerThread(object):
             self._logs.Log(f'Creating new nginx proxy entry for {hostname}')
             server = self._nginx_thread.CreateProxyHost(hostname, port)
           else:
+            self._logs.Log(f'setting port for {hostname} to {port}')
             self._nginx_thread.SetPort(server, port)
         except Exception as e:
           self._logs.Log(e)
@@ -154,8 +154,9 @@ class DockerThread(object):
 
 @rpc.RPC
 class NginxManagerThread(object):
-  __slots__ = ('_config', '_servers', '_nginx_config_location')
+  __slots__ = ('_logs', '_config', '_servers', '_nginx_config_location')
   def __init__(self, logs, nginx_config_location):
+    self._logs = logs
     self._nginx_config_location = nginx_config_location
     self._config = nginxio.NginXConfig.FromFile(nginx_config_location)
     self._servers = self._parseConfig()
@@ -201,10 +202,12 @@ class NginxManagerThread(object):
     return server
 
   def SetPort(self, server, port):
-    self._servers.get(server.name).SetPort(port)
+    server = self._servers.get(server.name)
+    server.SetPort(port)
     self.Synchronize()
 
   def Synchronize(self):
+    self._logs.Log('Synchronizing nginx config')
     self._config.WriteToFile(self._nginx_config_location)
     self._servers = self._parseConfig()
     os.system('sudo systemctl reload nginx.service')
