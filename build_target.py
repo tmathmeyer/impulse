@@ -385,7 +385,8 @@ def GitRunChild(target, name, path):
   if clone_target.build_timestamp < target.build_timestamp:
     pkg_directory = os.path.join(impulse_paths.root(), PACKAGES_DIR)
     bin_directory = os.path.join(impulse_paths.root(), BINARIES_DIR)
-    _, files, built_pkg = with_new_dependencies(graph)._package.LoadToTemp(
+
+    d, files, built_pkg = with_new_dependencies(graph)._package.LoadToTemp(
       pkg_directory, bin_directory)
     for key, val in files.items():
       os.makedirs(os.path.dirname(key))
@@ -394,6 +395,8 @@ def GitRunChild(target, name, path):
 
     target.SetTags(*built_pkg.tags)
     for file in built_pkg.included_files:
+      os.system(f'mkdir -p {os.path.dirname(file)}')
+      os.system(f'cp {os.path.join(d, file)} {file}')
       target.AddFile(file)
 
     with_new_dependencies(graph)._package.UnloadPackageDirectory()
