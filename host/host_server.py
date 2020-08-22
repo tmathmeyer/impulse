@@ -93,7 +93,7 @@ class HostManager(api.ProvidesResources(Host)):
     return self._nginx.Hosts()
 
   @api.METHODS.get('/alive')
-  def get_all_build(self) -> [Host]:
+  def get_alive_builds(self) -> [Host]:
     return [h for h in self._nginx.Hosts() if h.status == 'running']
 
   @api.METHODS.get('/<hostname>')
