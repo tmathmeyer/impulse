@@ -88,7 +88,7 @@ class HostManager(api.ProvidesResources(Host)):
     self._docker = DockerThread(logs, self._nginx)
     self._logs = logs
 
-  @api.METHODS.get('/')
+  @api.METHODS.get('/all')
   def get_all_build(self) -> [Host]:
     return self._nginx.Hosts()
 
