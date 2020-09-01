@@ -1,4 +1,27 @@
 
+def go_pkg2(target, name, srcs, **kwargs):
+  print('=============== build_go_archive =================')
+  target.SetTags('go_pkg')
+  third_party = kwargs.get('third_party', [])
+
+  import os
+  if len(third_party)
+    os.system('mkdir -p _third_party')
+  for dependency in third_party:
+    os.system(f'GOROOT=./third_party go get {dependency}')
+
+  srcs = [os.path.join(target.GetPackageDirectory(), s) for s in srcs]
+  os.system(f'go tool compile -I ./third_party {" ".join(srcs)}')
+
+  print('=============== build_go_archive =================\n\n')
+
+
+
+
+
+
+
+
 def _get_src_files(target, srcs):
   for src in srcs:
     yield os.path.join(target.GetPackageDirectory(), src)
@@ -26,14 +49,22 @@ def _build_go_archive(target, write_fn, name, srcs, **kwargs):
   import os
   import subprocess
 
+  os.system('pwd')
+  os.system('tree')
+  print(f'name = {name}')
+  print(f'srcs = {srcs}')
+  print(f'kwargs = {kwargs}')
   # Create all the needed files
   gopkg = f'/usr/lib/go/pkg'
   go_compiler = f'{gopkg}/tool/linux_amd64/compile'
   go_output = os.path.join(target.GetPackageDirectory(), '_pkg_.a')
   importcfg = os.path.join(target.GetPackageDirectory(), 'importcfg')
+
+  print(f'go_output={go_output}')
+  print(f'importcfg={importcfg}')
   go_input_files = ' '.join(srcs)
 
-  dep_packages = list(target.Dependencies(package_ruletype='go_pkg'))
+  dep_packages = list(target.Dependencies(tags=Any('go_pkg')))
   for pkg in dep_packages:
     for f in pkg.IncludedFiles():
       if f.endswith('_pkg_.a'):
@@ -47,6 +78,7 @@ def _build_go_archive(target, write_fn, name, srcs, **kwargs):
             f'-pack -c=2 '
             f'{go_input_files} ')
   write_fn(gopkg, kwargs.get('std', []), dep_packages, importcfg)
+  os.system(f'cat {importcfg}')
   result = subprocess.run(go_cmd, encoding='utf-8', shell=True,
                           stderr=subprocess.PIPE,
                           stdout=subprocess.PIPE)
@@ -70,9 +102,11 @@ def _extract_archives_from_error(err_msg):
 @using(_get_src_files, _write_importcfg, _build_go_archive)
 @buildrule
 def go_pkg(target, name, srcs, **kwargs):
+  target.SetTags('go_pkg')
   srcs = _get_src_files(target, srcs)
   archive, importcfg = _build_go_archive(
     target, _write_importcfg, name, srcs, **kwargs)
+
   target.AddFile(archive)
   target.AddFile(importcfg)
 
