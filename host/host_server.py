@@ -254,7 +254,7 @@ class NginxManagerThread(object):
     self._config = nginxio.NginXConfig.FromFile(nginx_config_location)
     self._servers = self._parseConfig()
 
-  def _parseConfig(self):
+  def _parseConfig(self, old_config=None):
     servers = {}
     for server in self._config.http.servers:
       if len(server.locations) == 0:
@@ -266,6 +266,8 @@ class NginxManagerThread(object):
       location = server.locations[0]
       if location.HasProperty('proxy_pass'):
         servers[server_name] = ReverseProxy(server_name, location)
+        if old_config and server_name in old_config:
+          servers[server_name] = old_config[server_name].status
         continue
 
       if server.HasProperty('root'):
@@ -302,7 +304,7 @@ class NginxManagerThread(object):
   def Synchronize(self):
     self._logs.Log('Synchronizing nginx config')
     self._config.WriteToFile(self._nginx_config_location)
-    self._servers = self._parseConfig()
+    self._servers = self._parseConfig(self._servers)
     os.system('systemctl reload nginx.service')
 
   def NotifyContainerHostDead(self, host):
