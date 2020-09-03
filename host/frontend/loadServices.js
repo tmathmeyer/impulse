@@ -72,4 +72,3 @@ function loadHosts(url) {
 }
 
 loadHosts('/api/host/alive');
-console.log('foo');

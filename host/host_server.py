@@ -33,7 +33,7 @@ def VAR(var):
 
 
 class Host(api.Resource('host')):
-  def __init__(self, name, status='stopped'):
+  def __init__(self, name, status):
     super().__init__()
     self.name = name
     self.status = status
@@ -54,7 +54,7 @@ class Host(api.Resource('host')):
 
 class ReverseProxy(Host):
   def __init__(self, name, nginxLocation):
-    super().__init__(name)
+    super().__init__(name, status='stopped')
     self._locationObj = nginxLocation
     proxy = nginxLocation.NamedProperty('proxy_pass')
     self.host, self.port = proxy.rsplit(':', 1)
@@ -306,9 +306,11 @@ class NginxManagerThread(object):
     os.system('systemctl reload nginx.service')
 
   def NotifyContainerHostDead(self, host):
+    self._logs.Log(f'setting container {host} to stopped')
     self._servers.get(host).status = 'stopped'
   
   def NotifyContainerHostAlive(self, host):
+    self._logs.Log(f'setting container {host} to running')
     self._servers.get(host).status = 'running'
 
 
