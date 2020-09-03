@@ -163,7 +163,7 @@ class RecursiveFileParser(object):
     self._environ = {
       'load': self._load_files,
       'buildrule': self._buildrule,
-      'buildrule_macro': self._buildrule_macro,
+      'buildmacro': self._buildmacro,
       'using': self._using,
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
@@ -236,8 +236,81 @@ class RecursiveFileParser(object):
       build_file_index += 1
     return build_file
 
-  def _buildrule_macro(self, fn):
-    return fn
+  def _buildmacro(self, fn):
+    class MockArg(object):
+      def __init__(self, argname, appended=None, prepended=None):
+        self._argname = argname
+        self._appended = appended
+        self._prepended = prepended
+
+      def __add__(self, other):
+        if self._appended is not None:
+          return MockArg(self._argname, self._appended + other, self._prepended)
+        return MockArg(self._argname, other, self._prepended)
+
+      def prepend(self, other):
+        if self._prepended is not None:
+          return MockArg(self._argname, self._appended, other + self._prepended)
+        return MockArg(self._argname, self._appended, other)
+
+      def eval(self, kwargs):
+        if self._argname in kwargs:
+          value = kwargs[self._argname]
+          if self._prepended is not None:
+            value = self._prepended + value
+          if self._appended is not None:
+            value += self._appended
+          return self._check_value(value, kwargs)
+        raise ValueError('TODO IMPLEMENT BETTER ERROR')
+
+      def _check_value(self, value, kwargs):
+        if type(value) == list:
+          return [self._check_value(v, kwargs) for v in value]
+        if type(value) == dict:
+          return {k:self._check_value(v, kwargs) for k,v in value.items()}
+        if type(value) == MockArg:
+          return value.eval(kwargs)
+        return value
+
+    class MacroExpander(object):
+      def __init__(self, loader):
+        self._loader = loader
+        self.macros = []
+
+      def ImitateRule(self, rulefile, rulename, args):
+        self._loader._load_files(rulefile)
+        rule = self._loader._environ.get(rulename)
+        if rule is None:
+          raise exceptions.NoSuchRuleType(rulename)
+        def Wrapper(**kwargs):
+          argbuilder = {}
+          for asName, value in args.items():
+            if type(value) != MockArg:
+              argbuilder[asName] = value
+            else:
+              argbuilder[asName] = value.eval(kwargs)
+          rule(**argbuilder)
+        self.macros.append(Wrapper)
+
+    mock_args = {}
+    expander = MacroExpander(self)
+    for arg, info in inspect.signature(fn).parameters.items():
+      if str(info).startswith('**'):
+        raise exceptions.MacroException(
+          fn.__name__, 'macro', 'Glob arguments disallowed')
+      if '=' in str(info):
+        raise exceptions.MacroException(
+          fn.__name__, 'macro', 'Default arguments disallowed')
+      if arg != 'macro_env':
+        mock_args[arg] = MockArg(arg)
+
+    fn(expander, **mock_args)
+    def replacement(**kwargs):
+      for macro in expander.macros:
+        macro(**kwargs)
+    return replacement
+
+
 
   def _buildrule(self, fn):
     """Decorates a function allowing it to be used as a target buildrule."""

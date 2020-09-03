@@ -36,4 +36,4 @@ install: GENERATED/BINARIES/impulse/impulse
 
 clean:
 	@rm -r GENERATED/
-	@rm -r impulse/
+	@rm -rf impulse/

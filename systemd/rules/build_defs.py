@@ -44,11 +44,12 @@ def populate_template(template_contents, **kwargs):
         else:
           yield _format_fn(line, **kwargs)
 
+
 @depends_targets("//impulse/systemd/templates:templates")
 @using(populate_template)
 @buildrule
-def python_service(target, name, description, executable, **kwargs):
-  target.SetTags('service')
+def systemd_template(target, name, description, executable, **kwargs):
+  target.SetTags('data')
   #fields = ['description', 'after_target', 'restart_status', 'executable']
   with open('impulse/systemd/templates/systemd.target.template', 'r') as inp:
     with open(f'{name}.service', 'w+') as outp:
@@ -58,16 +59,40 @@ def python_service(target, name, description, executable, **kwargs):
           restart_status=kwargs.get('restart_status', 'always')):
         outp.write(line)
 
-  #fields = ['executable', 'service_file']
-  with open('impulse/systemd/templates/install_script.sh.template', 'r') as inp:
-    with open('install.sh', 'w+') as outp:
+  #fields = ['executable', 'servicefile']
+  with open('impulse/systemd/templates/systemd.metadata.template', 'r') as inp:
+    with open(f'{name}.metadata', 'w+') as outp:
       for line in populate_template(inp.readlines(),
-          executable=executable, service_file=f'{name}.service'):
+                                    executable=executable,
+                                    servicefile=f'{name}.service'):
         outp.write(line)
 
-  import os
-  os.system('chmod +x install.sh')
-
-  target.AddFile(f'bin/{executable}')
   target.AddFile(f'{name}.service')
-  target.AddFile('install.sh')
+  target.AddFile(f'{name}.metadata')
+
+@buildmacro
+def service_installer(macro_env, name, description, executable, deps):
+  template_target = name + '_templates'
+  macro_env.ImitateRule(
+    rulefile = '//impulse/systemd/rules/build_defs.py',
+    rulename = 'systemd_template',
+    args = {
+      'name': template_target,
+      'executable': executable,
+      'description': description,
+    }
+  )
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'py_binary',
+    args = {
+      'name': name,
+      'mainfile': 'installer',
+      'mainpackage': 'impulse.systemd',
+      'deps': deps + [
+        '//impulse/systemd:installer',
+        template_target.prepend(':'),
+      ],
+      'tools': deps,
+    })

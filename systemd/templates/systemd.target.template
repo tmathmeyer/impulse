@@ -7,7 +7,7 @@ StartLimitIntervalSec=0
 Type=simple
 Restart={restart_status}
 RestartSec=1
-User=docker
+User=root
 ExecStart=/usr/local/bin/{executable}
 
 [Install]

@@ -94,3 +94,8 @@ class FilesystemSyncException(Exception):
 class FatalException(Exception):
   def __init__(self, s):
     super().__init__(s)
+
+
+class MacroException(Exception):
+  def __init__(self, macro, name, reason):
+    super().__init__(f'{name}<{macro}> expansion failed: {reason}')

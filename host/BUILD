@@ -23,17 +23,17 @@ py_binary (
   ],
 )
 
-python_service (
-  name = "host_service",
+py_library (
+  name = "libhost",
+  srcs = [ "libhost.py" ],
+  deps = [ "//impulse/hal:hal" ],
+)
+
+service_installer (
+  name = "host_service_installer",
   description = "Service that manages docker and nginx",
   executable = "host_server",
   deps = [
     ":host_server",
   ],
-)
-
-py_library (
-  name = "libhost",
-  srcs = [ "libhost.py" ],
-  deps = [ "//impulse/hal:hal" ],
 )

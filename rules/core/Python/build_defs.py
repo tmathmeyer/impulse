@@ -76,24 +76,34 @@ def py_proto(target, name, **kwargs):
 @buildrule
 def py_binary(target, name, **kwargs):
   target.SetTags('exe')
+  srcs = kwargs.get('srcs', [])
 
   # Create the init files
   directory = target.GetPackageDirectory()
   while directory:
+    if not os.path.exists(directory):
+      break
     _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
     directory = os.path.dirname(directory)
 
   # Track any additional sources
-  _add_files(target, kwargs.get('srcs', []) + kwargs.get('data', []))
+  _add_files(target, srcs + kwargs.get('data', []))
 
   for tool in _get_tools_paths(target, kwargs.get('tools', [])):
     target.AddFile(tool)
 
+  mainfile = name
+  package = '.'.join(target.GetPackageDirectory().split('/'))
+  if kwargs.get('mainfile', None) is not None:
+    mainfile = kwargs.get('mainfile').rstrip('.py')
+    if kwargs.get('mainpackage', None) is not None:
+      package = kwargs.get('mainpackage')
+  elif f'{name}.py' not in srcs:
+    if len(srcs) == 1:
+      mainfile = srcs[0].rstrip('.py')
 
   # Create the __main__ file
-  main_fmt = 'from {package} import {name}\n{name}.main()\n'
-  package = '.'.join(target.GetPackageDirectory().split('/'))
-  main_contents = main_fmt.format(package=package, name=name)
+  main_contents = f'from {package} import {mainfile}\n{mainfile}.main()\n'
   _write_file(target, '__main__.py', main_contents)
 
   # Converter from pkg to binary

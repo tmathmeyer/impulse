@@ -1,11 +1,12 @@
 
+import glob
 import os
-import threading
 import shutil
 import signal
 import subprocess
-import zipimport
+import threading
 import zipfile
+import zipimport
 
 from impulse.util import temp_dir
 
@@ -27,8 +28,12 @@ class ResourceOpener(object):
       shutil.rmtree(extracted)
     self._TeardownSignal()
 
-  def Open(self, filename):
-    return open(self.Get(filename))
+  def Open(self, filename, mode='r'):
+    return open(self.Get(filename), mode)
+
+  def OpenGlob(self, fileRegex, mode='r'):
+    for file in glob.glob(self.Get(fileRegex)):
+      return open(file, mode)
 
   def Get(self, filename):
     if self._extracted == None:
@@ -71,11 +76,3 @@ class ResourceOpener(object):
 
 
 Resources = ResourceOpener()
-
-
-def RunCommand(command):
-  return subprocess.run(command,
-                        encoding='utf-8',
-                        shell=True,
-                        stderr=subprocess.PIPE,
-                        stdout=subprocess.PIPE)
