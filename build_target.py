@@ -268,6 +268,7 @@ class MockConvertedTarget(object):
     self._converted_preset = converted
     self._converted = None
     self._chief_dependency = chief_dependency
+    self._rule_type = 'mock'
 
   def Convert(self):
     self._converted = self._converted_preset

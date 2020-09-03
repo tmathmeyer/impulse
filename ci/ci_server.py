@@ -6,10 +6,12 @@ from impulse.ci import gogs
 from impulse.ci import github
 
 def main():
-  flask_app = api.GetFlask()
-  libhost.SetupContainerService(flask_app, 'ci.tedm.io')
+  libhost.SetupContainerService('hosts.tedm.io')
   builders = ci_pooling.BuilderPool(4)
 
-  flask_app.RegisterResourceProvider(gogs.BuildManager(builders))
-  flask_app.RegisterResourceProvider(github.BuildManager(builders))
-  flask_app.run(host='0.0.0.0', port=5566)
+  app = api.GetFlask()
+  app.Log('Starting')
+
+  app.RegisterResourceProvider(gogs.BuildManager(builders))
+  app.RegisterResourceProvider(github.BuildManager(builders))
+  app.run(host='0.0.0.0', port=5566)
