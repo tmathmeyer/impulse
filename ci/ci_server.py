@@ -10,7 +10,7 @@ def main():
   libhost.SetupContainerService('hosts.tedm.io')
   builders = ci_pooling.BuilderPool(4)
 
-  app = api.GetFlask()
+  app = api.GetFlaskInstance()
   app.Log('Starting')
 
   app.RegisterResourceProvider(gogs.BuildManager(builders))
