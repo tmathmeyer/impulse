@@ -267,7 +267,7 @@ class NginxManagerThread(object):
       if location.HasProperty('proxy_pass'):
         servers[server_name] = ReverseProxy(server_name, location)
         if old_config and server_name in old_config:
-          servers[server_name] = old_config[server_name].status
+          servers[server_name].status = old_config[server_name].status
         continue
 
       if server.HasProperty('root'):
