@@ -43,5 +43,6 @@ py_binary (
     "//impulse/hal:hal",
     "//impulse/rpc:rpc",
     "//impulse/util:temp_dir",
+    "//impulse/host:libhost",
   ],
 )
