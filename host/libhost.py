@@ -23,5 +23,5 @@ class ImpulseManager(api.ProvidesResources(Impulse)):
     return self._hostname
 
 
-def SetupContainerService(flask_app, desired_hostname):
-  flask_app.RegisterResourceProvider(ImpulseManager(desired_hostname))
+def SetupContainerService(hostname):
+  api.GetFlaskInstance().RegisterResourceProvider(ImpulseManager(hostname))

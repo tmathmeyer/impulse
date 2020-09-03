@@ -7,7 +7,6 @@ import docker
 import requests
 
 from impulse.hal import api
-from impulse.hal import logger
 from impulse.host import libhost
 from impulse.rpc import rpc
 from nginxweb import nginxio
@@ -26,7 +25,8 @@ location / {{
 
 
 ENVIRON = {
-  'NGINX_CONFIG': '/etc/nginx/nginx.conf',
+  'NGINX_CONFIG': '/home/ted/git/nginxweb/nginx.conf'
+  #'NGINX_CONFIG': '/etc/nginx/nginx.conf',
 }
 ENVIRON.update(os.environ)
 def VAR(var):
@@ -82,11 +82,11 @@ class FileHost(Host):
 
 
 class HostManager(api.ProvidesResources(Host)):
-  def __init__(self, logs):
+  def __init__(self):
     super().__init__(explorer=True)
-    self._nginx = NginxManagerThread(logs, VAR('NGINX_CONFIG'))
-    self._docker = DockerThread(logs, self._nginx)
-    self._logs = logs
+    logger = api.GetFlaskInstance().Logger()
+    self._nginx = NginxManagerThread(logger, VAR('NGINX_CONFIG'))
+    self._docker = DockerThread(logger, self._nginx)
 
   @api.METHODS.get('/all')
   def get_all_build(self) -> [Host]:
@@ -313,15 +313,12 @@ class NginxManagerThread(object):
 
 
 def main():
-  # Create an api app
-  app = api.GetFlask()
-
   # Setup the hosting mechanism
-  libhost.SetupContainerService(app, 'hosts.tedm.io')
+  libhost.SetupContainerService('hosts.tedm.io')
 
-  # Setup the logger
-  logs = logger.LogHost.AttachMemoryLogManager(app)
+  app = api.GetFlaskInstance()
+  app.HostFiles('impulse.host.frontend')
+  app.Log('Starting')
 
-  logs.Log('Starting')
-  app.RegisterResourceProvider(HostManager(logs))
+  app.RegisterResourceProvider(HostManager())
   app.run(host='0.0.0.0', port=1234)

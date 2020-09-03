@@ -11,9 +11,9 @@ py_binary (
   ],
   deps = [
     "//impulse/hal:hal",
-    "//impulse/hal:logger",
     "//impulse/host:libhost",
     "//impulse/rpc:rpc",
+    "//impulse/host/frontend:frontend",
 
     git_repo(
       url = "https://github.com/tmathmeyer/nginx_config_parser",
@@ -36,30 +36,4 @@ py_library (
   name = "libhost",
   srcs = [ "libhost.py" ],
   deps = [ "//impulse/hal:hal" ],
-)
-
-py_binary (
-  name = "demo_container",
-  srcs = [
-    "demo_container.py",
-  ],
-  deps = [
-    "//impulse/hal:hal",
-    "//impulse/host:libhost",
-  ],
-)
-
-python_container (
-  name = "demo-container",
-  main_executable = "demo_container",
-  binaries = [ ],
-  environment = [ ],
-  alpine_packages = [ ],
-  ports = [ 5566 ],
-  deps = [
-    ":demo_container",
-  ],
-  pip_packages = [
-    "Flask",
-  ],
 )

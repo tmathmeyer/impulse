@@ -1,0 +1,48 @@
+<html>
+<head>
+  <style>
+host-view {
+  background-color: #a8dadc;
+  float: left;
+  position: relative;
+  width: 200;
+  height: 200;
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+host-view::shadow div {
+  width: 100%;
+}
+
+#header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  line-height: 50px;
+  font-size: 20px;
+  background-color: #e63946;
+  padding-left: 15px
+}
+
+#content {
+  position: absolute;
+  top: 50px;
+  left: 0;
+  right: 0;
+}
+
+body {
+  background-color: #f1faee;
+}
+
+  </style>
+</head>
+<body>
+  <div id="header">Running Services</div>
+  <div id="content"></div>
+  <script src="loadServices.js"></script>
+</body>
+</html>
