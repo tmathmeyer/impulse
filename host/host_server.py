@@ -25,8 +25,7 @@ location / {{
 
 
 ENVIRON = {
-  'NGINX_CONFIG': '/home/ted/git/nginxweb/nginx.conf'
-  #'NGINX_CONFIG': '/etc/nginx/nginx.conf',
+  'NGINX_CONFIG': '/etc/nginx/nginx.conf',
 }
 ENVIRON.update(os.environ)
 def VAR(var):
