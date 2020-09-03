@@ -44,7 +44,6 @@ class MemoryLogManager(object):
   def GetAll(self):
     return self._memory[::-1]
 
-
 class LogEntry(api.Resource('logs', False)):
   def __init__(self, content):
     super().__init__()

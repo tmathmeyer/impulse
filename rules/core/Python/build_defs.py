@@ -9,9 +9,16 @@ def py_make_binary(package_name, package_file, binary_location):
 def _add_files(target, srcs):
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
-  for deplib in target.Dependencies(tags=Any('py_library', 'data')):
+  for deplib in target.Dependencies(tags=Any('py_library')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
+  for deplib in target.Dependencies(tags=Any('data')):
+    for f in deplib.IncludedFiles():
+      target.AddFile(f)
+      d = os.path.dirname(f)
+      while d:
+        _write_file(target, os.path.join(d, '__init__.py'), '#generated')
+        d = os.path.dirname(d)
 
 
 def _write_file(target, name, contents):

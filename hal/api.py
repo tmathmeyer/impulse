@@ -317,6 +317,7 @@ class _FLASK_WRAPPER(object):
     self.flask_app = flask.Flask(__name__)
     self.flask_app.json_encoder = HalJSONEncoder
     self._explorer = None
+    self._logger = None
 
   def RegisterResourceProvider(self, provider:_RESOURCE_PROVIDER):
     meta_path = _url_path_join(provider._get_provider_url_stub(), '_meta')
@@ -475,11 +476,45 @@ class _FLASK_WRAPPER(object):
     self._CreateAPI(handler)
     return handler
 
+  def Log(self, *args, **kwargs):
+    self.Logger().Log(*args, **kwargs)
 
+  def Logger(self):
+    return self._logger
+
+  def HostFiles(self, primary, mappings=None):
+    mappings = mappings or {}
+    def serve(pkg, file):
+      try:
+        data = pkgutil.get_data(pkg, file)
+        if data is None:
+          return 'File not found', 404
+        return data
+      except Exception as e:
+        self.Log(str(e))
+        return 'File not found', 404
+    def root():
+      return serve(primary, 'index.html')
+    def root_serve(file):
+      return serve(primary, file)
+
+    self.flask_app.route('/')(root)
+    self.flask_app.route('/<file>')(root_serve)
+
+    for path, pkg in mappings.items():
+      serve_file = lambda file: serve(pkg, file)
+      self.flask_app.route(f'{path}/<file>')(serve_file)
+      self.flask_app.route(package_url)(serve_file)
 
   def run(self, *args, **kwargs):
     self.flask_app.run(*args, **kwargs)
 
 
-def GetFlask():
-  return _FLASK_WRAPPER()
+__flask_instance = None
+def GetFlaskInstance():
+  global __flask_instance
+  if __flask_instance is None:
+    __flask_instance = _FLASK_WRAPPER()
+    from impulse.hal import logger
+    __flask_instance._logger = logger.LogHost.AttachMemoryLogManager(__flask_instance)
+  return __flask_instance
