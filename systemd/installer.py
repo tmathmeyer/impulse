@@ -40,6 +40,7 @@ def install(upgrade:bool=False, dryrun:bool=False):
     run(f'systemctl stop {binary}.service')
 
   binary_src = os.path.join(resources.Resources.Dir(), 'bin', binary)
+  run(f'chmod +x {binary_src}')
   run(f'cp {binary_src} {destination}')
   run(f'cp {servicesrc} {servicedest}')
   run('systemctl daemon-reload')
