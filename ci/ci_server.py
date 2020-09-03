@@ -7,7 +7,7 @@ from impulse.hal import api
 from impulse.host import libhost
 
 def main():
-  libhost.SetupContainerService('hosts.tedm.io')
+  libhost.SetupContainerService('ci.tedm.io')
   builders = ci_pooling.BuilderPool(4)
 
   app = api.GetFlaskInstance()
