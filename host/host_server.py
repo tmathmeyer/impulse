@@ -193,7 +193,7 @@ class DockerThread(object):
       else:
         self._containers_by_id.pop(container.ID())
         self._containers_by_host.pop(container.Host())
-      self._nginx_thread.NotifyContainerHostDead(container.Host())
+        self._nginx_thread.NotifyContainerHostDead(container.Host())
     except Exception as e:
       self._logs.Log(traceback.format_exc())
 
