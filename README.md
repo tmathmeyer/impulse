@@ -1,90 +1,75 @@
-#  Impulse: A build tool based loosely on bazel, but without the bloat
+#  Impulse: A binary packager / build system for personal projects
 
-Impulse differentiates itself by being much simpler, while still giving developers much more control. Macros/Rules in bazel use some vile offspring of bash and makefile syntax stored in raw strings, while Rules in impulse are simple python functions.
+I got the idea for this because I was trying to write bzl files for work one day
+and realized how insane the bash/makefile nonsense syntax was. Of course, this
+also triggered my NIH syndrome and I decided to make my own declarative build
+system, where the rule definitions are written in plain python.
 
 ## Installing
 ### requirements
- - python >= 3.7.0
- - linux >= 4.0
+ - python >= 3.8.0
+ - linux >= 5.0
  - bash >= 4.4 (or knowledge of completion tools in other shells)
 
-### Steps
-First, select a directory in which all projects built by impulse will live.
-Usually this is something like ```~/src```. This directory will be referenced
-as ```$impulse-root``` throughout this document. ```$impulse-repository-path```
-is the repository you're downloading impulse from.
- 1. ```mkdir {$impulse-root} && cd {$impulse-root}```
- 2. ```git clone {$impulse-repository-path} impulse```
- 3. ```cd impulse && make && sudo make install``` (uses ```/usr/local/bin```)
+### Setup
+You first need to setup your project root - this is kind of like a mono-repo,
+and ```impulse``` will use this directory if it needs to fetch things from git
+or look up build targets. This is generally something like ```~/git``` or
+```~/src```, but really any user-writable directory works fine. Lets call this
+directory ```$impulse-root```.
+ 1. ```cd {$impulse-root}```
+ 2. ```git clone https://github.com/tmathmeyer/impulse.git impulse```
+ 3. ```cd impulse && make && sudo make install``` (installed to ```/usr/local/bin```)
  4. ```cd .. && impulse init```
 
-### Completion
-Source the file ```complete.sh``` from your shell (only bash supported for now)
+### Shell Completion for ```/bin/bash```
+Source the file ```complete.sh``` from your shell. You can copy this somewhere
+else and source it from your ```~/.bashrc``` as well.
 
 ## Running
 Default help menu:
 ```
 ~~$ impulse
 
-usage: impulse [-h] {build,test,init} ...
+usage: impulse [-h] {build,print_tree,run,docker,test,init,testsuite} ...
 
 optional arguments:
-  -h, --help         show this help message and exit
+  -h, --help            show this help message and exit
 
 tasks:
-  {build,test,init}
-    build            Builds the given target.
-    test             Builds a testcase and executes it.
-    init             Initializes impulse in the current directory.
+  {build,print_tree,run,docker,test,init,testsuite}
+    build               Builds the given target.
+    print_tree          Builds the given target.
+    run                 Builds a testcase and executes it.
+    docker              Builds a docker container from the target.
+    test                Builds a testcase and executes it.
+    init                Initializes impulse in the current directory.
+    testsuite           testsuite
 ```
 
-Initialize Impulse:
- - no args
- - uses current directory as root.
- - prompts before use.
+You can get more help for each individual command by running
+```impulse {command} --help```. for example:
 ```
-~~$ impulse init
+$ impulse init --help
+usage: impulse init [-h]
+
+optional arguments:
+  -h, --help  show this help message and exit
 ```
-
-Build a target:
+or
 ```
-~~$ impulse build -h
-
-usage: impulse build [-h] [--debug] [--fakeroot FAKEROOT] target
-
-positional arguments:
-  target
+$ impulse testsuite --help
+usage: impulse testsuite [-h] [--project PROJECT] [--debug] [--notermcolor] [--fakeroot FAKEROOT]
 
 optional arguments:
   -h, --help           show this help message and exit
-  --debug              Prints debug messages.
-  --fakeroot           A directory to consider the fake root. useful for
-                       bootstrapping.
-
+  --project PROJECT
+  --debug
+  --notermcolor
+  --fakeroot FAKEROOT
 ```
 
-Run tests:
-```
-~~$ impulse test -h
-
-usage: impulse test [-h] [--export] [--fakeroot FAKEROOT] target
-
-positional arguments:
-  target
-
-optional arguments:
-  -h, --help           show this help message and exit
-  --export             exports test results to a server [WIP].
-  --fakeroot FAKEROOT  A directory to consider the fake root. useful for
-                       bootstrapping.
-
-```
-
-
-## Directory Layout
-Like the previously mentioned tools, impulse treats some directory as the ```$ROOT```, and all projects are contained somewhere within this directory. For the sake of example in this readme, we will assume that ```$ROOT = ~/src```.
-
-#### IMPULSE targets
+#### Targets
 An impulse target is something that impulse can build. A target is either:
 * relative -- the target name starts with a colon, ex: ```":local_rule"```. relative rules are rules located in the SAME ```BUILD``` file as the current rule.
 * fixed -- the target name starts with TWO forward slashes, ex: ```"//project/lib_example:lib_example"```. This rule references a build rule defined in ```$ROOT/project/lib_example/BUILD``` and named ```lib_example```.
@@ -154,12 +139,20 @@ In this directory live python-defined build rules (see [core_rules](CORE) for so
 ## Writing a Rule file
 A canonical example of a rule file is the included ```py_library``` rule:
 ```python
-def _track_files(target, srcs):
+def _add_files(target, srcs):
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
-  for deplib in target.Dependencies(package_ruletype='py_library'):
+  for deplib in target.Dependencies(tags=Any('py_library')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
+  for deplib in target.Dependencies(tags=Any('data')):
+    for f in deplib.IncludedFiles():
+      target.AddFile(f)
+      d = os.path.dirname(f)
+      while d:
+        _write_file(target, os.path.join(d, '__init__.py'), '#generated')
+        d = os.path.dirname(d)
+
 
 def _write_file(target, name, contents):
   if not os.path.exists(name):
@@ -168,10 +161,11 @@ def _write_file(target, name, contents):
   target.AddFile(name)
 
 
-@using(_track_files, _write_file)
+@using(_add_files, _write_file)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
-  _track_files(target, srcs)
+  target.SetTags('py_library')
+  _add_files(target, srcs + kwargs.get('data', []))
 
   # Create the init files
   directory = target.GetPackageDirectory()
@@ -180,55 +174,4 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 ```
 
-The ```@using(...)``` decorator allows buildrules to include helper functions from the
-build_defs.py file. This is because each method is actually parsed and compiled separately
-from each other method in a build_defs.py file. Only buildrules can import helper
-functions, they cannot import eachother.
-
-To actually create a buildrule, the function must also be decorated with the 
-```@buildrule``` decorator. A buildrule function must take at least two arguments,
-```target: pkg.packaging.ExportablePackage``` and ```name: str```. All other arguments
-that are passed to a buildrule function come from BUILD files directly, and are
-should always be basic data types (int, str, list, etc). To force the requirement of any field, it can be added to the argument list as a non-default positional argument. A missing argument will cause building to fail and report the violating target.
-
-By default, all operations take place in a read-only copy of the source directory
-where the BUILD file exists. The location is a temporary copy-on-write filesystem
-which allows the rule to use and modify source files without affecting the real
-state of the original sources. A ```pkg.packaging.ExportablePackage``` has methods
-and fields designed to help run code in the buildrule:
-* ```pkg.packaging.ExportablePackage.Dependencies(**kwargs)```: A way to filter
-  rule types based on their properties. A commonly used one would be filtering
-  on ```package_ruletype```, as is shown in ```_get_objects``` above.
-* ```pkg.packaging.ExportablePackage.GetPackageDirectory()```: A function which
-  returns the package directory.
-* ```pkg.packaging.ExportablePackage.AddFile(file)```: Adds a file as an output.
-
-Finally, any buildrule which ends in ```_binary``` must return a function which
-can be used to convert it's package into a binary. In python, for example:
-```python
-def py_make_binary(package_name, package_file, binary_location):
-  binary_file = os.path.join(binary_location, package_name)
-  os.system('echo "#!/usr/bin/env python3\n" >> {}'.format(binary_file))
-  os.system('cat {} >> {}'.format(package_file, binary_file))
-  os.system('chmod +x {}'.format(binary_file))
-```
-This task is simple, since the package files can just have a ```#!/usr/bin/env python```
-prepended, and they become executable python archives. 
-
-## Python Executables
-The default build rules offer ```py_library``` and ```py_binary``` as two build rules. It should be noted that if these rules are used, they change the way imports handled. Any third party import will stay the same as before, but importing other code built with impulse will have to be done absolutly. For example, with the directory layout:
-```
-impulse_root/
-  project/
-    some_component/
-      helper1.py
-      helper2.py
-    another_component/
-      fancy_code.py
-    run_this.py
-```
-for any of these files to import helper1.py, they should do it like:
-```
-from project.some_component import helper1
-```
-this holds EVEN FOR ```helper2.py```.
+More to come.
