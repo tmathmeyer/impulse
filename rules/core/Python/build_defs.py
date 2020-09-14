@@ -1,9 +1,10 @@
 
-def py_make_binary(package_name, package_file, binary_location):
+def py_make_binary(target, package_name, package_file, binary_location):
   binary_file = os.path.join(binary_location, package_name)
-  os.system('echo "#!/usr/bin/env python3\n" >> {}'.format(binary_file))
-  os.system('cat {} >> {}'.format(package_file, binary_file))
-  os.system('chmod +x {}'.format(binary_file))
+  target.Execute(
+    f'echo "#!/usr/bin/env python3\n" >> {binary_file}',
+    f'cat {package_file} >> {binary_file}',
+    f'chmod +x {binary_file}')
 
 
 def _add_files(target, srcs):

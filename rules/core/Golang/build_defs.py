@@ -1,17 +1,22 @@
 
-def go_pkg2(target, name, srcs, **kwargs):
+@buildrule
+def go_pkg2(target: 'ExportablePackage', name: str, srcs:[str], **kwargs):
+  import os
   print('=============== build_go_archive =================')
   target.SetTags('go_pkg')
   third_party = kwargs.get('third_party', [])
-
-  import os
-  if len(third_party)
-    os.system('mkdir -p _third_party')
-  for dependency in third_party:
-    os.system(f'GOROOT=./third_party go get {dependency}')
+  arch = kwargs.get('arch', 'linux_amd64')
 
   srcs = [os.path.join(target.GetPackageDirectory(), s) for s in srcs]
-  os.system(f'go tool compile -I ./third_party {" ".join(srcs)}')
+  with target.UseTempDir() as pkgs_dir:
+    for dependency in third_party:
+      target.Execute(f'GOPATH={pkgs_dir} go get {dependency}')
+    packages = os.path.join(pkgs_dir, 'pkg', arch)
+    obj_file = os.path.join(target.GetPackageDirectory(), name+'.o')
+    target.Execute(
+      f'go tool compile -I {packages} -o {obj_file} {" ".join(srcs)}')
+    target.AddFile(obj_file)
+    os.system('tree')
 
   print('=============== build_go_archive =================\n\n')
 
@@ -42,15 +47,15 @@ def _write_importcfg(gopkg, stdinc, deps, filename):
             f.write(cat.read())
 
   import os
-  os.system(f'cat {filename} | sort | uniq >> tmp && mv tmp {filename}')
+  target.Execute(f'cat {filename} | sort | uniq >> tmp && mv tmp {filename}')
 
 
 def _build_go_archive(target, write_fn, name, srcs, **kwargs):
   import os
   import subprocess
 
-  os.system('pwd')
-  os.system('tree')
+  target.Execute('pwd')
+  target.Execute('tree')
   print(f'name = {name}')
   print(f'srcs = {srcs}')
   print(f'kwargs = {kwargs}')
@@ -78,7 +83,7 @@ def _build_go_archive(target, write_fn, name, srcs, **kwargs):
             f'-pack -c=2 '
             f'{go_input_files} ')
   write_fn(gopkg, kwargs.get('std', []), dep_packages, importcfg)
-  os.system(f'cat {importcfg}')
+  target.Execute(f'cat {importcfg}')
   result = subprocess.run(go_cmd, encoding='utf-8', shell=True,
                           stderr=subprocess.PIPE,
                           stdout=subprocess.PIPE)
@@ -135,7 +140,7 @@ def go_binary(target, name, srcs, **kwargs):
   def export_binary(package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
     binary_file = os.path.join(binary_location, package_name)
-    os.system('cp {} {}'.format(package_exe, binary_file))
+    target.Execute('cp {} {}'.format(package_exe, binary_file))
 
   added_archives = set()
   setsize = -1
@@ -150,7 +155,7 @@ def go_binary(target, name, srcs, **kwargs):
       stdout=subprocess.PIPE)
 
     if not result.returncode:
-      os.system(f'mv {mmap_output_name} {binary_name}')
+      target.Execute(f'mv {mmap_output_name} {binary_name}')
       target.AddFile(binary_name)
       return export_binary
 

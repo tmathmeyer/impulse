@@ -13,6 +13,7 @@ import zipfile
 
 from impulse.exceptions import exceptions
 from impulse.util import temp_dir
+from impulse.core import debug
 
 
 def EnsureDirectory(directory):
@@ -76,6 +77,24 @@ class ExportedPackage(object):
 
   def IncludedFiles(self):
     return [file for file in self.included_files]
+
+  def RunCommand(self, command):
+    return subprocess.run(command,
+                          encoding='utf-8',
+                          shell=True,
+                          stderr=subprocess.PIPE,
+                          stdout=subprocess.PIPE)
+
+  def Execute(self, *cmds):
+    for command in cmds:
+      if debug.IsDebug():
+        print(command)
+      try:
+        r = self.RunCommand(command)
+        if r.returncode:
+          raise exceptions.FatalException(f'command "{command}" failed.') 
+      except:
+        raise exceptions.FatalException(f'command "{command}" failed.')
 
   def __str__(self):
     return '{}@{}'.format(str(self.package_target), self.build_timestamp)
@@ -313,6 +332,18 @@ class ExportablePackage(Hasher):
       raise exceptions.FatalException(f'MKDIR FAILED -> {r.stdout}')
     return f'/tmp/{dirname}'
 
+  def UseTempDir(self):
+    wrapper = self
+    class DirManager(object):
+      def __init__(self):
+        self._directory = None
+      def __enter__(self):
+        self._directory = wrapper.MakeTempDir()
+        return self._directory
+      def __exit__(self, *args, **kwargs):
+        wrapper.RunCommand(f'rm -rf {self._directory}')
+        self._directory = None
+    return DirManager()
 
   def LoadToTemp(self, pkg_dir, bin_dir):
     # Temp directory to write to (deleted on object destruction)
@@ -364,6 +395,20 @@ class ExportablePackage(Hasher):
 
   def SetTags(self, *tags):
     self.tags.update(set(tags))
+
+  def Execute(self, *cmds):
+    for command in cmds:
+      if debug.IsDebug():
+        print(command)
+      try:
+        r = self.RunCommand(command)
+        if r.returncode:
+          raise exceptions.FatalException(
+            f'command "{command}" failed:\n{r.stdout}\n{r.stderr}') 
+      except Exception as e:
+        if type(e) == exceptions.FatalException:
+          raise
+        raise exceptions.FatalException(f'command "{command}" failed.')
 
   def IncludedFiles(self):
     return [f for f in self.included_files]

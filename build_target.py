@@ -8,6 +8,7 @@ import types
 
 from impulse import impulse_paths
 from impulse import threaded_dependence
+from impulse.core import debug
 from impulse.exceptions import exceptions
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
@@ -110,7 +111,7 @@ class BuildTarget(threaded_dependence.GraphNode):
     self.check_thread()
     self._package, needs_building, reason = self._package.NeedsBuild(
       package_dir, src_dir)
-    if status_out.DEBUG and needs_building:
+    if debug.IsDebug() and needs_building:
       print(reason)
     if self._force_build:
       return True
@@ -235,7 +236,8 @@ class BuildTarget(threaded_dependence.GraphNode):
                   self._buildrule_name))
               bindir = os.path.join(bin_directory, rulepath)
               packaging.EnsureDirectory(bindir)
-              export_binary(self._target_name, package_full_path, bindir)
+              export_binary(self._package, self._target_name,
+                            package_full_path, bindir)
     except exceptions.FilesystemSyncException:
       raise
     except exceptions.BuildTargetNoBuildNecessary:

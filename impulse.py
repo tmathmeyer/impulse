@@ -10,6 +10,7 @@ from impulse import impulse_paths
 from impulse import threaded_dependence
 from impulse import recursive_loader
 from impulse import status_out
+from impulse.core import debug
 from impulse.args import args
 from impulse.util import temp_dir
 from impulse.util import tree_builder
@@ -19,10 +20,10 @@ command = args.ArgumentParser(complete=True)
 
 
 
-def setup(debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
+def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
   """Sets up debug and path info."""
-  if debug:
-    status_out.DEBUG = True
+  if enable_debug:
+    debug.EnableDebug()
   fakeroot = typing.cast(args.Directory, fakeroot)
   if fakeroot.value():
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
