@@ -3,7 +3,6 @@
 def raw_template(target, name, srcs, **kwargs):
   assert len(srcs) == 1
   target.SetTags('raw_template')
-  print(f'raw_template name: {name} srcs: {srcs} dir: {target.GetPackageDirectory()}')
   target.AddFile(os.path.join(target.GetPackageDirectory(), srcs[0]))
 
 

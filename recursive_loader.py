@@ -159,6 +159,7 @@ class RecursiveFileParser(object):
   def __init__(self, carried_args):
     self._carried_args = carried_args
     self._targets = {} # Map[BuildTarget->ParsedBuildTarget]
+    self._meta_targets = set() # Set[str]
     self._loaded_files = set() # We don't want to load files multiple times
 
     # We need to store the environment across compilations, since it allows
@@ -181,7 +182,6 @@ class RecursiveFileParser(object):
 
   def ConvertTarget(self, target):
     if target not in self._targets:
-      print('\n'.join(str(t) for t in self._targets.keys()))
       raise exceptions.BuildTargetMissing(target)
     return self._targets[target].Convert()
 
@@ -329,7 +329,8 @@ class RecursiveFileParser(object):
           if self._update_dict is not None:
             value.update(self._update_dict)
           return TryEval(value, kwargs)
-        raise ValueError('TODO IMPLEMENT BETTER ERROR')
+        raise exceptions.FatalException(
+          f'Missing required argument: {self._argname} - found: {list(kwargs.keys())}')
 
     class DictMockArg(MockArg):
       def __init__(self, parent, value, default):
@@ -365,7 +366,7 @@ class RecursiveFileParser(object):
           argbuilder = {'tags': TryEval(tags, kwargs), 'buildfile': buildfile}
           for asName, value in TryEval(args, kwargs).items():
             argbuilder[asName] = TryEval(value, kwargs)
-          rule(**argbuilder)
+          return rule(**argbuilder)
         self.macros.append(Wrapper)
 
     mock_args = {}
@@ -383,7 +384,9 @@ class RecursiveFileParser(object):
     fn(expander, **mock_args)
     def replacement(**kwargs):
       for macro in expander.macros:
-        macro(**kwargs)
+        pbt = macro(**kwargs)
+        if pbt:
+          self._meta_targets.add(pbt._build_rule)
     return replacement
 
 
@@ -444,7 +447,7 @@ class RecursiveFileParser(object):
   def GetAllConvertedTargets(self):
     def converted_targets():
       for target in self._targets.values():
-        if target._converted:
+        if target._converted and target._build_rule not in self._meta_targets:
           yield target._converted
     result = set()
     for c in converted_targets():
@@ -456,6 +459,14 @@ class RecursiveFileParser(object):
       if parsed._rule_type.endswith('_test'):
         self.ConvertTarget(target)
         yield target
+
+  def ConvertAllTargets(self):
+    for target, parsed in self._targets.items():
+      if target.GetFullyQualifiedRulePath() not in self._meta_targets:
+        try:
+          self.ConvertTarget(target)
+        except:
+          pass
 
 
 def generate_graph(build_target, **kwargs):

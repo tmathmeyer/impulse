@@ -166,6 +166,26 @@ def testsuite(project:str=None,
       ruleinfo.output, 'run', '--notermcolor' if notermcolor else '')
     os.system(cmdline)
 
+@command
+def buildall(project:str=None,
+             debug:bool=False,
+             fakeroot:args.Directory=None):
+  setup(debug, fakeroot)
+
+  directory = os.getcwd()
+  if project:
+    directory = os.path.join(impulse_paths.root(), project)
+
+  rfp = recursive_loader.RecursiveFileParser(carried_args={})
+  for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
+    rfp._ParseFile(filename)
+
+  rfp.ConvertAllTargets()
+  graph = rfp.GetAllConvertedTargets()
+  pool = threaded_dependence.ThreadPool(debug=debug, poolcount=6)
+  pool.Start(graph)
+  pool.join()
+
 
 def main():
   command.eval()

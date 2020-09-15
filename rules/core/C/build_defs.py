@@ -115,7 +115,7 @@ def cpp_binary(target, name, **kwargs):
     std=kwargs.get('std', 'c++17'))
   target.AddFile(binary)
 
-  def export_binary(package_name, package_file, binary_location):
+  def export_binary(_, package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
     binary_file = os.path.join(binary_location, package_name)
     os.system('cp {} {}'.format(package_exe, binary_file))
@@ -150,7 +150,7 @@ def cpp_test(target, name, **kwargs):
     std=kwargs.get('std', 'c++17'))
   target.AddFile(binary)
 
-  def export_binary(package_name, package_file, binary_location):
+  def export_binary(_, package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
     binary_file = os.path.join(binary_location, package_name)
     os.system('cp {} {}'.format(package_exe, binary_file))

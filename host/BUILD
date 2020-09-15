@@ -1,6 +1,6 @@
 langs("Python")
 load (
-  "//impulse/systemd/rules/build_defs.py"
+  "//impulse/systemd/build_defs.py"
 )
 
 py_binary (
@@ -28,10 +28,10 @@ py_library (
   deps = [ "//impulse/hal:hal" ],
 )
 
-service_installer (
+service (
   name = "host_service_installer",
   description = "Service that manages docker and nginx",
-  executable = "host_server",
+  binary = "host_server",
   deps = [
     ":host_server",
   ],
