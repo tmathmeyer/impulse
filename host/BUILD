@@ -1,6 +1,5 @@
 langs("Python")
 load (
-  "//impulse/docker/rules/build_defs.py",
   "//impulse/systemd/rules/build_defs.py"
 )
 

@@ -79,7 +79,7 @@ class RuleSpec(object):
     self.type = callspec[1].get('called_as')[0]
     self.name = callspec[1].get('name')
     output_type = 'BINARIES'
-    if self.type.endswith('_container'):
+    if self.type == 'container':
       output_type = 'PACKAGES'
     self.output = os.path.join(
       output_directory(), output_type, target.target_path[2:], self.name)
@@ -181,13 +181,17 @@ def is_relative_path(path):
 
 
 def get_qualified_build_file_dir(build_file_path):
-  reg = re.compile(os.path.join(root(), '(.*)/BUILD'))
-  try:
-    return '//' + reg.match(build_file_path).group(1)
-  except:
-    print('{} didnt match {}'.format(
-      os.path.join(root(), '(.*)/BUILD'), build_file_path))
-    raise
+  build = re.compile(os.path.join(root(), '(.*)/BUILD'))
+  defs = re.compile(os.path.join(root(), '(.*)/build_defs.py'))
+  build = build.match(build_file_path)
+  defs = defs.match(build_file_path)
+  if build:
+    return '//' + build.group(1)
+  if defs:
+    return '//' + defs.group(1)
+  raise exceptions.InvalidPathException(
+    'targets must be defined in BUILD files or in build_defs.py macros',
+    build_file_path)
 
 
 class BuildTarget(args.ArgComplete):

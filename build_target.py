@@ -56,6 +56,7 @@ class BuildTarget(threaded_dependence.GraphNode):
                      buildrule_name: str, # The buildrule type, ex: c_header
                      scope: dict, # A map from name to marshalled bytecode
                      dependencies: set, # A set of BuildTargets dependencies
+                     extra_tags: list, # A list of tags that come from a target
                      can_access_internal: bool = False, # Has internal access
                      force_build:bool = False): # Always build even if recent
     super().__init__(dependencies, can_access_internal)
@@ -73,6 +74,7 @@ class BuildTarget(threaded_dependence.GraphNode):
     self._package = packaging.ExportablePackage(
       rule, buildrule_name, can_access_internal,
       os.path.join(impulse_paths.output_directory(), 'BINARIES'))
+    self._package.SetTags(*extra_tags)
 
   def __eq__(self, other):
     return (other.__class__ == self.__class__ and
@@ -296,7 +298,8 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       rule = impulse_paths.ParsedTarget(target_name, self.target_path),
       buildrule_name = 'git_clone',
       scope = {},
-      dependencies = set())
+      dependencies = set(),
+      extra_tags = [])
 
   def _MakeCheckoutTarget(self, clone_target):
     target_name = f'git@{self.target_name}+checkout'
@@ -308,6 +311,7 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       buildrule_name = 'git_checkout',
       scope = {},
       dependencies = set([clone_target]),
+      extra_tags = [],
       can_access_internal = True)
 
   def _MakeParentTarget(self, *children):
@@ -320,6 +324,7 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       buildrule_name = 'git_parent',
       scope = {},
       dependencies = set(children),
+      extra_tags = [],
       can_access_internal = True,
       force_build=True)
 

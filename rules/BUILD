@@ -8,6 +8,7 @@ py_library (
     "//impulse/rules/core/JS:rules",
     "//impulse/rules/core/Python:rules",
     "//impulse/rules/core/Shell:rules",
+    "//impulse/rules/core/Template:rules",
   ],
   srcs = []
 )
