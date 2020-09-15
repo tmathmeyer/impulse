@@ -91,7 +91,6 @@ def docker(target:impulse_paths.BuildTarget,
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
   ruleinfo = parsed_target.GetRuleInfo()
-  print(ruleinfo.__dict__)
   if not ruleinfo.type == 'container':
     print('Can only containerize a container target')
     return
@@ -100,7 +99,6 @@ def docker(target:impulse_paths.BuildTarget,
   extractcmd = 'unzip {}'.format(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
     os.system(extractcmd)
-    os.system('tree')
     dockercmd = 'docker build -t {} .'.format(os.path.basename(ruleinfo.output))
     os.system(dockercmd)
 
