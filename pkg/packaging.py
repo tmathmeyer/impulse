@@ -139,6 +139,8 @@ class ExportablePackage(Hasher):
     self._buildqueue_ref = None
     self._binaries_location = binaries_location
     self._previous_build_timestamp = 0
+    self._exec_env = {}
+    self._exec_env_str = ''
 
   def __getstate__(self):
     return self.__dict__.copy()
@@ -398,6 +400,7 @@ class ExportablePackage(Hasher):
 
   def Execute(self, *cmds):
     for command in cmds:
+      command = f'{self._exec_env_str} {command}'
       if debug.IsDebug():
         print(command)
       try:
@@ -409,6 +412,18 @@ class ExportablePackage(Hasher):
         if type(e) == exceptions.FatalException:
           raise
         raise exceptions.FatalException(f'command "{command}" failed.')
+
+  def SetEnvVar(self, var, value):
+    self._exec_env[var] = value
+    self._update_exec_env_str()
+
+  def UnsetEnvVar(self, var):
+    self._exec_env.pop(var)
+    self._update_exec_env_str()
+
+  def _update_exec_env_str(self):
+    self._exec_env_str = ' '.join(f'{k}={v}' for k,v in self._exec_env.items())
+
 
   def IncludedFiles(self):
     return [f for f in self.included_files]
