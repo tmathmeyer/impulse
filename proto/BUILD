@@ -9,7 +9,8 @@ cpp_header (
   name = "commandline_h",
   srcs = [ "commandline.h" ],
   deps = [
-    "git://github.com/tmathmeyer/cppargs//:argparse_h",
+    # TODO convert to a git_target().
+    "git@github.com:tmathmeyer/cppargs:argparse_h",
   ],
 )
 

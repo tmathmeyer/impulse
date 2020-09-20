@@ -47,7 +47,7 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
 
-@depends_targets("git://github.com/tmathmeyer/impulse//proto:protocompile")
+@depends_targets("//impulse/proto:protocompile")
 @using(_write_file)
 @buildrule
 def py_proto(target, name, **kwargs):
@@ -74,7 +74,7 @@ def py_proto(target, name, **kwargs):
         direct = os.path.dirname(direct)
 
 
-@depends_targets("git://github.com/tmathmeyer/impulse//util:bintools")
+@depends_targets("//impulse/util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):

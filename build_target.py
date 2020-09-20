@@ -335,6 +335,8 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
     rfp._targets[self] = MockConvertedTarget(
       parent, set([clone, parent]))
 
+impulse_paths.ParsedTarget.GitTarget = ParsedGitTarget
+
 
 def GitClone(target, name, repo, url):
   repo_exists_path = os.path.join(impulse_paths.root(), repo)

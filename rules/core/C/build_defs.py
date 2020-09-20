@@ -123,8 +123,8 @@ def cpp_binary(target, name, **kwargs):
   return export_binary
 
 
-@depends_targets("git@github.com:tmathmeyer/googletest//:googletest",
-                 "git@github.com:tmathmeyer/googletest//:googletest_headers")
+@depends_targets("git@github.com:tmathmeyer/googletest:googletest",
+                 "git@github.com:tmathmeyer/googletest:googletest_headers")
 @using(_compile, _get_include_dirs, _get_objects, _get_src_files)
 @buildrule
 def cpp_test(target, name, **kwargs):
