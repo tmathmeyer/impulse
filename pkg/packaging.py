@@ -14,6 +14,7 @@ import zipfile
 from impulse.exceptions import exceptions
 from impulse.util import temp_dir
 from impulse.core import debug
+from impulse import impulse_paths
 
 
 def EnsureDirectory(directory):
@@ -427,6 +428,28 @@ class ExportablePackage(Hasher):
 
   def IncludedFiles(self):
     return [f for f in self.included_files]
+
+  def Semaphor(pkg):
+    class Sem(object):
+      def __init__(self):
+        self._lockfile = os.path.join(impulse_paths.root(), '.lockfile')
+        self._has_lockfile = not pkg.RunCommand('which lockfile').returncode
+      def __enter__(self):
+        if self._has_lockfile:
+          pkg.RunCommand(f'lockfile {self._lockfile}')
+        else:
+          self._spinlock()
+      def __exit__(self, *args, **kwargs):
+        pkg.RunCommand(f'rm -rf {self._lockfile}')
+      def _spinlock(self):
+        success = False
+        while not success:
+          while os.path.exists(self._lockfile):
+            time.sleep(2)
+            continue
+          success = not pkg.RunCommand(f'mkdir {self._lockfile}').returncode
+    return Sem()
+
 
   def __del__(self):
     if self._extracted_dir:

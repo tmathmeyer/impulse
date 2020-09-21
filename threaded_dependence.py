@@ -145,7 +145,7 @@ class ThreadWatchdog(multiprocessing.Process):
     while True:
       job = ThreadWatchdog.POISON
       try:
-        job = self._job_input_queue.get(timeout=30)
+        job = self._job_input_queue.get(timeout=5)
       except:
         self._job_response_queue.put(JobResponse(
           JobResponse.LEVEL.WARNING, self._id, None,
@@ -201,7 +201,7 @@ class ThreadPool(multiprocessing.Process):
   def Start(self, graph):
     self._printer.add_job_count(len(graph))
     self._graph = graph
-    self._update_graph_status()
+    self._cycle_graph()
     self.start()
 
   def _create_watchdogs(self):
@@ -231,6 +231,27 @@ class ThreadPool(multiprocessing.Process):
     self._job_input_queue.join()
     return None
 
+  def _cycle_graph(self, remove_node:GraphNode=None):
+    newgraph:Set[GraphNode] = set()
+    for node in self._graph:
+      if remove_node:
+        node.remaining_dependencies.discard(remove_node)
+      if node.remaining_dependencies:
+        newgraph.add(node)
+      else:
+        self._pending_add.add(node)
+    self._graph = newgraph
+
+  def _force_cycle_graph(self):
+    for job in self._graph:
+      if not len(job.remaining_dependencies):
+        return True
+      for depends in job.remaining_dependencies:
+        if depends in self._completed:
+          job.remaining_dependencies.discard(depends)
+          return True
+    return False
+
   def _handle_good_status(self, status:JobResponse):
     self._in_flight.remove(status.job())
     self._completed.add(status.job())
@@ -239,25 +260,10 @@ class ThreadPool(multiprocessing.Process):
     if response:
       if isinstance(response, UpdateGraphResponseData):
         discard_node = not self._update_graph(status.job(), response)
-
-    newgraph:Set[GraphNode] = set()
-    for node in self._graph:
-      if discard_node:
-        node.remaining_dependencies.discard(status.job())
-      if not node.remaining_dependencies:
-        self._pending_add.add(node)
-      else:
-        newgraph.add(node)
-    self._graph = newgraph
-
-  def _update_graph_status(self):
-    newgraph:Set[GraphNode] = set()
-    for node in self._graph:
-      if not node.remaining_dependencies:
-        self._pending_add.add(node)
-      else:
-        newgraph.add(node)
-    self._graph = newgraph
+    if discard_node:
+      self._cycle_graph(status.job())
+    else:
+      self._cycle_graph()
 
   def _update_graph(self,
                     node_from:GraphNode,
@@ -299,6 +305,11 @@ class ThreadPool(multiprocessing.Process):
         return self._finish_err(job_response.message())
 
       if job_response.level() == JobResponse.LEVEL.WARNING:
+        if job_response.message() == Messages.TIMEOUT:
+          if self._force_cycle_graph():
+            self._cycle_graph()
+            self._add_nodes()
+            continue
         self._printer.write_task_msg(job_response.id(), job_response.message())
         continue
 

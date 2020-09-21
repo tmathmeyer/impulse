@@ -339,17 +339,18 @@ impulse_paths.ParsedTarget.GitTarget = ParsedGitTarget
 
 
 def GitClone(target, name, repo, url):
-  repo_exists_path = os.path.join(impulse_paths.root(), repo)
-  if not os.path.exists(repo_exists_path):
-    command = f'git clone {url} {repo_exists_path}'
-    clone = target.RunCommand(command)
-    if clone.returncode:
-      target.ExecutionFailed(command, clone.stderr)
+  repo_destination = os.path.join(impulse_paths.root(), repo)
+  with target.Semaphor():
+    if not os.path.exists(repo_destination):
+      command = f'git clone {url} {repo_destination}'
+      clone = target.RunCommand(command)
+      if clone.returncode:
+        target.ExecutionFailed(command, clone.stderr)
   with open('gitlocation', 'w+') as f:
-    f.write(repo_exists_path)
+    f.write(repo_destination)
   target.AddFile('gitlocation')
   target.SetInputFiles([os.path.join(
-    repo_exists_path, '.git', 'HEAD')])
+    repo_destination, '.git', 'HEAD')])
 
 
 def GitCheckout(target, name, commit):
