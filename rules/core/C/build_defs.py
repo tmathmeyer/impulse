@@ -47,7 +47,7 @@ def cpp_header(target, name, srcs, **kwargs):
   target.SetTags('cpp_header')
   for src in _get_src_files(target, srcs):
     target.AddFile(src)
-  for deplib in target.Dependencies(tags='cpp_header'):
+  for deplib in target.Dependencies(tags=Any('cpp_header', 'c_header')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
 
