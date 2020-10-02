@@ -48,14 +48,12 @@ class PullRequest(api.ResourceTypeStruct()):
 
 class Build(api.Resource('github-pr')):
   def __init__(self, action:str, number:int, pull_request:PullRequest,
-                     before:str, after:str, sender:User, repository:Repo,
+                     sender:User, repository:Repo,
                      **_):
     super().__init__()
     self.action = action
     self.number = number
     self.pull_request = pull_request
-    self.before = before
-    self.after = after
     self.user = sender
     self.repository = repository
 
