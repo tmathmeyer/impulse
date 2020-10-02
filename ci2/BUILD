@@ -76,6 +76,7 @@ container (
       "bash-completion",
       "fuse",
       "gcc",
+      "g++",
       "git",
       "unzip",
       "zip",
