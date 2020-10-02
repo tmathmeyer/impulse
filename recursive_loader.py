@@ -444,11 +444,19 @@ class RecursiveFileParser(object):
         embeddedBuildDef = resources.Resources.Get(embeddedPath)
         self._ParseFileFromLocation(expanded, embeddedBuildDef)
 
-  def GetAllConvertedTargets(self):
+  def GetAllConvertedTargets(self, allow_meta=None):
+    allow_meta = allow_meta or []
     def converted_targets():
       for target in self._targets.values():
-        if target._converted and target._build_rule not in self._meta_targets:
-          yield target._converted
+        if target._converted:
+          if target._build_rule not in self._meta_targets:
+            yield target._converted
+          elif allow_meta is True:
+            yield target._converted
+          elif target._build_rule in allow_meta:
+            yield target._converted
+          else:
+            print(f'target: {target._build_rule} not in: {allow_meta}')
     result = set()
     for c in converted_targets():
       result |= c
@@ -469,8 +477,9 @@ class RecursiveFileParser(object):
           pass
 
 
-def generate_graph(build_target, **kwargs):
+def generate_graph(build_target, allow_meta=None, **kwargs):
+  allow_meta = allow_meta or [build_target]
   re = RecursiveFileParser(kwargs)
   re.ParseTarget(build_target)
   re.ConvertTarget(build_target)
-  return re.GetAllConvertedTargets()
+  return re.GetAllConvertedTargets(allow_meta=allow_meta)

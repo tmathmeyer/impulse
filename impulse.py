@@ -52,15 +52,16 @@ def build(target:impulse_paths.BuildTarget,
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
   build_and_await(debug, recursive_loader.generate_graph(parsed_target,
-    force_build=force))
+    force_build=force, allow_meta=True))
 
 @command
 def print_tree(target:impulse_paths.BuildTarget,
-               fakeroot:args.Directory=None):
+               fakeroot:args.Directory=None,
+               debug:bool=False):
   """Builds the given target."""
-  setup(False, fakeroot)
+  setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
-  tree = recursive_loader.generate_graph(parsed_target)
+  tree = recursive_loader.generate_graph(parsed_target, allow_meta=True)
   tree = tree_builder.BuildTree(tree)
   if tree:
     tree.Print()
@@ -94,7 +95,8 @@ def docker(target:impulse_paths.BuildTarget,
   if not ruleinfo.type == 'container':
     print('Can only containerize a container target')
     return
-  build_and_await(debug, recursive_loader.generate_graph(parsed_target))
+  build_and_await(
+    debug, recursive_loader.generate_graph(parsed_target, allow_meta=True))
 
   extractcmd = 'unzip {}'.format(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):

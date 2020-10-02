@@ -61,7 +61,7 @@ py_binary (
 )
 
 container (
-  name = "ci_service",
+  name = "ci-service",
   main_executable = "service",
   binaries = [
     "impulse",
