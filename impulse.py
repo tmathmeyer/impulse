@@ -142,6 +142,7 @@ def init():
 def testsuite(project:str=None,
               debug:bool=False,
               notermcolor:bool=False,
+              threads:int=6,
               fakeroot:args.Directory=None):
   setup(debug, fakeroot)
 
@@ -156,7 +157,7 @@ def testsuite(project:str=None,
   builders = list(rfp.ConvertAllTestTargets())
   
   graph = rfp.GetAllConvertedTargets()
-  pool = threaded_dependence.ThreadPool(debug=debug, poolcount=6)
+  pool = threaded_dependence.ThreadPool(debug=debug, poolcount=threads)
   pool.Start(graph)
   pool.join()
 

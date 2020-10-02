@@ -88,8 +88,6 @@ class ExportedPackage(object):
 
   def Execute(self, *cmds):
     for command in cmds:
-      if debug.IsDebug():
-        print(command)
       try:
         r = self.RunCommand(command)
         if r.returncode:
@@ -402,8 +400,6 @@ class ExportablePackage(Hasher):
   def Execute(self, *cmds):
     for command in cmds:
       command = f'{self._exec_env_str} {command}'
-      if debug.IsDebug():
-        print(command)
       try:
         r = self.RunCommand(command)
         if r.returncode:
