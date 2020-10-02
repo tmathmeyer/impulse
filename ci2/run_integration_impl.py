@@ -6,22 +6,29 @@ from impulse.ci2 import integration
 from impulse.util import temp_dir
 
 
+class RunException(Exception):
+  """Raised when a path is invalid for a provided reason."""
+  def __init__(self, msg):
+    super().__init__(msg)
+    self.msg = msg
+
+
 def Run(cmd):
   yield ' '.join(cmd)
   p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
   while True:
     output = p.stdout.readline().decode('utf-8').rstrip()
-    if output == '' and p.poll() != None:
+    if output.strip() == '' and p.poll() != None:
       break
     if output:
       yield output.strip()
   if p.poll() != 0:
-    raise f'>>FAILED<< ({cmd})'
+    raise RunException(f'command failed to execute')
 
 
 def RunIntegrationTest(job):
   if not job.authenticated:
-    raise 'Unauthenticated build'
+    raise RunException('Unauthenticated build')
 
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
     workdir = os.getcwd()
@@ -47,7 +54,7 @@ def RunIntegrationTest(job):
     yield from Run([
       './GENERATED/BINARIES/impulse/impulse', 'testsuite',
       '--fakeroot', workdir,
-      '--threads', 1,
+      '--threads', '1',
       '--notermcolor',
       '--debug',
     ])
