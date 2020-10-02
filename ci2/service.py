@@ -1,4 +1,6 @@
 
+import os
+
 from impulse.ci2 import github
 from impulse.ci2 import integration
 from impulse.ci2 import runner
