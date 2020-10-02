@@ -46,8 +46,11 @@ def RunIntegrationTest(job):
       '//impulse:impulse'
     ])
     yield from Run([
-      './GENERATED/BINARIES/impulse/impulse',
-      'testsuite', '--notermcolor', '--debug', '--fakeroot', workdir
+      './GENERATED/BINARIES/impulse/impulse', 'testsuite',
+      '--fakeroot', workdir,
+      '--threads', 1,
+      '--notermcolor',
+      '--debug',
     ])
 
 
