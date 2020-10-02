@@ -16,13 +16,12 @@ def Run(cmd):
     if output:
       yield output.strip()
   if p.poll() != 0:
-    raise ValueError('Execution bug')
+    raise f'>>FAILED<< ({cmd})'
 
 
 def RunIntegrationTest(job):
   if not job.authenticated:
-    yield 'Unauthenticated build'
-    raise ValueError('Unauthenticated')
+    raise 'Unauthenticated build'
 
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
     workdir = os.getcwd()

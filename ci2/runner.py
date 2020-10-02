@@ -24,7 +24,11 @@ class Runner(object):
       for stdline in run_integration_impl.RunIntegrationTest(job):
         self._deltaQ.put(('append', job.get_id(), 'stdout', stdline))
       self.SetStatus(job, 'success')
-    except:
+    except str as exit_msg:
+      self._deltaQ.put(('append', job.get_id(), 'stdout', exit_msg))
+      self.SetStatus(job, 'failure')
+    except Exception as e:
+      self._deltaQ.put(('append', job.get_id(), 'stdout', str(e)))
       self.SetStatus(job, 'failure')
     self.task_runner.PostTask('ReadFromQueue')
 
