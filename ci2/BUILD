@@ -72,7 +72,14 @@ container (
   ],
   docker_args = {
     "pip_packages": [ "Flask" ],
-    "alpine_packages": [ "git", "fuse", "zip", "unzip", "bash-completion" ],
+    "alpine_packages": [
+      "bash-completion",
+      "fuse",
+      "gcc",
+      "git",
+      "unzip",
+      "zip",
+    ],
     "environment": [ "FUSE_LIBRARY_PATH=/usr/lib/libfuse.so.2" ],
     "ports": [ 5566 ],
   }
