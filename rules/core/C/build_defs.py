@@ -47,7 +47,7 @@ def cpp_header(target, name, srcs, **kwargs):
   target.SetTags('cpp_header')
   for src in _get_src_files(target, srcs):
     target.AddFile(src)
-  for deplib in target.Dependencies(tags='cpp_header'):
+  for deplib in target.Dependencies(tags=Any('cpp_header', 'c_header')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
 
@@ -115,7 +115,7 @@ def cpp_binary(target, name, **kwargs):
     std=kwargs.get('std', 'c++17'))
   target.AddFile(binary)
 
-  def export_binary(package_name, package_file, binary_location):
+  def export_binary(_, package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
     binary_file = os.path.join(binary_location, package_name)
     os.system('cp {} {}'.format(package_exe, binary_file))
@@ -123,8 +123,8 @@ def cpp_binary(target, name, **kwargs):
   return export_binary
 
 
-@depends_targets("git@github.com:tmathmeyer/googletest//:googletest",
-                 "git@github.com:tmathmeyer/googletest//:googletest_headers")
+@depends_targets("git@github.com:tmathmeyer/googletest:googletest",
+                 "git@github.com:tmathmeyer/googletest:googletest_headers")
 @using(_compile, _get_include_dirs, _get_objects, _get_src_files)
 @buildrule
 def cpp_test(target, name, **kwargs):
@@ -150,7 +150,7 @@ def cpp_test(target, name, **kwargs):
     std=kwargs.get('std', 'c++17'))
   target.AddFile(binary)
 
-  def export_binary(package_name, package_file, binary_location):
+  def export_binary(_, package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
     binary_file = os.path.join(binary_location, package_name)
     os.system('cp {} {}'.format(package_exe, binary_file))

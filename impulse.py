@@ -10,6 +10,7 @@ from impulse import impulse_paths
 from impulse import threaded_dependence
 from impulse import recursive_loader
 from impulse import status_out
+from impulse.core import debug
 from impulse.args import args
 from impulse.util import temp_dir
 from impulse.util import tree_builder
@@ -19,10 +20,10 @@ command = args.ArgumentParser(complete=True)
 
 
 
-def setup(debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
+def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
   """Sets up debug and path info."""
-  if debug:
-    status_out.DEBUG = True
+  if enable_debug:
+    debug.EnableDebug()
   fakeroot = typing.cast(args.Directory, fakeroot)
   if fakeroot.value():
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
@@ -51,15 +52,16 @@ def build(target:impulse_paths.BuildTarget,
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
   build_and_await(debug, recursive_loader.generate_graph(parsed_target,
-    force_build=force))
+    force_build=force, allow_meta=True))
 
 @command
 def print_tree(target:impulse_paths.BuildTarget,
-               fakeroot:args.Directory=None):
+               fakeroot:args.Directory=None,
+               debug:bool=False):
   """Builds the given target."""
-  setup(False, fakeroot)
+  setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
-  tree = recursive_loader.generate_graph(parsed_target)
+  tree = recursive_loader.generate_graph(parsed_target, allow_meta=True)
   tree = tree_builder.BuildTree(tree)
   if tree:
     tree.Print()
@@ -90,10 +92,11 @@ def docker(target:impulse_paths.BuildTarget,
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
   ruleinfo = parsed_target.GetRuleInfo()
-  if not ruleinfo.type.endswith('_container'):
+  if not ruleinfo.type == 'container':
     print('Can only containerize a container target')
     return
-  build_and_await(debug, recursive_loader.generate_graph(parsed_target))
+  build_and_await(
+    debug, recursive_loader.generate_graph(parsed_target, allow_meta=True))
 
   extractcmd = 'unzip {}'.format(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
@@ -162,6 +165,26 @@ def testsuite(project:str=None,
     cmdline = '{} {} {}'.format(
       ruleinfo.output, 'run', '--notermcolor' if notermcolor else '')
     os.system(cmdline)
+
+@command
+def buildall(project:str=None,
+             debug:bool=False,
+             fakeroot:args.Directory=None):
+  setup(debug, fakeroot)
+
+  directory = os.getcwd()
+  if project:
+    directory = os.path.join(impulse_paths.root(), project)
+
+  rfp = recursive_loader.RecursiveFileParser(carried_args={})
+  for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
+    rfp._ParseFile(filename)
+
+  rfp.ConvertAllTargets()
+  graph = rfp.GetAllConvertedTargets()
+  pool = threaded_dependence.ThreadPool(debug=debug, poolcount=6)
+  pool.Start(graph)
+  pool.join()
 
 
 def main():

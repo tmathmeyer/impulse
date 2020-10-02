@@ -1,9 +1,10 @@
 
-def py_make_binary(package_name, package_file, binary_location):
+def py_make_binary(target, package_name, package_file, binary_location):
   binary_file = os.path.join(binary_location, package_name)
-  os.system('echo "#!/usr/bin/env python3\n" >> {}'.format(binary_file))
-  os.system('cat {} >> {}'.format(package_file, binary_file))
-  os.system('chmod +x {}'.format(binary_file))
+  target.Execute(
+    f'echo "#!/usr/bin/env python3\n" >> {binary_file}',
+    f'cat {package_file} >> {binary_file}',
+    f'chmod +x {binary_file}')
 
 
 def _add_files(target, srcs):
@@ -45,7 +46,8 @@ def py_library(target, name, srcs, **kwargs):
     _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
     directory = os.path.dirname(directory)
 
-@depends_targets("git://github.com/tmathmeyer/impulse//proto:protocompile")
+
+@depends_targets("//impulse/proto:protocompile")
 @using(_write_file)
 @buildrule
 def py_proto(target, name, **kwargs):
@@ -71,7 +73,8 @@ def py_proto(target, name, **kwargs):
         _write_file(target, os.path.join(direct, '__init__.py'), '#generated')
         direct = os.path.dirname(direct)
 
-@depends_targets("git://github.com/tmathmeyer/impulse//util:bintools")
+
+@depends_targets("//impulse/util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary)
 @buildrule
 def py_binary(target, name, **kwargs):

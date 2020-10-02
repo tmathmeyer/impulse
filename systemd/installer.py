@@ -19,7 +19,7 @@ def install(upgrade:bool=False, dryrun:bool=False):
   global DRY
   DRY = dryrun
   data = {}
-  with resources.Resources.OpenGlob('*.metadata') as f:
+  with resources.Resources.OpenGlob('*_metadata') as f:
     for line in f.readlines():
       k,v = line.strip().split('=', 1)
       data[k] = v

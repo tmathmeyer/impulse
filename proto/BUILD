@@ -9,7 +9,11 @@ cpp_header (
   name = "commandline_h",
   srcs = [ "commandline.h" ],
   deps = [
-    "git://github.com/tmathmeyer/cppargs//:argparse_h",
+    git_repo(
+      url = "https://github.com/tmathmeyer/cppargs",
+      repo = "cppargs",
+      target = "//cppargs:argparse_h",
+    ),
   ],
 )
 
@@ -50,13 +54,6 @@ cpp_object (
     "//impulse/base:status_h",
   ]
 )
-
-
-
-
-
-
-
 
 cpp_binary (
   name = "protocompile",

@@ -7,6 +7,7 @@ import os
 from impulse import impulse_paths
 from impulse import build_target
 
+from impulse.core import debug
 from impulse.exceptions import exceptions
 from impulse.util import resources
 
@@ -16,7 +17,7 @@ INVALID_RULE_RECURSION_CANARY = object()
 
 class ParsedBuildTarget(object):
   def __init__(self, name, func, args, build_rule, ruletype, evaluator,
-               carried_args):
+               carried_args, extra_tags):
     self._func = marshal.dumps(func.__code__)
     self._name = name
     self._args = args
@@ -24,6 +25,7 @@ class ParsedBuildTarget(object):
     self._rule_type = ruletype
     self._evaluator = evaluator
     self._carried_args = carried_args
+    self._extra_tags = extra_tags
     self._converted = None
     self._scope = {}
 
@@ -89,7 +91,8 @@ class ParsedBuildTarget(object):
     # Create a BuildTarget graph node
     return set([build_target.BuildTarget(
       self._name, self._func, self._args, self._build_rule,
-      self._rule_type, self._scope, dependencies, **self._carried_args)])
+      self._rule_type, self._scope, dependencies,
+      self._extra_tags, **self._carried_args)])
 
   def AddScopes(self, funcs):
     if self._converted:
@@ -156,6 +159,7 @@ class RecursiveFileParser(object):
   def __init__(self, carried_args):
     self._carried_args = carried_args
     self._targets = {} # Map[BuildTarget->ParsedBuildTarget]
+    self._meta_targets = set() # Set[str]
     self._loaded_files = set() # We don't want to load files multiple times
 
     # We need to store the environment across compilations, since it allows
@@ -187,16 +191,19 @@ class RecursiveFileParser(object):
   def _ParseFileFromLocation(self, file:str, location:str):
     if file not in self._loaded_files:
       self._loaded_files.add(file)
-      with open(location) as f:
-        try:
-          exec(compile(f.read(), location, 'exec'), self._environ)
-        except NameError as e:
-          # TODO: this needs to be fixed, since there could be _other_ name
-          # errors, not just rule-not-found ones.
-          raise exceptions.NoSuchRuleType(e.args[0].split('\'')[1])
-        except Exception as e:
-          # Wrap any exception that we get, so we don't have crashes
-          raise exceptions.FileImportException(e, file)
+      try:
+        with open(location) as f:
+          try:
+            exec(compile(f.read(), location, 'exec'), self._environ)
+          except NameError as e:
+            # TODO: this needs to be fixed, since there could be _other_ name
+            # errors, not just rule-not-found ones.
+            raise exceptions.NoSuchRuleType(e.args[0].split('\'')[1])
+          except Exception as e:
+            # Wrap any exception that we get, so we don't have crashes
+            raise exceptions.FileImportException(e, file)
+      except FileNotFoundError as e:
+        pass
 
   @increase_stack_arg_decorator
   def _depends_on_targets(self, fn, *targets):
@@ -228,6 +235,10 @@ class RecursiveFileParser(object):
     except Exception as e:
       return []
 
+  def _stack_without_recursive_loader(self):
+    return [s for s in inspect.stack()
+            if not s.filename.endswith('recursive_loader.py')]
+
   def _get_buildfile_from_stack(self):
     build_file = 'Fake'
     build_file_index = 1
@@ -236,64 +247,130 @@ class RecursiveFileParser(object):
       build_file_index += 1
     return build_file
 
+  def _get_macro_invoker_file(self):
+    starting_index = 2 # 0 and 1 are the definition of the macro.
+    stack = self._stack_without_recursive_loader()
+    while starting_index < len(stack):
+      if stack[starting_index].filename.endswith('build_defs.py'):
+        return stack[starting_index].filename
+      if stack[starting_index].filename.endswith('BUILD'):
+        return stack[starting_index].filename
+      starting_index += 1
+    return 'OH FUCK'
+
   def _buildmacro(self, fn):
     class MockArg(object):
-      def __init__(self, argname, appended=None, prepended=None):
+      def __init__(self, argname, appended=None,
+                                  prepended=None,
+                                  update_dict=None):
         self._argname = argname
         self._appended = appended
         self._prepended = prepended
+        self._update_dict = update_dict
 
       def __add__(self, other):
         if self._appended is not None:
-          return MockArg(self._argname, self._appended + other, self._prepended)
-        return MockArg(self._argname, other, self._prepended)
+          return MockArg(
+            argname = self._argname,
+            appended = self._appended + other,
+            prepended = self._prepended,
+            update_dict = self._update_dict)
+        return MockArg(
+          argname = self._argname,
+          appended = other,
+          prepended = self._prepended,
+          update_dict = self._update_dict)
+
+      def get(self, value, default):
+        return DictMockArg(self, value, default)
 
       def prepend(self, other):
         if self._prepended is not None:
-          return MockArg(self._argname, self._appended, other + self._prepended)
-        return MockArg(self._argname, self._appended, other)
+          return MockArg(
+            argname = self._argname,
+            appended = self._appended,
+            prepended = other + self._prepended,
+            update_dict = self._update_dict)
+        return MockArg(
+          argname = self._argname,
+          appended = self._appended,
+          prepended = other,
+          update_dict = self._update_dict)
+
+      def update(self, odict):
+        new_updates = {}
+        if self._update_dict is not None:
+          new_updates.update(self._update_dict)
+          return MockArg(
+            argname = self._argname,
+            appended = self._appended,
+            prepended = self._prepended,
+            update_dict = new_updates)
+        new_updates.update(odict)
+        return MockArg(
+          argname = self._argname,
+          appended = self._appended,
+          prepended = self._prepended,
+          update_dict = new_updates)
 
       def eval(self, kwargs):
         if self._argname in kwargs:
           value = kwargs[self._argname]
           if self._prepended is not None:
-            value = self._prepended + value
+            if type(value) is list and type(self._prepended) is str:
+              value = [self._prepended+v for v in value]
+            else:
+              value = self._prepended + value
           if self._appended is not None:
-            value += self._appended
-          return self._check_value(value, kwargs)
-        raise ValueError('TODO IMPLEMENT BETTER ERROR')
+            if type(value) is list and type(self._appended) is str:
+              value = [v+self._appended for v in value]
+            else:
+              value += self._appended
+          if self._update_dict is not None:
+            value.update(self._update_dict)
+          return TryEval(value, kwargs)
+        raise exceptions.FatalException(
+          f'Missing required argument: {self._argname} - found: {list(kwargs.keys())}')
 
-      def _check_value(self, value, kwargs):
-        if type(value) == list:
-          return [self._check_value(v, kwargs) for v in value]
-        if type(value) == dict:
-          return {k:self._check_value(v, kwargs) for k,v in value.items()}
-        if type(value) == MockArg:
-          return value.eval(kwargs)
-        return value
+    class DictMockArg(MockArg):
+      def __init__(self, parent, value, default):
+        self.parent = parent
+        self.value = value
+        self.default = default
+
+    def TryEval(value, kwargs):
+      if type(value) == list:
+        return [TryEval(v, kwargs) for v in value]
+      if type(value) == dict:
+        return {k:TryEval(v, kwargs) for k,v in value.items()}
+      if type(value) == MockArg:
+        return value.eval(kwargs)
+      return value
 
     class MacroExpander(object):
-      def __init__(self, loader):
+      def __init__(self, loader, name):
         self._loader = loader
+        self.name = name
         self.macros = []
 
-      def ImitateRule(self, rulefile, rulename, args):
+      def ImitateRule(self, rulefile, rulename, args, tags=[]):
+        if debug.IsDebug():
+          print(f'Adding Rule: {rulefile}::{rulename}')
         self._loader._load_files(rulefile)
         rule = self._loader._environ.get(rulename)
         if rule is None:
           raise exceptions.NoSuchRuleType(rulename)
+        buildfile = self._loader._get_macro_invoker_file()
+
         def Wrapper(**kwargs):
-          argbuilder = {}
-          for asName, value in args.items():
-            if type(value) != MockArg:
-              argbuilder[asName] = value
-            else:
-              argbuilder[asName] = value.eval(kwargs)
-          rule(**argbuilder)
+          argbuilder = {'tags': TryEval(tags, kwargs), 'buildfile': buildfile}
+          for asName, value in TryEval(args, kwargs).items():
+            argbuilder[asName] = TryEval(value, kwargs)
+          return rule(**argbuilder)
         self.macros.append(Wrapper)
 
     mock_args = {}
-    expander = MacroExpander(self)
+    expander = MacroExpander(self, fn.__name__)
     for arg, info in inspect.signature(fn).parameters.items():
       if str(info).startswith('**'):
         raise exceptions.MacroException(
@@ -307,9 +384,10 @@ class RecursiveFileParser(object):
     fn(expander, **mock_args)
     def replacement(**kwargs):
       for macro in expander.macros:
-        macro(**kwargs)
+        pbt = macro(**kwargs)
+        if pbt:
+          self._meta_targets.add(pbt._build_rule)
     return replacement
-
 
 
   def _buildrule(self, fn):
@@ -324,8 +402,11 @@ class RecursiveFileParser(object):
       assert 'name' in kwargs
       name = kwargs['name']
 
+      # add any extra tags a user sers
+      extra_tags = kwargs.get('tags', [])
+
       # This is the buildfile that the rule is called from
-      build_file = self._get_buildfile_from_stack()
+      build_file = kwargs.get('buildfile', self._get_buildfile_from_stack())
 
       # Directory of the buildfile
       build_path = impulse_paths.get_qualified_build_file_dir(build_file)
@@ -335,7 +416,8 @@ class RecursiveFileParser(object):
 
       # Create a ParsedBuildTarget which can be converted into the graph later.
       self._targets[build_rule] = ParsedBuildTarget(
-        name, fn, kwargs, build_rule, buildrule_name, self, self._carried_args)
+        name, fn, kwargs, build_rule, buildrule_name,
+        self, self._carried_args, extra_tags)
 
       # Parse the dependencies and evaluate them too.
       for dep in self._targets[build_rule].GetDependencies():
@@ -362,11 +444,19 @@ class RecursiveFileParser(object):
         embeddedBuildDef = resources.Resources.Get(embeddedPath)
         self._ParseFileFromLocation(expanded, embeddedBuildDef)
 
-  def GetAllConvertedTargets(self):
+  def GetAllConvertedTargets(self, allow_meta=None):
+    allow_meta = allow_meta or []
     def converted_targets():
       for target in self._targets.values():
         if target._converted:
-          yield target._converted
+          if target._build_rule not in self._meta_targets:
+            yield target._converted
+          elif allow_meta is True:
+            yield target._converted
+          elif target._build_rule in allow_meta:
+            yield target._converted
+          else:
+            print(f'target: {target._build_rule} not in: {allow_meta}')
     result = set()
     for c in converted_targets():
       result |= c
@@ -378,9 +468,18 @@ class RecursiveFileParser(object):
         self.ConvertTarget(target)
         yield target
 
+  def ConvertAllTargets(self):
+    for target, parsed in self._targets.items():
+      if target.GetFullyQualifiedRulePath() not in self._meta_targets:
+        try:
+          self.ConvertTarget(target)
+        except:
+          pass
 
-def generate_graph(build_target, **kwargs):
+
+def generate_graph(build_target, allow_meta=None, **kwargs):
+  allow_meta = allow_meta or [build_target]
   re = RecursiveFileParser(kwargs)
   re.ParseTarget(build_target)
   re.ConvertTarget(build_target)
-  return re.GetAllConvertedTargets()
+  return re.GetAllConvertedTargets(allow_meta=allow_meta)

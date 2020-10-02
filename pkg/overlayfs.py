@@ -235,7 +235,7 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
 
   def fsync(self, path, fdatasync, handle):
     handle = self._unmap_handle(path, handle)
-    return self.flush(handle)
+    return self.flush(path, handle)
 
   def release(self, path, handle):
     if handle in self._open_files[path]:

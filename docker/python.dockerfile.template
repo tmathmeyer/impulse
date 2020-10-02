@@ -17,14 +17,14 @@ EXPOSE {.}/tcp
 EXPOSE {.}/udp
 {{/ports}}
 
-RUN mkdir -p bin
-COPY {main_executable} bin/
-RUN chmod +x {main_executable}
-
 {{binaries}}
 COPY {.} bin/
 RUN chmod +x {.}
 {{/binaries}}
+
+RUN mkdir -p bin
+COPY {main_executable} ./
+RUN chmod +x {main_executable}
 
 CMD ["modprobe", "fuse"]
 CMD ["./{main_executable}"]

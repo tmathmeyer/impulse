@@ -79,7 +79,7 @@ class RuleSpec(object):
     self.type = callspec[1].get('called_as')[0]
     self.name = callspec[1].get('name')
     output_type = 'BINARIES'
-    if self.type.endswith('_container'):
+    if self.type == 'container':
       output_type = 'PACKAGES'
     self.output = os.path.join(
       output_directory(), output_type, target.target_path[2:], self.name)
@@ -147,17 +147,16 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
       raise PathException(target)
     return ParsedTarget(_target[1], _target[0])
 
-  if target.startswith('git://') or target.startswith('git@'):
-    giturl, target = target.rsplit('//', 1)
-    basename = os.path.basename(giturl)
-    gen_repo_name = os.path.join(root(), basename)
-    if not os.path.exists(gen_repo_name):
-      os.system(' '.join(['git clone', giturl, gen_repo_name]))
-    if target.startswith(':'):
-      target = f'//{basename}{target}'
-    else:
-      target = f'//{basename}/{target}'
-    return convert_to_build_target(target, '//'+basename, quit_on_err)
+  if target.startswith('git@'):
+    match = re.compile(f'git@(.*):(.*):(.*)').match(target)
+    if not match:
+      raise PathException(target)
+
+    host, repo, subtarget = match.groups()
+    url = f'git@{host}:{repo}'
+    clone_into = os.path.basename(repo)
+    subtarget = f'//{clone_into}:{subtarget}'
+    return ParsedTarget.GitTarget(url, clone_into, subtarget)
 
   if quit_on_err:
     raise PathException(target)
@@ -181,13 +180,17 @@ def is_relative_path(path):
 
 
 def get_qualified_build_file_dir(build_file_path):
-  reg = re.compile(os.path.join(root(), '(.*)/BUILD'))
-  try:
-    return '//' + reg.match(build_file_path).group(1)
-  except:
-    print('{} didnt match {}'.format(
-      os.path.join(root(), '(.*)/BUILD'), build_file_path))
-    raise
+  build = re.compile(os.path.join(root(), '(.*)/BUILD'))
+  defs = re.compile(os.path.join(root(), '(.*)/build_defs.py'))
+  build = build.match(build_file_path)
+  defs = defs.match(build_file_path)
+  if build:
+    return '//' + build.group(1)
+  if defs:
+    return '//' + defs.group(1)
+  raise exceptions.InvalidPathException(
+    'targets must be defined in BUILD files or in build_defs.py macros',
+    build_file_path)
 
 
 class BuildTarget(args.ArgComplete):

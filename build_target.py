@@ -8,6 +8,7 @@ import types
 
 from impulse import impulse_paths
 from impulse import threaded_dependence
+from impulse.core import debug
 from impulse.exceptions import exceptions
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
@@ -55,6 +56,7 @@ class BuildTarget(threaded_dependence.GraphNode):
                      buildrule_name: str, # The buildrule type, ex: c_header
                      scope: dict, # A map from name to marshalled bytecode
                      dependencies: set, # A set of BuildTargets dependencies
+                     extra_tags: list, # A list of tags that come from a target
                      can_access_internal: bool = False, # Has internal access
                      force_build:bool = False): # Always build even if recent
     super().__init__(dependencies, can_access_internal)
@@ -72,6 +74,7 @@ class BuildTarget(threaded_dependence.GraphNode):
     self._package = packaging.ExportablePackage(
       rule, buildrule_name, can_access_internal,
       os.path.join(impulse_paths.output_directory(), 'BINARIES'))
+    self._package.SetTags(*extra_tags)
 
   def __eq__(self, other):
     return (other.__class__ == self.__class__ and
@@ -110,8 +113,6 @@ class BuildTarget(threaded_dependence.GraphNode):
     self.check_thread()
     self._package, needs_building, reason = self._package.NeedsBuild(
       package_dir, src_dir)
-    if status_out.DEBUG and needs_building:
-      print(reason)
     if self._force_build:
       return True
     if self._buildrule_args.get('build_always', False):
@@ -235,7 +236,8 @@ class BuildTarget(threaded_dependence.GraphNode):
                   self._buildrule_name))
               bindir = os.path.join(bin_directory, rulepath)
               packaging.EnsureDirectory(bindir)
-              export_binary(self._target_name, package_full_path, bindir)
+              export_binary(self._package, self._target_name,
+                            package_full_path, bindir)
     except exceptions.FilesystemSyncException:
       raise
     except exceptions.BuildTargetNoBuildNecessary:
@@ -269,6 +271,7 @@ class MockConvertedTarget(object):
     self._converted = None
     self._chief_dependency = chief_dependency
     self._rule_type = 'mock'
+    self._build_rule = None
 
   def Convert(self):
     self._converted = self._converted_preset
@@ -294,7 +297,8 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       rule = impulse_paths.ParsedTarget(target_name, self.target_path),
       buildrule_name = 'git_clone',
       scope = {},
-      dependencies = set())
+      dependencies = set(),
+      extra_tags = [])
 
   def _MakeCheckoutTarget(self, clone_target):
     target_name = f'git@{self.target_name}+checkout'
@@ -306,6 +310,7 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       buildrule_name = 'git_checkout',
       scope = {},
       dependencies = set([clone_target]),
+      extra_tags = [],
       can_access_internal = True)
 
   def _MakeParentTarget(self, *children):
@@ -318,6 +323,7 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
       buildrule_name = 'git_parent',
       scope = {},
       dependencies = set(children),
+      extra_tags = [],
       can_access_internal = True,
       force_build=True)
 
@@ -327,19 +333,22 @@ class ParsedGitTarget(impulse_paths.ParsedTarget):
     rfp._targets[self] = MockConvertedTarget(
       parent, set([clone, parent]))
 
+impulse_paths.ParsedTarget.GitTarget = ParsedGitTarget
+
 
 def GitClone(target, name, repo, url):
-  repo_exists_path = os.path.join(impulse_paths.root(), repo)
-  if not os.path.exists(repo_exists_path):
-    command = f'git clone {url} {repo_exists_path}'
-    clone = target.RunCommand(command)
-    if clone.returncode:
-      target.ExecutionFailed(command, clone.stderr)
+  repo_destination = os.path.join(impulse_paths.root(), repo)
+  with target.Semaphor():
+    if not os.path.exists(repo_destination):
+      command = f'git clone {url} {repo_destination}'
+      clone = target.RunCommand(command)
+      if clone.returncode:
+        target.ExecutionFailed(command, clone.stderr)
   with open('gitlocation', 'w+') as f:
-    f.write(repo_exists_path)
+    f.write(repo_destination)
   target.AddFile('gitlocation')
   target.SetInputFiles([os.path.join(
-    repo_exists_path, '.git', 'HEAD')])
+    repo_destination, '.git', 'HEAD')])
 
 
 def GitCheckout(target, name, commit):
