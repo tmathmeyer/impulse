@@ -113,8 +113,6 @@ class BuildTarget(threaded_dependence.GraphNode):
     self.check_thread()
     self._package, needs_building, reason = self._package.NeedsBuild(
       package_dir, src_dir)
-    if debug.IsDebug() and needs_building:
-      print(reason)
     if self._force_build:
       return True
     if self._buildrule_args.get('build_always', False):

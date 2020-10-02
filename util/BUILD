@@ -20,3 +20,8 @@ py_library (
   srcs = [ "resources.py" ],
   deps = [ ":temp_dir" ],
 )
+
+py_library (
+  name = "temporal_dict",
+  srcs = [ "temporal_dict.py" ]
+)

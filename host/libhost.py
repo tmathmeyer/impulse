@@ -2,6 +2,9 @@
 from impulse.hal import api
 
 
+HOSTNAME = None
+
+
 class Impulse(api.Resource('impulse')):
   def __init__(self):
     super().__init__()
@@ -24,4 +27,15 @@ class ImpulseManager(api.ProvidesResources(Impulse)):
 
 
 def SetupContainerService(hostname):
+  global HOSTNAME
+  HOSTNAME = hostname
   api.GetFlaskInstance().RegisterResourceProvider(ImpulseManager(hostname))
+
+
+def SetContainerServiceHostname(hostname):
+  SetupContainerService(hostname)
+
+
+def GetHostname():
+  global HOSTNAME
+  return HOSTNAME

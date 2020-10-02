@@ -87,6 +87,17 @@ class NamedQueue(object):
     self._queue.put(value)
 
 
+class NullSinkQueue(object):
+  def Read(self):
+    raise NotImplementedError()
+  def ReadUntil(self, token):
+    return self.Read()
+  def Write(self, value):
+    pass
+  def SubQueue(self):
+    return self
+
+
 class RPCSetAttr(RPCMessage):
   def __init__(self, response:NamedQueue, attr:str, val):
     super().__init__(response)
@@ -234,6 +245,8 @@ def Binder(self, method):
 def WrapRemoteInstance(clazz, args, kwargs, read_queue:NamedQueue):
   clazz.Bind = BindMethod(clazz, read_queue, read_queue)
   instance = clazz(*args, **kwargs)
+  instance.task_runner = RPCTaskRunner(read_queue)
+  print(f'Created instance and running loop: {instance}')
   while True:
     incoming = read_queue.Read()
     if not HandleMessage(incoming, read_queue, instance):
@@ -253,8 +266,61 @@ def AwaitResult(q, token):
   return result
 
 
+class RPCTaskRunner(object):
+  def __init__(self, queue):
+    self._task_job_queue = queue
+
+  def PostTask(self, method, *args, **kwargs):
+    instance = RPCEval(NullSinkQueue(), method, args, kwargs)
+    self._task_job_queue.Write(instance)
+
+
+class MagicBase(object):
+  _Initialized = False # Needed for __setattr__
+  def _AwaitResponse(self, clazz, *args):
+    pass
+
+  def __setattr__(self, attr, val):
+    if not self._Initialized:
+      return super().__setattr__(attr, val)
+    return self._AwaitResponse(RPCSetAttr, attr, val)
+
+  def __setitem__(self, key, val):
+    return self._AwaitResponse(RPCSetitem, key, val)
+
+  def __call__(self, *args, **kwargs):
+    return self._AwaitResponse(RPCCall, args, kwargs)
+
+  def __getattr__(self, attr):
+    return self._AwaitResponse(RPCGetAttr, attr)
+
+  def __getitem__(self, key):
+    return self._AwaitResponse(RPCGetitem, key)
+
+  def __delitem__(self, key):
+    return self._AwaitResponse(RPCDelitem, key)
+
+  def __del__(self):
+    if not self._Initialized:
+      return
+    return self._AwaitResponse(RPCDel)
+
+  #def __repr__(self):
+  #  return self._AwaitResponse(RPCRepr)
+
+  def __dir__(self):
+    return self._AwaitResponse(RPCDir)
+
+  def __hash__(self):
+    return self._AwaitResponse(RPCHash)
+
+  def __delattr__(self, attr):
+    self._AwaitResponse(RPCDelattr, attr)
+    self._process.join()
+
+
 def RPC(clazz):
-  class RPCReplacement(object):
+  class RPCReplacement(MagicBase):
     _Initialized = False # Needed for __setattr__
 
     def __init__(self, *args, **kwargs):
@@ -269,48 +335,10 @@ def RPC(clazz):
       self._process.start()
       self._Initialized = True
 
-    def __AwaitResponse(self, clazz, *args):
+    def _AwaitResponse(self, clazz, *args):
       instance = clazz(self._incoming_queue, *args)
       self._outgoing_queue.Write(instance)
       return AwaitResult(self._incoming_queue, instance.token)
-
-    def __setattr__(self, attr, val):
-      if not self._Initialized:
-        return super().__setattr__(attr, val)
-      return self.__AwaitResponse(RPCSetAttr, attr, val)
-
-    def __setitem__(self, key, val):
-      return self.__AwaitResponse(RPCSetitem, key, val)
-
-    def __call__(self, *args, **kwargs):
-      return self.__AwaitResponse(RPCCall, args, kwargs)
-
-    def __getattr__(self, attr):
-      return self.__AwaitResponse(RPCGetAttr, attr)
-
-    def __getitem__(self, key):
-      return self.__AwaitResponse(RPCGetitem, key)
-
-    def __delitem__(self, key):
-      return self.__AwaitResponse(RPCDelitem, key)
-
-    def __del__(self):
-      if not self._Initialized:
-        return
-      return self.__AwaitResponse(RPCDel)
-
-    #def __repr__(self):
-    #  return self.__AwaitResponse(RPCRepr)
-
-    def __dir__(self):
-      return self.__AwaitResponse(RPCDir)
-
-    def __hash__(self):
-      return self.__AwaitResponse(RPCHash)
-
-    def __delattr__(self, attr):
-      self.__AwaitResponse(RPCDelattr, attr)
-      self._process.join()
 
   return RPCReplacement
 
