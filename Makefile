@@ -27,8 +27,6 @@ copy_srcs:
 	@touch impulse/util/__init__.py
 	@cp -r testing impulse/testing
 	@touch impulse/testing/__init__.py
-	@cp -r exceptions impulse/exceptions
-	@touch impulse/exceptions/__init__.py
 	@cp -r testing impulse/testing
 	@touch impulse/testing/__init__.py
 

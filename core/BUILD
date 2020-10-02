@@ -6,3 +6,10 @@ py_library(
         "debug.py",
     ],
 )
+
+py_library(
+  name = "exceptions",
+  srcs = [
+    "exceptions.py",
+  ]
+)

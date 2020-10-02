@@ -10,7 +10,7 @@ import subprocess
 import typing
 
 from impulse.fuse import fuse
-from impulse.exceptions import exceptions
+from impulse.core import exceptions
 
 def ACCESS_ERR():
   raise fuse.FuseOSError(errno.EACCES)
