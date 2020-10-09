@@ -325,6 +325,10 @@ class _FLASK_WRAPPER(object):
     self._CreateAPI(provider)
     self._CreateAPIExplorer(provider, meta_handler)
 
+  def RegisterBoundMethod(self, method):
+    verb, path = method.rest_verb
+    self.flask_app.route(path)(method)
+
   def _CreateAPI(self, provider):
     for path, verb_to_handler in provider._get_method_handlers().items():
       full_path = _url_path_join(provider._get_provider_url_stub(), path)
@@ -516,5 +520,6 @@ def GetFlaskInstance():
   if __flask_instance is None:
     __flask_instance = _FLASK_WRAPPER()
     from impulse.hal import logger
-    __flask_instance._logger = logger.LogHost.AttachMemoryLogManager(__flask_instance)
+    __flask_instance._logger = logger.LogHost.AttachMemoryLogManager(
+      __flask_instance)
   return __flask_instance

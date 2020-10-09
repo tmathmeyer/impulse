@@ -5,10 +5,11 @@ host-view {
   background-color: #a8dadc;
   float: left;
   position: relative;
-  width: 200;
-  height: 200;
+  width: 300;
+  height: 300;
   margin-top: 10px;
-  margin-left: 10px;
+  margin-right: 10px;
+  padding: 5px;
 }
 
 host-view::shadow div {
@@ -16,7 +17,6 @@ host-view::shadow div {
 }
 
 #header {
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
@@ -28,10 +28,32 @@ host-view::shadow div {
 }
 
 #content {
-  position: absolute;
+  position: relative;
   top: 50px;
   left: 0;
   right: 0;
+}
+
+#logs {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow:auto;
+  margin-bottom: 10px;
+  background: antiquewhite;
+}
+
+#logcontent {
+  list-style: none;
+  padding: 10px;
+  margin:0;
+}
+
+#logcontent li:first-child {
+  font-family: monospace;
+  margin-right: 15px;
+  padding-right: 15px;
+  border-right: 2px solid black;
 }
 
 body {
@@ -43,6 +65,9 @@ body {
 <body>
   <div id="header">Running Services</div>
   <div id="content"></div>
+  <div id="logs">
+    <ul id="logcontent"></ul>
+  </div>
   <script src="loadServices.js"></script>
 </body>
 </html>
