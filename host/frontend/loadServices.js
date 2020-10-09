@@ -71,4 +71,28 @@ function loadHosts(url) {
   });
 }
 
+function loadLogs(url) {
+  fetch(url, { method: 'GET' }).then(r => {
+    if (r.status / 10 != 20) {
+      r.json().then(v => {
+        document.getElementById('logs').textContent = v;
+      });
+    } else {
+      r.json().then(json => {
+        for (host of json) {
+          var el = document.createElement('li');
+          var time = document.createElement('span');
+          var msg = document.createElement('span');
+          time.textContent = host['time'];
+          msg.textContent = host['content'];
+          el.appendChild(time);
+          el.appendChild(msg);
+          document.getElementById('logcontent').appendChild(el);
+        }
+      })
+    }
+  })
+}
+
 loadHosts('/api/host/alive');
+loadLogs('/api/logs')
