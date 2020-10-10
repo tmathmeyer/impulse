@@ -84,7 +84,7 @@ function loadLogs(url) {
           var time = document.createElement('span');
           var msg = document.createElement('span');
           time.textContent = host['time'];
-          msg.textContent = host['content'].replaceAll('\n', '<br/>');
+          msg.textContent = host['content'].replace('\n', '<br/>');
           el.appendChild(time);
           el.appendChild(msg);
           document.getElementById('logcontent').appendChild(el);
