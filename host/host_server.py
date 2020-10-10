@@ -151,7 +151,7 @@ class DockerContainer(object):
 
     server = nginx_thread_handle.Host(self._hostname)
     if server == None:
-      server = self._nginx_thread.CreateProxyHost(self._hostname, self._port)
+      server = nginx_thread_handle.CreateProxyHost(self._hostname, self._port)
     else:
       nginx_thread_handle.SetPort(server, self._port)
 
@@ -212,16 +212,19 @@ class DockerThread(object):
       self._logs.Log(traceback.format_exc())
 
   def OnStart(self):
-    self._logs.Log('querying containers on startup:')
+    self._logs.Log('querying containers on startup')
     for container in self._client.containers.list():
       self._addContainer(container)
     self.Listen()
 
   def Listen(self):
+    self._logs.Log('Listening to docker events')
     for event in self._client.events(decode=True):
       if event['Type'] == 'container':
         self.logs.Log(f'Docker event: {event["status"]} {event["id"]}')
         getattr(self, event['status'], self._unhandled)(event)
+      else:
+        self.logs.Log(f'Docker event: {event["Type"]}')
 
   # Docker event default handler
   def _unhandled(self, event):
