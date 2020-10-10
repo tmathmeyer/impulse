@@ -173,20 +173,34 @@ class DockerThread(object):
 
   def _addContainer(self, external_container):
     try:
+      self._logs.Log(
+        f'''adding container {external_container.name}
+        container_id: {external_container.id}
+        container_status: {external_container.status}
+        network_info: {external_container.attrs['NetworkSettings']['Ports']}''')
       container = DockerContainer(external_container)
-      container.CommunicateNginx(self._nginx_thread)
+
       if container.ID() in self._containers_by_id:
-        raise ValueError('Duplicate container ID.')
-      if container.Host() in self._containers_by_host:
-        raise ValueError('Duplicate container Hostname.')
+        self._logs.Log(f'Container has duplicate ID: {container.ID()}')
+        return
       self._containers_by_id[container.ID()] = container
+
+      if container.Host() in self._containers_by_host:
+        self._logs.Log(f'Container has duplicate ID: {container.Host()}')
+        return
       self._containers_by_host[container.Host()] = container
+
+      container.CommunicateNginx(self._nginx_thread)
       self._nginx_thread.NotifyContainerHostAlive(container.Host())
     except Exception as e:
       self._logs.Log(traceback.format_exc())
 
   def _removeContainer(self, external_container):
     try:
+      self._logs.Log(
+        f'''removing container {external_container.name}
+        container_id: {external_container.id}
+        container_status: {external_container.status}''')
       container = self._containers_by_id.get(external_container.id, None)
       if container is None:
         self._logs.Log(f'Removing unhosted container: {external_container.id}')
@@ -198,15 +212,15 @@ class DockerThread(object):
       self._logs.Log(traceback.format_exc())
 
   def OnStart(self):
+    self._logs.Log('querying containers on startup:')
     for container in self._client.containers.list():
       self._addContainer(container)
-    self._logs.Log(
-      f'detected containers on start: {list(self._containers_by_host.keys())}')
     self.Listen()
 
   def Listen(self):
     for event in self._client.events(decode=True):
       if event['Type'] == 'container':
+        self.logs.Log(f'Docker event: {event["status"]} {event["id"]}')
         getattr(self, event['status'], self._unhandled)(event)
 
   # Docker event default handler
@@ -215,17 +229,14 @@ class DockerThread(object):
 
   # Docker event start handler
   def start(self, event):
-    self._logs.Log(f'container {event["id"]} started')
     self._addContainer(self._client.containers.get(event['id']))
 
   # Docker event stop handler
   def stop(self, event):
-    self._logs.Log(f'container {event["id"]} stopped')
     self._removeContainer(self._client.containers.get(event['id']))
 
   # Docker event die handler
   def die(self, event):
-    self._logs.Log(f'container {event["id"]} died')
     self._removeContainer(self._client.containers.get(event['id']))
 
   # Docker event kill handler
@@ -308,11 +319,9 @@ class NginxManagerThread(object):
     os.system('systemctl reload nginx.service')
 
   def NotifyContainerHostDead(self, host):
-    self._logs.Log(f'setting container {host} to stopped')
     self._servers.get(host).status = 'stopped'
   
   def NotifyContainerHostAlive(self, host):
-    self._logs.Log(f'setting container {host} to running')
     self._servers.get(host).status = 'running'
 
 
