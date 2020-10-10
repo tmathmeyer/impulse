@@ -245,8 +245,8 @@ def Binder(self, method):
 def WrapRemoteInstance(clazz, args, kwargs, read_queue:NamedQueue):
   clazz.Bind = BindMethod(clazz, read_queue, read_queue)
   instance = clazz(*args, **kwargs)
-  instance.task_runner = RPCTaskRunner(read_queue)
-  print(f'Created instance and running loop: {instance}')
+  if not hasattr(instance, '__slots__'):
+    instance.task_runner = RPCTaskRunner(read_queue)
   while True:
     incoming = read_queue.Read()
     if not HandleMessage(incoming, read_queue, instance):
