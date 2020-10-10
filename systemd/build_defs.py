@@ -1,6 +1,7 @@
 
 @buildmacro
 def service(macro_env, name, description, binary, deps):
+  import getpass
   metadata_template = name + '_metadata'
   target_template = name + '_target'
   macro_env.ImitateRule(
@@ -27,7 +28,8 @@ def service(macro_env, name, description, binary, deps):
         'executable': binary,
         'description': description,
         'after_target': 'network.target',
-        'restart_status': 'always'
+        'restart_status': 'always',
+        'user': getpass.getuser()
       }
     })
 
