@@ -29,7 +29,7 @@ def service(macro_env, name, description, binary, deps):
         'description': description,
         'after_target': 'network.target',
         'restart_status': 'always',
-        'user': getpass.getuser()
+        'user': getpass.getuser(),
       }
     })
 

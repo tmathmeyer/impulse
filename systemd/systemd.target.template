@@ -7,7 +7,7 @@ StartLimitIntervalSec=0
 Type=simple
 Restart={restart_status}
 RestartSec=1
-User={user}}
+User={user}
 ExecStart=/usr/local/bin/{executable}
 
 [Install]
