@@ -88,7 +88,7 @@ function loadLogs(url) {
 
 
           var msgel = document.createElement('li');
-          msg.textContent = host['content'];
+          msgel.textContent = host['content'];
           document.getElementById('logcontent').appendChild(msgel);
         }
       })
