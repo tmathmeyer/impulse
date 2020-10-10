@@ -50,15 +50,31 @@ host-view::shadow div {
   margin:0;
 }
 
-#logcontent li span:first-child {
-  font-family: monospace;
-  margin-right: 15px;
-  padding-right: 15px;
-  border-right: 2px solid black;
+#logcontent li {
+  text-align: left;
+  float: left;
 }
 
-#logcontent li div {
-  float: right;
+#logcontent li:nth-child(odd) {
+  font-family: monospace;
+  width: 250px;
+}
+
+#logcontent li:nth-child(even) {
+  font-family: monospace;
+  left: 250px;
+  width: calc(100% - 290px);
+  margin-left: 15px;
+  padding-left: 15px;
+  border-left: 2px solid black;
+  white-space: pre-wrap;
+  border-bottom: 1px solid black;
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+#logcontent li:last-child {
+  border-bottom: none;
 }
 
 body {

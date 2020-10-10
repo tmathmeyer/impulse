@@ -80,14 +80,16 @@ function loadLogs(url) {
     } else {
       r.json().then(json => {
         for (host of json) {
-          var el = document.createElement('li');
+          var timeel = document.createElement('li');
           var time = document.createElement('span');
-          var msg = document.createElement('div');
           time.textContent = host['time'];
-          msg.innerHTML = host['content'].replace('\n', '<br/>');
-          el.appendChild(time);
-          el.appendChild(msg);
-          document.getElementById('logcontent').appendChild(el);
+          timeel.appendChild(time);
+          document.getElementById('logcontent').appendChild(timeel);
+
+
+          var msgel = document.createElement('li');
+          msg.textContent = host['content'];
+          document.getElementById('logcontent').appendChild(msgel);
         }
       })
     }
