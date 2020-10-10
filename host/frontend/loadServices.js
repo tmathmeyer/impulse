@@ -82,7 +82,7 @@ function loadLogs(url) {
         for (host of json) {
           var el = document.createElement('li');
           var time = document.createElement('span');
-          var msg = document.createElement('span');
+          var msg = document.createElement('div');
           time.textContent = host['time'];
           msg.textContent = host['content'].replace('\n', '<br/>');
           el.appendChild(time);
