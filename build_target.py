@@ -13,7 +13,6 @@ from impulse.core import exceptions
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
 from impulse.util import temp_dir
-from impulse import status_out
 
 EXPORT_DIR = impulse_paths.EXPORT_DIR
 PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')

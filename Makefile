@@ -1,7 +1,8 @@
 # bootstrap makefile for building impulse
 
 all: copy_srcs
-	@python3 -m impulse.impulse build //impulse:impulse --fakeroot $(shell pwd) --debug
+	@python3 -m impulse.impulse build //impulse:impulse --fakeroot $(shell pwd)
+	@./GENERATED/BINARIES/impulse/impulse build //impulse:impulse --fakeroot $(shell pwd) --force
 	@rm -r impulse/
 
 typecheck: copy_srcs

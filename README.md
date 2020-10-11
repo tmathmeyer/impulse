@@ -83,31 +83,21 @@ $ROOT/impulse/BUILD:
 ```python
 langs("Python")
 
-py_binary(
-    name = "impulse",
-    srcs = ["impulse.py"],
-    deps = [
-        ":impulse_libs",
-        "//impulse/args:args"
-    ],
+py_library(
+    name = "debug",
+    srcs = [ "debug.py" ],
 )
 
 py_library(
-    name = "impulse_libs",
-    srcs = [
-        "impulse_paths.py",
-        "recursive_loader.py",
-        "status_out.py",
-        "threaded_dependence.py",
-        "build_target.py",
-        "exceptions.py"
-    ],
-    deps = [
-        "//impulse/args:args",
-        "//impulse/pkg:packaging"
-    ],
+  name = "exceptions",
+  srcs = [ "exceptions.py" ],
 )
 
+py_library(
+  name = "job_printer",
+  srcs = [ "job_printer.py" ],
+  deps = [ ":debug" ],
+)
 ```
 
 $ROOT/example_unittests/BUILD:
