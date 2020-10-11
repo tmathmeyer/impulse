@@ -215,7 +215,10 @@ class DockerThread(object):
     self._logs.Log('querying containers on startup')
     for container in self._client.containers.list():
       self._addContainer(container)
-    self.Listen()
+    try:
+      self.Listen()
+    except Exception as e:
+      self._logs.Log(traceback.format_exc())
 
   def Listen(self):
     self._logs.Log('Listening to docker events')
@@ -225,6 +228,7 @@ class DockerThread(object):
         getattr(self, event['status'], self._unhandled)(event)
       else:
         self.logs.Log(f'Docker event: {event["Type"]}')
+    self._logs.Log('Finished listening to docker events')
 
   # Docker event default handler
   def _unhandled(self, event):
