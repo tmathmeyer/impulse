@@ -224,10 +224,10 @@ class DockerThread(object):
     self._logs.Log('Listening to docker events')
     for event in self._client.events(decode=True):
       if event['Type'] == 'container':
-        self.logs.Log(f'Docker event: {event["status"]} {event["id"]}')
+        self._logs.Log(f'Docker event: {event["status"]} {event["id"]}')
         getattr(self, event['status'], self._unhandled)(event)
       else:
-        self.logs.Log(f'Docker event: {event["Type"]}')
+        self._logs.Log(f'Docker event: {event["Type"]}')
     self._logs.Log('Finished listening to docker events')
 
   # Docker event default handler
