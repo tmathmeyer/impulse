@@ -1,4 +1,38 @@
 
+class ImpulseBaseException(Exception):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+
+class FileErrorException(ImpulseBaseException):
+  @staticmethod
+  def Render(filename, line, position, highlight_len):
+    def ReadLineRange(start, end):
+      with open(filename, 'r') as f:
+        for i, line in enumerate(f.readlines()):
+          if i < start:
+            continue
+          if i > end:
+            break
+          yield line
+    content = ''.join(ReadLineRange(max(0, line-2), line-1))
+    indent = ' ' * position
+    squigly = '~' * max(0, highlight_len-2)
+    return f'{content}{indent}^{squigly}^\n'
+
+  def __init__(self, message, filename, line, pos, sq_len=0):
+    super().__init__(
+      f'{message}\n{filename}:{line}:'
+      f'{FileErrorException.Render(filename, line, pos, sq_len)}')
+
+
+class NoSuchRuleType(FileErrorException):
+  """Raised when a build rule doesn't exist."""
+  def __init__(self, filename, line, rulename):
+    super().__init__(f'No such build rule type "{rulename}"',
+      filename, line, 0, len(rulename))
+
+
 class ListedSourceNotFound(Exception):
   def __init__(self, filename, targetname):
     super().__init__('[{}] used in [{}] not found on disk.'.format(
@@ -78,11 +112,6 @@ class BuildTargetNoBuildNecessary(Exception):
   def __init__(self):
     super().__init__('Build not necessary')
 
-
-class NoSuchRuleType(Exception):
-  """Raised when a build rule doesn't exist."""
-  def __init__(self, missing_type):
-    super().__init__('No such build rule type "{}"'.format(missing_type))
 
 
 class FilesystemSyncException(Exception):

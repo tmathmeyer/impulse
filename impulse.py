@@ -11,6 +11,7 @@ from impulse import threaded_dependence
 from impulse import recursive_loader
 from impulse.args import args
 from impulse.core import debug
+from impulse.core import exceptions
 from impulse.core import job_printer
 from impulse.util import temp_dir
 from impulse.util import tree_builder
@@ -189,8 +190,10 @@ def buildall(project:str=None,
 
 
 def main():
-  command.eval()
-
+  try:
+    command.eval()
+  except exceptions.ImpulseBaseException as e:
+    print(e)
 
 if __name__ == '__main__':
   main()
