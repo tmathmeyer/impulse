@@ -3,12 +3,13 @@ import glob
 import inspect
 import marshal
 import os
+import sys
 
 from impulse import impulse_paths
 from impulse import build_target
 
 from impulse.core import debug
-from impulse.exceptions import exceptions
+from impulse.core import exceptions
 from impulse.util import resources
 
 
@@ -198,7 +199,13 @@ class RecursiveFileParser(object):
           except NameError as e:
             # TODO: this needs to be fixed, since there could be _other_ name
             # errors, not just rule-not-found ones.
-            raise exceptions.NoSuchRuleType(e.args[0].split('\'')[1])
+            _, _, traceback = sys.exc_info()
+            # drop the frame that is just this file calling exec above.
+            previous_frame = traceback.tb_next.tb_frame
+            filename = previous_frame.f_code.co_filename
+            line_no = previous_frame.f_lineno
+            missing_name = e.args[0].split('\'')[1]
+            raise exceptions.NoSuchRuleType(filename, line_no, missing_name)
           except Exception as e:
             # Wrap any exception that we get, so we don't have crashes
             raise exceptions.FileImportException(e, file)
@@ -359,7 +366,8 @@ class RecursiveFileParser(object):
         self._loader._load_files(rulefile)
         rule = self._loader._environ.get(rulename)
         if rule is None:
-          raise exceptions.NoSuchRuleType(rulename)
+          # Uh oh...
+          raise exceptions.NoSuchRuleType('/dev/null', 0, rulename)
         buildfile = self._loader._get_macro_invoker_file()
 
         def Wrapper(**kwargs):

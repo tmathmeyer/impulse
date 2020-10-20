@@ -14,14 +14,14 @@ py_library(
     srcs = [
         "impulse_paths.py",
         "recursive_loader.py",
-        "status_out.py",
         "threaded_dependence.py",
         "build_target.py",
     ],
     deps = [
         "//impulse/args:args",
         "//impulse/core:debug",
-        "//impulse/exceptions:exceptions",
+        "//impulse/core:exceptions",
+        "//impulse/core:job_printer",
         "//impulse/pkg:packaging",
         "//impulse/rules:core_rules",
         "//impulse/util:temp_dir",

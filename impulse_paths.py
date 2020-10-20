@@ -4,7 +4,7 @@ import re
 
 from impulse.args import args
 
-from impulse.exceptions import exceptions
+from impulse.core import exceptions
 
 EXPORT_DIR = 'GENERATED'
 NOT_A_BUILD_TARGET = object()

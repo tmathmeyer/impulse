@@ -4,8 +4,8 @@ import queue
 import traceback
 from typing import Set, Dict, TypeVar, Generic
 
-from impulse import status_out
-from impulse import exceptions
+from impulse.core import job_printer
+
 
 class Messages(object):
   EMPTY_RESPONSE = 'Internal: Empty Response'
@@ -187,7 +187,7 @@ class ThreadPool(multiprocessing.Process):
     self._job_response_queue:queue.Queue[JobResponse] = multiprocessing.Queue()
     self._job_input_queue:queue.Queue[GraphNode] = multiprocessing.JoinableQueue()
     self._pool_count:int = poolcount
-    self._printer = status_out.JobPrinter(0, poolcount)
+    self._printer = job_printer.JobPrinter(0, poolcount)
 
     self._graph:Set[GraphNode] = set()
     self._pending_add:Set[GraphNode] = set()

@@ -11,7 +11,7 @@ import time
 import typing
 import zipfile
 
-from impulse.exceptions import exceptions
+from impulse.core import exceptions
 from impulse.util import temp_dir
 from impulse.core import debug
 from impulse import impulse_paths
