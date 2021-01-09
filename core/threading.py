@@ -1,6 +1,7 @@
 import abc
 import multiprocessing
 import queue
+import signal
 import traceback
 from typing import Set, Dict, TypeVar, Generic
 
@@ -45,8 +46,7 @@ class GraphNode(Generic[T]):
       self.run_job(debug, access)
       return access
     else:
-      self.run_job(debug)
-      return None
+      return self.run_job(debug)
 
   @abc.abstractmethod
   def run_job(self, debug, internal_access=None):
@@ -118,6 +118,11 @@ class JobResponse(object):
     return self._id
 
 
+def handle_pdb(sig, frame):
+  import pdb
+  pdb.Pdb().set_trace(frame)
+
+
 class ThreadWatchdog(multiprocessing.Process):
   POISON = NullNode()
   __slots__ = ['_id', '_debug', '_job_input_queue', '_job_response_queue']
@@ -132,6 +137,10 @@ class ThreadWatchdog(multiprocessing.Process):
     self._debug = debug_mode
     self._job_input_queue = job_input_queue
     self._job_response_queue = job_response_queue
+    self.name = f'Watchdog#{self._id}'
+
+    if self._debug:
+      signal.signal(signal.SIGUSR1, handle_pdb)
 
   def _Fail(self, exc:Exception):
     self._job_response_queue.put(JobResponse(
@@ -154,6 +163,7 @@ class ThreadWatchdog(multiprocessing.Process):
 
       if job == ThreadWatchdog.POISON:
         self._job_input_queue.task_done()
+        self._job_input_queue.join()
         return
 
       self._job_response_queue.put(JobResponse(
@@ -171,38 +181,45 @@ class ThreadWatchdog(multiprocessing.Process):
         result=job_result))
       self._job_input_queue.task_done()
 
-
 class ThreadPool(multiprocessing.Process):
-  # Availible field slots.
-  __slots__ = ['_debug', '_job_response_queue', '_job_input_queue',
-               '_pool_count', '_printer', '_input_graph', '_graph',
-               '_pending_add', '_in_flight', '_completed']
-
-  def __init__(self,
-               poolcount:int,  # the number of child threads to run
-               debug:bool = False):  # run in debug mode
-    multiprocessing.Process.__init__(self)
-
-    self._debug:bool = debug
+  def __init__(self, poolcount:int, debug:bool = False):
+    super().__init__()
+    self._debug = debug
     self._job_response_queue:queue.Queue[JobResponse] = multiprocessing.Queue()
     self._job_input_queue:queue.Queue[GraphNode] = multiprocessing.JoinableQueue()
     self._pool_count:int = poolcount
     self._printer = job_printer.JobPrinter(0, poolcount)
+    self._input = None
+    self._error_message = None
+    self._watchdogs = []
 
-    self._graph:Set[GraphNode] = set()
-    self._pending_add:Set[GraphNode] = set()
-    self._in_flight:Set[GraphNode] = set()
-    self._completed:Set[GraphNode] = set()
+  @abc.abstractmethod
+  def OnStart(self):
+    pass
+
+  @abc.abstractmethod
+  def IsFinished(self):
+    pass
+
+  @abc.abstractmethod
+  def _on_reply(self, response):
+    pass
+
+  @abc.abstractmethod
+  def _message_pump(self):
+    pass
+
+  def Start(self, data, threaded=True):
+    self._input = data
+    self._create_watchdogs()
+    if threaded:
+      self.start()
+    else:
+      self.run()
 
   def run(self):
-    self._create_watchdogs()
-    self._do_graph_loop()
-
-  def Start(self, graph):
-    self._printer.add_job_count(len(graph))
-    self._graph = graph
-    self._cycle_graph()
-    self.start()
+    self.OnStart()
+    self._run_loop()
 
   def _create_watchdogs(self):
     for i in range(self._pool_count):
@@ -212,6 +229,53 @@ class ThreadPool(multiprocessing.Process):
         job_input_queue = self._job_input_queue,
         job_response_queue = self._job_response_queue)
       watchdog.start()
+      self._watchdogs.append(watchdog)
+
+  def _kill_watchdogs(self):
+    for _ in range(self._pool_count):
+      self._job_input_queue.put(ThreadWatchdog.POISON)
+    self._job_input_queue.join()
+    for dog in self._watchdogs:
+      dog.kill()
+
+  def _run_loop(self):
+    while True:
+      if self.IsFinished():
+        self._kill_watchdogs()
+        self._printer.finished()
+        return
+      
+      if not self._message_pump():
+        continue
+
+      response = self._job_response_queue.get()
+      if not response:
+        self._kill_watchdogs()
+        self._printer.finished(err=Messages.EMPTY_RESPONSE)
+        return
+
+      if response.level() == JobResponse.LEVEL.FATAL:
+        self._kill_watchdogs()
+        self._printer.finished(err=response.message())
+        return
+
+      if not self._on_reply(response):
+        self._kill_watchdogs()
+        self._printer.finished(err=self._error_message)
+        return
+
+
+class DependentPool(ThreadPool):
+  def __init__(self, poolcount:int, debug:bool=False):
+    super().__init__(poolcount, debug)
+    self._pending_add = set()
+    self._in_flight = set()
+    self._completed = set()
+
+  def OnStart(self):
+    self._printer.add_job_count(len(self._input))
+    self._cycle_graph()
+    self._add_nodes()
 
   def _add_nodes(self):
     for node in self._pending_add:
@@ -219,31 +283,19 @@ class ThreadPool(multiprocessing.Process):
     self._in_flight |= self._pending_add
     self._pending_add = set()
 
-  def _is_finished(self):
-    return ((not self._graph) and
-            (not self._pending_add) and
-            (not self._in_flight))
-
-  def _finish_err(self, msg:str):
-    for _ in range(self._pool_count):
-      self._job_input_queue.put(ThreadWatchdog.POISON)
-    self._printer.finished(err=msg)
-    self._job_input_queue.join()
-    return None
-
   def _cycle_graph(self, remove_node:GraphNode=None):
     newgraph:Set[GraphNode] = set()
-    for node in self._graph:
+    for node in self._input:
       if remove_node:
         node.remaining_dependencies.discard(remove_node)
       if node.remaining_dependencies:
         newgraph.add(node)
       else:
         self._pending_add.add(node)
-    self._graph = newgraph
+    self._input = newgraph
 
   def _force_cycle_graph(self):
-    for job in self._graph:
+    for job in self._input:
       if not len(job.remaining_dependencies):
         return True
       for depends in job.remaining_dependencies:
@@ -269,7 +321,7 @@ class ThreadPool(multiprocessing.Process):
                     node_from:GraphNode,
                     results:UpdateGraphResponseData) -> bool:
     results.added_graph -= self._completed
-    self._graph |= results.added_graph
+    self._input |= results.added_graph
     self._printer.add_job_count(len(results.added_graph))
 
     if results.rerun_more_deps:
@@ -282,41 +334,83 @@ class ThreadPool(multiprocessing.Process):
       if needs_rerun:
         self._completed.remove(node_from)
         node_from.data().execution_count += 1
-        self._graph.add(node_from)
+        self._input.add(node_from)
       return needs_rerun
     return False
 
-  def _do_graph_loop(self):
-    while True:
-      if self._is_finished():
-        for _ in range(self._pool_count):
-          self._job_input_queue.put(ThreadWatchdog.POISON)
-        self._job_input_queue.join()
-        self._printer.finished()
-        return
+  def IsFinished(self):
+    return ((not self._input) and
+            (not self._pending_add) and
+            (not self._in_flight))
 
-      self._add_nodes()
-      job_response:JobResponse = self._job_response_queue.get()
+  def _message_pump(self):
+    self._add_nodes()
+    return True
 
-      if not job_response:
-        return self._finish_err(Messages.EMPTY_RESPONSE)
+  def _on_reply(self, response):
+    if response.level() == JobResponse.LEVEL.WARNING:
+      if response.message() == Messages.TIMEOUT:
+        if self._force_cycle_graph():
+          self._cycle_graph()
+          self._add_nodes()
+          return True
+      self._printer.write_task_msg(response.id(), response.message())
+      return True
 
-      if job_response.level() == JobResponse.LEVEL.FATAL:
-        return self._finish_err(job_response.message())
+    if response.level() == JobResponse.LEVEL.GREEN:
+      self._printer.remove_task_msg(response.id())
+      self._handle_good_status(response)
 
-      if job_response.level() == JobResponse.LEVEL.WARNING:
-        if job_response.message() == Messages.TIMEOUT:
-          if self._force_cycle_graph():
-            self._cycle_graph()
-            self._add_nodes()
-            continue
-        self._printer.write_task_msg(job_response.id(), job_response.message())
-        continue
+    if response.level() == JobResponse.LEVEL.YELLOW:
+      self._printer.write_task_msg(response.id(), response.message())
 
-      if job_response.level() == JobResponse.LEVEL.GREEN:
-        self._printer.remove_task_msg(job_response.id())
-        self._handle_good_status(job_response)
+    return True
 
-      if job_response.level() == JobResponse.LEVEL.YELLOW:
-        self._printer.write_task_msg(job_response.id(), job_response.message())
-        continue
+
+class StreamingPool(ThreadPool):
+  def __init__(self, poolcount:int, debug:bool=False):
+    super().__init__(poolcount, debug)
+    self._finished = False
+    self._replies = []
+    self._sent_jobs = 0
+
+  def OnStart(self):
+    for _ in range(self._pool_count):
+      try:
+        self._sent_jobs += 1
+        self._job_input_queue.put(next(self._input))
+      except StopIteration:
+        self._sent_jobs -= 1
+        self._finished = True
+
+  def IsFinished(self):
+    return self._finished and (len(self._replies) == self._sent_jobs)
+
+  def _on_reply(self, response):
+    if response.level() == JobResponse.LEVEL.WARNING:
+      self._printer.write_task_msg(response.id(), response.message())
+      return True
+    if response.level() == JobResponse.LEVEL.YELLOW:
+      self._printer.write_task_msg(response.id(), response.message())
+      return True
+    if response.level() == JobResponse.LEVEL.GREEN:
+      self._printer.remove_task_msg(response.id())
+      self._replies.append(response.result())
+      return True
+    return False
+
+  def _message_pump(self):
+    try:
+      self._sent_jobs += 1
+      self._job_input_queue.put(next(self._input))
+      return True
+    except StopIteration:
+      self._finished = True
+      self._sent_jobs -= 1
+      return True
+
+  def Replies(self):
+    return self._replies
+
+
+

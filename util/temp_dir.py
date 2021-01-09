@@ -23,7 +23,7 @@ class ScopedTempDirectory(object):
     self._old_directory = self._getcwd()
     os.chdir(self._temp_directory)
 
-  def __exit__(self, *args):
+  def __exit__(self, *args, **kwargs):
     if self._exited:
       return
     self._exited = True

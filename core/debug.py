@@ -1,17 +1,17 @@
 
 
-__DEBUG = False
+__DEBUG = {'generic': False}
 
-def EnableDebug():
+def EnableDebug(key='generic'):
   global __DEBUG
-  __DEBUG = True
+  __DEBUG[key] = True
 
 
-def DisableDebug():
+def DisableDebug(key='generic'):
   global __DEBUG
-  __DEBUG = False
+  __DEBUG[key] = False
 
 
-def IsDebug() -> bool:
+def IsDebug(key='generic') -> bool:
   global __DEBUG
-  return __DEBUG
+  return __DEBUG.get(key, False)

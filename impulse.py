@@ -7,12 +7,12 @@ import time
 import typing
 
 from impulse import impulse_paths
-from impulse import threaded_dependence
 from impulse import recursive_loader
 from impulse.args import args
 from impulse.core import debug
 from impulse.core import exceptions
 from impulse.core import job_printer
+from impulse.core import threading
 from impulse.util import temp_dir
 from impulse.util import tree_builder
 
@@ -32,7 +32,7 @@ def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
 
 def build_and_await(debug:bool, graph:set, N:int=6) -> None:
   """Starts a pool with N threads and waits for graph run completion."""
-  pool = threaded_dependence.ThreadPool(N, debug=debug)
+  pool = threading.DependentPool(N, debug=debug)
   pool.Start(graph)
   pool.join()
 
@@ -158,7 +158,7 @@ def testsuite(project:str=None,
   builders = list(rfp.ConvertAllTestTargets())
   
   graph = rfp.GetAllConvertedTargets()
-  pool = threaded_dependence.ThreadPool(debug=debug, poolcount=threads)
+  pool = threading.DependentPool(debug=debug, poolcount=threads)
   pool.Start(graph)
   pool.join()
 
@@ -184,7 +184,7 @@ def buildall(project:str=None,
 
   rfp.ConvertAllTargets()
   graph = rfp.GetAllConvertedTargets()
-  pool = threaded_dependence.ThreadPool(debug=debug, poolcount=6)
+  pool = threading.DependentPool(debug=debug, poolcount=6)
   pool.Start(graph)
   pool.join()
 

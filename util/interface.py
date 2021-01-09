@@ -3,6 +3,8 @@ import inspect
 import types
 import typing
 
+from impulse.util import typecheck
+
 
 class _InterfaceMeta(type):
   """Checks signatures on instances of concrete classes that implement
@@ -67,6 +69,7 @@ class _InterfaceParent(metaclass=_InterfaceMeta):
   _InterfaceParentSentinal = True
 
 
+@typecheck.Ensure
 def IFace(class_def: type) -> '_InterfaceParent':
   """Decorator method to turn a class into an interface."""
 

@@ -7,9 +7,9 @@ import time
 import types
 
 from impulse import impulse_paths
-from impulse import threaded_dependence
 from impulse.core import debug
 from impulse.core import exceptions
+from impulse.core import threading
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
 from impulse.util import temp_dir
@@ -45,7 +45,7 @@ class Any(object):
     return False
 
 
-class BuildTarget(threaded_dependence.GraphNode):
+class BuildTarget(threading.GraphNode):
   """A threadable graph node object representing work to do to build."""
 
   def __init__(self, target_name: str, # The name of the target to build

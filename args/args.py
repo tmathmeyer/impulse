@@ -55,6 +55,28 @@ class Directory(ArgComplete):
         yield f
 
 
+class File(ArgComplete):
+  @classmethod
+  def get_completion_list(cls, stub):
+    yield from cls._get_directories(stub=stub)
+
+  @classmethod
+  def _get_directories(cls, stub):
+    shell = '/bin/sh'
+    if not os.path.exists(shell):
+      return
+    if not os.path.islink(shell):
+      return
+
+    cmd = 'compgen -o bashdefault -o default -o nospace -F _ls {}'.format(stub)
+    stdout =  subprocess.Popen(cmd, shell=True,
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    for line in stdout.stdout.readlines():
+      f = line.decode().replace('\n', '').replace('//', '/')
+      if os.path.exists(f):
+        yield f
+
+
 class ArgumentParser(object):
   def __init__(self, complete=True):
     self._parser = argparse.ArgumentParser()
