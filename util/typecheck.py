@@ -28,7 +28,7 @@ def Ensure(fn, debug=lambda x:x):
         expanded = f"<class '{fn.__module__}.{t}'>"
         if t != actual and expanded != actual:
           raise TypeError(
-            f'Expected type {t} or {expanded} for return, got {actual}')
+            f'Expected type {t} or {expanded} for "{n}", got {actual}')
 
     retval = fn(*args, **kwargs)
     if 'return' in argspec.annotations:

@@ -11,12 +11,6 @@ py_library (
 )
 
 py_library (
-  name = "interface",
-  srcs = ["interface.py"],
-  deps = [ ":typecheck" ],
-)
-
-py_library (
   name = "bintools",
   srcs = [ "resources.py" ],
   deps = [ ":temp_dir" ],

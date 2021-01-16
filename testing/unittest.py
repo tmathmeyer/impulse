@@ -92,11 +92,12 @@ def AssertRaiseError(assertname, stack, A, B):
 
 
 class TestIsolator():
-  def __init__(self, clsname, fnname, execute, setup=None, cleanup=None):
+  def __init__(self, cls, fnname, execute, setup=None, cleanup=None):
     self.setup = setup or self.setup
     self.cleanup = cleanup or self.cleanup
     self.execute = execute
-    self.name = '{}.{}'.format(clsname, fnname)
+    self.name = '{}.{}'.format(cls.__name__, fnname)
+    self.cls = cls
     self.expectations = []
 
   def run(self):
@@ -115,6 +116,11 @@ class TestIsolator():
     for expectation in self.expectations:
       expectation.assertExpectationsMet()
 
+  def __getattr__(self, attr):
+    clsEntry = getattr(self.cls, attr, None)
+    if clsEntry and callable(clsEntry):
+      return clsEntry.__get__(self, self.cls)
+    return self.__getattribute__(attr)
 
   @call_with_stack
   def assertTrue(self, stack, expr):
@@ -184,7 +190,7 @@ class TestCase(object):
 
       for method, name in test_methods:
         cls.RunIsolated(out, TestIsolator(
-          clazz.__name__, name, method, setup_method, cleanup_method))
+          clazz, name, method, setup_method, cleanup_method))
     return getattr(cls, export_as)(out)
 
   @classmethod

@@ -1,5 +1,5 @@
 
-from impulse.util import interface
+from impulse.core import interface
 
 @interface.IFace
 class RunnerType(object):

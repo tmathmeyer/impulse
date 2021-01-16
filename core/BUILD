@@ -21,3 +21,9 @@ py_library (
   srcs = [ "threading.py" ],
   deps = [ ":job_printer" ],
 )
+
+py_library (
+  name = "interface",
+  srcs = ["interface.py"],
+  deps = [ ":typecheck" ],
+)
