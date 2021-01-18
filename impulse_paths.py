@@ -10,9 +10,17 @@ EXPORT_DIR = 'GENERATED'
 NOT_A_BUILD_TARGET = object()
 
 
+class Environ():
+  def __getattr__(self, attr):
+    return os.environ[attr]
+  def __getitem__(self, item):
+    return os.environ[item]
+ENV = Environ()
+
+
 def root():
   if 'impulse_root' not in os.environ:
-    config = '{}/.config/impulse/config'.format(os.environ['HOME'])
+    config = f'{ENV.HOME}/.config/impulse/config'
     if os.path.exists(config):
       with open(config, 'r') as f:
         os.environ['impulse_root'] = f.read()
@@ -41,10 +49,9 @@ def output_directory():
 class PathException(Exception):
   def __init__(self, path, included_from=None):
     if included_from:
-      self._path = 'Invalid Target: {} Included From: {}'.format(
-        path, included_from)
+      self._path = f'Invalid Target: {path} Included From: {included_from}'
     else:
-      self._path = 'Invalid Target: {}'.format(path)
+      self._path = f'Invalid Target: {path}'
     super(PathException, self).__init__(self._path)
 
   def __repr__(self):

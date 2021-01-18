@@ -47,7 +47,7 @@ class NamedQueue(object):
     self._waiting = {}
 
   def SubQueue(self):
-    return NamedQueue(mp.Manager(), '{}::{}'.format(self._name, '1'))
+    return NamedQueue(mp.Manager(), f'{self._name}::1')
 
   def Read(self) -> RPCMessage:
     if DEBUG:
@@ -327,7 +327,7 @@ def RPC(clazz):
       self._manager = mp.Manager()
       self._incoming_queue = NamedQueue(self._manager, 'MAILBOX(main)')
       self._outgoing_queue = NamedQueue(
-        self._manager, 'MAILBOX({}({}))'.format(clazz.__name__, 'out'))
+        self._manager, f'MAILBOX({clazz.__name__}(out))')
       self._reprocessed_queue = NamedQueue(self._manager, 'JUNKMAIL')
       self._process = mp.Process(
         target=WrapRemoteInstance,

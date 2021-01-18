@@ -1,5 +1,6 @@
 
 import inspect
+import re
 import sys
 import traceback
 
@@ -31,7 +32,7 @@ class FailedAssertError(Exception):
     if len(fileLocation) < string_len:
       fileLocation += ' ' * (string_len - len(fileLocation))
     print(fmt.format(FAILED_, fileLocation, ENDC,
-      self._assertName, self._expected, self._actual))
+      self._casename, self._expected, self._actual))
 
   def FileLocationLength(self):
     return len(self._file_location)
@@ -42,7 +43,6 @@ class GenericCrashHandler(object):
     self.exc = exc
     self.isolator = isolator
     exc_type, exc, self.tb = sys.exc_info()
-    #fa = FailedAssertError('__', tb.tb_frame, None, None, None, None)
 
   def print(self):
     print('[ {}{}{} ]'.format(FAILED_, self.isolator.name, ENDC))
@@ -84,11 +84,11 @@ def ExpectFailed(fn):
   return ExpectRaises(FailedAssertError)(fn)
 
 
-def AssertRaiseError(assertname, stack, A, B):
+def AssertRaiseError(assertname, casename, stack, A, B):
     case = stack.f_code.co_name
     file = stack.f_code.co_filename
     line = stack.f_lineno
-    raise FailedAssertError(file, case, line, assertname, A, B)
+    raise FailedAssertError(file, casename, line, assertname, A, B)
 
 
 class TestIsolator():
@@ -125,17 +125,24 @@ class TestIsolator():
   @call_with_stack
   def assertTrue(self, stack, expr):
     if not expr:
-      AssertRaiseError('assertTrue', stack, True, False)
+      AssertRaiseError('assertTrue', self.name, stack, True, False)
 
   @call_with_stack
   def assertFalse(self, stack, expr):
     if expr:
-      AssertRaiseError('assertFalse', stack, False, True)
+      AssertRaiseError('assertFalse', self.name, stack, False, True)
 
   @call_with_stack
   def assertEqual(self, stack, A, B):
     if A != B:
-      AssertRaiseError('assertEqual', stack, B, A)
+      AssertRaiseError('assertEqual', self.name, stack, B, A)
+
+  @call_with_stack
+  def assertNoDiff(self, stack, A, B):
+    for a, b in zip(A.split('\n'), B.split('\n')):
+      if a != b:
+        AssertRaiseError('assertNoDiff', self.name, stack, b, a)
+
 
   @call_with_stack
   def assertCalledWithArgs(self, stack, *argsets):
@@ -148,7 +155,7 @@ class TestIsolator():
         sentinel = object()
         if next(cwae.itr, sentinel) is not sentinel:
           AssertRaiseError(
-            'assertCalledWithArgs', stack, list(argsets), cwae.actual)
+            'assertCalledWithArgs', self.name, stack, list(argsets), cwae.actual)
 
     cwae = CalledWithArgsExpector()
     def called(*args, **_):
@@ -162,6 +169,18 @@ class TestIsolator():
 class TestCase(object):
   @classmethod
   def RunAll(cls, notermcolor, export_as='print'):
+    cls.RunTests(notermcolor, (lambda x:True), export_as)
+
+  @classmethod
+  def RunFilter(cls, notermcolor, filter, export_as='print'):
+    cls.RunTests(notermcolor, cls._Matches(filter), export_as)
+
+  @classmethod
+  def ListTests(cls):
+    pass
+
+  @classmethod
+  def RunTests(cls, notermcolor, filtrfn, export_fn):
     if notermcolor:
       global PASSED
       global FAILED
@@ -189,9 +208,20 @@ class TestCase(object):
           test_methods.append((method, name))
 
       for method, name in test_methods:
+        full_name = f'{clazz.__name__}.{name[5:]}'
+        if not filtrfn(full_name):
+          continue
         cls.RunIsolated(out, TestIsolator(
           clazz, name, method, setup_method, cleanup_method))
-    return getattr(cls, export_as)(out)
+    return getattr(cls, export_fn)(out)
+
+  @classmethod
+  def _Matches(cls, regex):
+    matcher = re.compile(regex)
+    def filterer(name):
+      return matcher.match(name)
+    return filterer
+
 
   @classmethod
   def RunIsolated(cls, out, isolator):

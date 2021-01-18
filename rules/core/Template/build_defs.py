@@ -7,7 +7,7 @@ def raw_template(target, name, srcs, **kwargs):
 
 
 @buildrule
-def template(target, name, deps, template_data, **kwargs):
+def template(target, name, template_data, **kwargs):
   """Template file syntax:
   # Load a variable by name
   load_variable_by_name = {variable}
@@ -32,6 +32,8 @@ def template(target, name, deps, template_data, **kwargs):
   {{/dict_name}}
   """
   import re
+  for tag in kwargs.get('tags', []):
+    target.SetTags(tag)
 
   DNE = object()
   LOOPLINE = re.compile(r'{{([a-zA-Z_\.][a-zA-Z0-9_]+)}}')

@@ -1,19 +1,15 @@
 langs("Python")
 
-py_library(
+py_library (
   name = "unittest",
   srcs = [
+    "testmain.py",
     "unittest.py",
-    "testmain.py"
   ],
-  deps = [
-    "//impulse/args:args"
-  ]
+  deps = [ "//impulse/args:args" ],
 )
 
-py_test(
+py_test (
   name = "example_unittest",
-  srcs = [
-    "example.py"
-  ]
+  srcs = [ "example.py" ],
 )

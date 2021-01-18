@@ -21,7 +21,7 @@ def _url_path_join(*args):
 
 class ServiceError(Exception):
   def __init__(self, err_code, err_msg=''):
-    super().__init__('{}: {}'.format(err_code, err_msg))
+    super().__init__(f'{err_code}: {err_msg}')
     self.err_code = err_code
     self.err_msg = err_msg
 

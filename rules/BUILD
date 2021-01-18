@@ -10,5 +10,6 @@ py_library (
     "//impulse/rules/core/Shell:rules",
     "//impulse/rules/core/Template:rules",
   ],
-  srcs = []
+  srcs = [
+  ],
 )

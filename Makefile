@@ -18,6 +18,8 @@ copy_srcs:
 	@cp -r rules impulse/rules
 	@cp -r args impulse/args
 	@touch impulse/args/__init__.py
+	@cp -r format impulse/format
+	@touch impulse/format/__init__.py
 	@cp -r core impulse/core
 	@touch impulse/core/__init__.py
 	@cp -r pkg impulse/pkg
@@ -36,5 +38,5 @@ install: GENERATED/BINARIES/impulse/impulse
 	@cp GENERATED/BINARIES/impulse/impulse /usr/local/bin/impulse
 
 clean:
-	@rm -r GENERATED/
 	@rm -rf impulse/
+	@rm -rf GENERATED/

@@ -1,14 +1,14 @@
 langs("Python")
 
-py_library(
-  name="packaging",
-  srcs=[
-    "packaging.py",
+py_library (
+  name = "packaging",
+  srcs = [
     "overlayfs.py",
+    "packaging.py",
   ],
-  deps=[
-    "//impulse/fuse:fuse",
+  deps = [
     "//impulse/core:exceptions",
+    "//impulse/fuse:fuse",
     "//impulse/util:temp_dir",
-  ]
+  ],
 )

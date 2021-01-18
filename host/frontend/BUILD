@@ -1,4 +1,3 @@
-
 data (
   name = "frontend",
   srcs = [

@@ -8,13 +8,11 @@ cpp_header (
 cpp_header (
   name = "commandline_h",
   srcs = [ "commandline.h" ],
-  deps = [
-    git_repo(
-      url = "https://github.com/tmathmeyer/cppargs",
-      repo = "cppargs",
-      target = "//cppargs:argparse_h",
-    ),
-  ],
+  deps = [ git_repo (
+    url = "https://github.com/tmathmeyer/cppargs",
+    repo = "cppargs",
+    target = "//cppargs:argparse_h",
+  ) ],
 )
 
 cpp_header (
@@ -28,12 +26,8 @@ cpp_header (
 
 cpp_header (
   name = "protolex_h",
-  srcs = [
-    "protolex.h",
-  ],
-  deps = [
-    "//impulse/lex:lex_h",
-  ],
+  srcs = [ "protolex.h" ],
+  deps = [ "//impulse/lex:lex_h" ],
 )
 
 cpp_object (
@@ -41,9 +35,9 @@ cpp_object (
   srcs = [ "protolex.cc" ],
   deps = [
     ":protolex_h",
-    "//impulse/lex:lex_h",
     "//impulse/lex:lex",
-  ]
+    "//impulse/lex:lex_h",
+  ],
 )
 
 cpp_object (
@@ -52,40 +46,35 @@ cpp_object (
   deps = [
     ":proto_stream_parse_h",
     "//impulse/base:status_h",
-  ]
+  ],
 )
 
 cpp_binary (
   name = "protocompile",
-  srcs = [ "protocompile.cc", ],
+  srcs = [ "protocompile.cc" ],
   deps = [
+    "git://github.com/tmathmeyer/cppargs//:argparse_h",
     ":commandline_h",
-    ":protocompile_h",
-    ":protolex_h",
-    ":proto_stream_parse_h",
-    ":protolex",
     ":proto_stream_parse",
-
-    "//impulse/lex:lex_h",
+    ":proto_stream_parse_h",
+    ":protocompile_h",
+    ":protolex",
+    ":protolex_h",
+    "//impulse/base:status_h",
     "//impulse/lex:lex",
+    "//impulse/lex:lex_h",
     "//impulse/proto/frontend:languages_h",
     "//impulse/proto/frontend:python",
-    "//impulse/base:status_h",
-    "git://github.com/tmathmeyer/cppargs//:argparse_h",
   ],
 )
 
 py_proto (
   name = "example",
-  srcs = [ "example.proto", ],
+  srcs = [ "example.proto" ],
 )
 
-py_test(
+py_test (
   name = "python_gen_test",
-  srcs = [
-    "python_gen_test.py"
-  ],
-  deps = [
-    ":example",
-  ]
+  srcs = [ "python_gen_test.py" ],
+  deps = [ ":example" ],
 )

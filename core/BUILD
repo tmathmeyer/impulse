@@ -1,8 +1,8 @@
 langs("Python")
 
 py_library (
-    name = "debug",
-    srcs = [ "debug.py" ],
+  name = "debug",
+  srcs = [ "debug.py" ],
 )
 
 py_library (
@@ -24,6 +24,6 @@ py_library (
 
 py_library (
   name = "interface",
-  srcs = ["interface.py"],
-  deps = [ ":typecheck" ],
+  srcs = [ "interface.py" ],
+  deps = [ "//impulse/util:typecheck" ],
 )

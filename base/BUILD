@@ -15,7 +15,7 @@ cpp_header (
   name = "status_h",
   srcs = [ "status.h" ],
   deps = [
-    ":location_h",
     ":bind_h",
+    ":location_h",
   ],
 )

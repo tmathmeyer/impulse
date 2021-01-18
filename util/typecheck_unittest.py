@@ -5,11 +5,13 @@ from impulse.util import typecheck
 class Foo():
   pass
 
-class Example(unittest.TestCase):
+class TypeCheckTests(unittest.TestCase):
+  def setup(self):
+    from impulse.core import debug
+    debug.EnableDebug('typing')
+
   def assertTypeCheckFail(self, expected, actual, variable=None):
-    vrepr = 'return' if variable is None else f'"{variable}"'
-    if str(expected.__module__) != 'builtins':
-      expected = f'{expected.__name__} or {expected}'
+    vrepr = 'return' if variable is None else f'arg "{variable}"'
     errstr = f'Expected type {expected} for {vrepr}, got {actual}'
     class FailContext():
       def __enter__(_):
@@ -62,9 +64,60 @@ class Example(unittest.TestCase):
         return ""
       example(1)
 
+  def test_TypeListOk(self):
+    @typecheck.Ensure
+    def example(a:int) -> [int]:
+      return [1]
+    example(1)
+
   def test_TypeListCanFail(self):
-    with self.assertTypeCheckFail(int, str):
+    with self.assertTypeCheckFail([int], int):
       @typecheck.Ensure
       def example(a:int) -> [int]:
-        return [1]
+        return 1
       example(1)
+
+    with self.assertTypeCheckFail([int], [str]):
+      @typecheck.Ensure
+      def example(a:int) -> [int]:
+        return [""]
+      example(1)
+
+  def test_Generics(self):
+    from typing import TypeVar
+    T = TypeVar('T')
+    @typecheck.Ensure
+    def example(a:T) -> [T]:
+      return [a]
+
+    example(1)
+    example("a")
+
+    with self.assertTypeCheckFail([int], [str]):
+      @typecheck.Ensure
+      def example(a:T) -> [T]:
+        return [str(a)]
+      example(1)
+
+  def test_CustomListTypes(self):
+    class Super():
+      pass
+
+    class Foo(Super):
+      pass
+
+    class Bar(Super):
+      pass
+
+    class Baz():
+      def __init__(self, t):
+        self._type = t
+      @typecheck.Ensure
+      def asSuper(self) -> Super:
+        return self._type()
+
+    @typecheck.Ensure
+    def example(a:[Baz]) -> [Super]:
+      return [x.asSuper() for x in a]
+
+    example([Baz(Foo), Baz(Bar), Baz(Foo)])

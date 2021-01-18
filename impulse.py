@@ -15,10 +15,10 @@ from impulse.core import job_printer
 from impulse.core import threading
 from impulse.util import temp_dir
 from impulse.util import tree_builder
+from impulse.format import format as fmt
 
 
 command = args.ArgumentParser(complete=True)
-
 
 
 def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
@@ -44,6 +44,41 @@ def fix_build_target(target:impulse_paths.BuildTarget
     impulse_paths.relative_pwd(), True)
 
 
+def graph_for_directory(project=None, testonly=False):
+  directory = os.getcwd()
+  if project:
+    directory = os.path.join(impulse_paths.root(), project)
+
+  rfp = recursive_loader.RecursiveFileParser(carried_args={})
+  for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
+    rfp._ParseFile(filename)
+
+  targets = []
+  if testonly:
+    return list(rfp.ConvertAllTestTargets()), rfp.GetAllConvertedTargets(
+      allow_meta=True)
+  else:
+    rfp.ConvertAllTargets()
+    targets = rfp.GetAllConvertedTargets(allow_meta=True)
+    return targets, targets
+
+
+def check_exactly(count, *args):
+  for arg in args:
+    if arg:
+      count -= 1
+    if count < 0:
+      return False
+  return not count
+
+
+def get_target_from_graph(target, graph):
+  target = fix_build_target(target)
+  for node in graph:
+    if target.GetFullyQualifiedRulePath() == node.get_name():
+      return node
+
+
 @command
 def build(target:impulse_paths.BuildTarget,
           debug:bool=False,
@@ -54,20 +89,62 @@ def build(target:impulse_paths.BuildTarget,
   parsed_target = fix_build_target(target)
   build_and_await(debug, recursive_loader.generate_graph(parsed_target,
     force_build=force, allow_meta=True))
+  return parsed_target.GetRuleInfo()
+
 
 @command
-def print_tree(target:impulse_paths.BuildTarget,
-               fakeroot:args.Directory=None,
-               debug:bool=False):
-  """Builds the given target."""
+def info(target:impulse_paths.BuildTarget,
+         fakeroot:args.Directory=None,
+         debug:bool=False,
+         tree:bool=False,
+         deps:bool=False,
+         consumers:bool=False):
+  """Displays info about a target"""
   setup(debug, fakeroot)
+  if check_exactly(tree, deps, consumers):
+    print('Must specify exactly _one_ of --tree, --deps, or --consumers')
+    return
   parsed_target = fix_build_target(target)
-  tree = recursive_loader.generate_graph(parsed_target, allow_meta=True)
-  tree = tree_builder.BuildTree(tree)
   if tree:
-    tree.Print()
-  else:
-    print('ERROR')
+    tree_builder.BuildTree(
+      recursive_loader.generate_graph(
+        parsed_target, allow_meta=True)).Print()
+    return
+
+  graph = None
+  if deps:
+    graph = recursive_loader.generate_graph(parsed_target, allow_meta=True)
+  if consumers:
+    graph = set(graph_for_directory(None, False)[0])
+  selected = get_target_from_graph(target, graph)
+  print(selected.get_name())
+
+  if deps:
+    for dep in selected.dependencies:
+      print(f'  {dep.get_name()}')
+
+  if consumers:
+    for target in graph:
+      if selected in target.dependencies:
+        print(f'  {target.get_name()}')
+
+
+
+@command
+def targets(fakeroot:args.Directory=None,
+            debug:str=None,
+            project:str=None,
+            roots:bool=False):
+  """Lists targets."""
+  setup(debug, fakeroot)
+  targets = set(graph_for_directory(project, False)[0])
+  if roots:
+    for target in set(targets):
+      for dep in target.dependencies:
+        if dep in targets:
+          targets.remove(dep)
+  for target in targets:
+    print(target)
 
 
 @command
@@ -75,13 +152,10 @@ def run(target:impulse_paths.BuildTarget,
         debug:bool=False,
         fakeroot:args.Directory=None):
   """Builds a testcase and executes it."""
-  setup(debug, fakeroot)
-  parsed_target = fix_build_target(target)
-  ruleinfo = parsed_target.GetRuleInfo()
+  ruleinfo = build(target, debug, False, fakeroot)
   if not ruleinfo.type.endswith('_binary'):
-    print('Can only run a binary target')
+    print('Only binary targets can be run')
     return
-  build_and_await(debug, recursive_loader.generate_graph(parsed_target))
   os.system(ruleinfo.output)
 
 
@@ -90,53 +164,31 @@ def docker(target:impulse_paths.BuildTarget,
            debug:bool=False,
            fakeroot:args.Directory=None):
   """Builds a docker container from the target."""
-  setup(debug, fakeroot)
-  parsed_target = fix_build_target(target)
-  ruleinfo = parsed_target.GetRuleInfo()
+  ruleinfo = build(target, debug, False, fakeroot)
   if not ruleinfo.type == 'container':
-    print('Can only containerize a container target')
+    print('Only docker containers can be run')
     return
-  build_and_await(
-    debug, recursive_loader.generate_graph(parsed_target, allow_meta=True))
-
-  extractcmd = 'unzip {}'.format(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
-    os.system(extractcmd)
-    dockercmd = 'docker build -t {} .'.format(os.path.basename(ruleinfo.output))
-    os.system(dockercmd)
+    os.system(f'unzip {ruleinfo.output}')
+    os.system(f'docker build -t {os.path.basename(ruleinfo.output)}')
 
 
 @command
 def test(target:impulse_paths.BuildTarget,
          debug:bool=False,
          notermcolor:bool=False,
-         fakeroot:args.Directory=None):
+         fakeroot:args.Directory=None,
+         filter:str=None):
   """Builds a testcase and executes it."""
-  setup(debug, fakeroot)
-  parsed_target = fix_build_target(target)
-  ruleinfo = parsed_target.GetRuleInfo()
+  ruleinfo = build(target, debug, False, fakeroot)
   if not ruleinfo.type.endswith('_test'):
-    print('Can only test a binary target')
+    print('Only test targets can be run')
     return
-  build_and_await(debug, recursive_loader.generate_graph(parsed_target))
-  cmdline = '{} {} {}'.format(
-    ruleinfo.output, 'run', '--notermcolor' if notermcolor else '')
-  os.system(cmdline)
 
-
-@command
-def init():
-  """Initializes impulse in the current directory."""
-  home = os.environ['HOME']
-  if os.path.exists('{}/.config/impulse/config'.format(home)):
-    override = input(('A configuration file exists, '
-              'do you want to overwrite it? [y, N]'))
-    if override not in ('y', 'yes', 'Y'):
-      return
-  print('Exporting $IMPULSE_ROOT to {}'.format(os.environ['PWD']))
-  os.makedirs('{}/.config/impulse/'.format(home), exist_ok=True)
-  with open('{}/.config/impulse/config'.format(home), 'w') as config:
-    config.write(os.environ['PWD'])
+  ntc = args.Forward("notermcolor")
+  filter = args.Forward("filter")
+  print(filter)
+  os.system(f'{ruleinfo.output} run {ntc} {filter}')
 
 
 @command
@@ -144,56 +196,57 @@ def testsuite(project:str=None,
               debug:bool=False,
               notermcolor:bool=False,
               threads:int=6,
+              filter:str=None,
               fakeroot:args.Directory=None):
   setup(debug, fakeroot)
+  targets, graph = graph_for_directory(project, True)
+  build_and_await(debug, graph, threads)
 
-  directory = os.getcwd()
-  if project:
-    directory = os.path.join(impulse_paths.root(), project)
+  ntc = args.Forward("notermcolor")
+  filter = args.Forward("filter")
+  for builder in targets:
+    os.system(f'{builder.GetRuleInfo().output} run {ntc} {filter}')
 
-  rfp = recursive_loader.RecursiveFileParser(carried_args={})
-  for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
-    rfp._ParseFile(filename)
-
-  builders = list(rfp.ConvertAllTestTargets())
-  
-  graph = rfp.GetAllConvertedTargets()
-  pool = threading.DependentPool(debug=debug, poolcount=threads)
-  pool.Start(graph)
-  pool.join()
-
-  for builder in builders:
-    ruleinfo = builder.GetRuleInfo()
-    cmdline = '{} {} {}'.format(
-      ruleinfo.output, 'run', '--notermcolor' if notermcolor else '')
-    os.system(cmdline)
 
 @command
-def buildall(project:str=None,
-             debug:bool=False,
-             fakeroot:args.Directory=None):
-  setup(debug, fakeroot)
-
-  directory = os.getcwd()
-  if project:
-    directory = os.path.join(impulse_paths.root(), project)
-
-  rfp = recursive_loader.RecursiveFileParser(carried_args={})
+def format(fakeroot:args.Directory=None):
+  setup(False, fakeroot)
+  directory = impulse_paths.root()
+  files = {}
   for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
-    rfp._ParseFile(filename)
+    reader = fmt.FormattingBuildFileReader()
+    reader.ReadFile(filename)
+    files[filename] = reader.PrintFormat().strip()
 
-  rfp.ConvertAllTargets()
-  graph = rfp.GetAllConvertedTargets()
-  pool = threading.DependentPool(debug=debug, poolcount=6)
-  pool.Start(graph)
-  pool.join()
+  for filename, contents in files.items():
+    with open(filename, 'r') as f:
+      if f.read().strip() == contents:
+        continue
+    with open(filename, 'w') as f:
+      f.write(contents)
+
+
+@command
+def init():
+  """Initializes impulse in the current directory."""
+  home = os.environ['HOME']
+  if os.path.exists(f'{home}/.config/impulse/config'):
+    override = input(('A configuration file exists, '
+              'do you want to overwrite it? [y, N]'))
+    if override not in ('y', 'yes', 'Y'):
+      return
+  print(f'Exporting $IMPULSE_ROOT to {os.environ["PWD"]}')
+  os.makedirs(f'{home}/.config/impulse/', exist_ok=True)
+  with open(f'{home}/.config/impulse/config', 'w') as config:
+    config.write(os.environ['PWD'])
+
 
 
 def main():
   try:
     command.eval()
   except exceptions.ImpulseBaseException as e:
-    print(e)
+    print(str(e))
 
 if __name__ == '__main__':
   main()

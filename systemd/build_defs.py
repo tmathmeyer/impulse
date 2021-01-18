@@ -6,10 +6,10 @@ def service(macro_env, name, description, binary, deps):
   target_template = name + '_target'
   macro_env.ImitateRule(
     rulefile = '//rules/core/Template/build_defs.py',
-    rulename = 'template_expand',
+    rulename = 'template',
     args = {
       'name': metadata_template,
-      'template_file': 'systemd.metadata.template',
+      'deps': [ '//impulse/systemd:metadata-template' ],
       'tags': [ 'data' ],
       'template_data': {
         'executable': binary,
@@ -19,10 +19,10 @@ def service(macro_env, name, description, binary, deps):
 
   macro_env.ImitateRule(
     rulefile = '//rules/core/Template/build_defs.py',
-    rulename = 'template_expand',
+    rulename = 'template',
     args = {
       'name': target_template,
-      'template_file': 'systemd.target.template',
+      'deps': [ '//impulse/systemd:target-template' ],
       'tags': [ 'data' ],
       'template_data': {
         'executable': binary,
@@ -42,8 +42,8 @@ def service(macro_env, name, description, binary, deps):
       'mainpackage': 'impulse.systemd',
       'deps': deps + [
         '//impulse/systemd:installer',
-        metadata_template.prepend('//impulse/systemd:'),
-        target_template.prepend('//impulse/systemd:')
+        metadata_template.prepend(':'),
+        target_template.prepend(':')
       ],
       'tools': deps
     })

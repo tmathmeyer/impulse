@@ -34,7 +34,7 @@ def maketree(trees, node):
   children = []
   for dep in node.dependencies:
     children.append(trees[dep])
-  return Tree(str(node), children)
+  return Tree(node.get_name(), children)
 
 
 def BuildTree(deps):

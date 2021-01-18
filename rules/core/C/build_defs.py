@@ -1,10 +1,9 @@
 def _compile(target, compiler, name, include, srcs, objs, flags, std):
   import subprocess
   if std:
-    cmd_fmt = '{compiler} -o {name} {include} {srcs} {objs} {flags} -std={std}'
+    command = f'{compiler} -o {name} {include} {srcs} {objs} {flags} -std={std}'
   else:
-    cmd_fmt = '{compiler} -o {name} {include} {srcs} {objs} {flags}'
-  command = cmd_fmt.format(**locals())
+    command = f'{compiler} -o {name} {include} {srcs} {objs} {flags}'
   result = subprocess.run(command,
     encoding='utf-8', shell=True,
     stderr=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -15,8 +14,8 @@ def _compile(target, compiler, name, include, srcs, objs, flags, std):
 
 def _get_include_dirs(target, includes):
   includes.append(target.GetPackageDirectory())
-  return '-I. ' + ' '.join('-I{}'.format(d)
-   for d in includes)
+  includes = ' '.join(f'-I{d}' for d in includes)
+  return f'-I. {includes}'
 
 
 def _get_objects(target, tags):  # cpp_library cpp_object
@@ -118,7 +117,7 @@ def cpp_binary(target, name, **kwargs):
   def export_binary(_, package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
     binary_file = os.path.join(binary_location, package_name)
-    os.system('cp {} {}'.format(package_exe, binary_file))
+    os.system(f'cp {package_exe} {binary_file}')
 
   return export_binary
 
@@ -153,6 +152,6 @@ def cpp_test(target, name, **kwargs):
   def export_binary(_, package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
     binary_file = os.path.join(binary_location, package_name)
-    os.system('cp {} {}'.format(package_exe, binary_file))
+    os.system(f'cp {package_exe} {binary_file}')
 
   return export_binary

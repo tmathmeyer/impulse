@@ -30,7 +30,7 @@ class ScopedTempDirectory(object):
     os.chdir(self._old_directory)
     if self._delete_on_exit:
       if self._delete_non_empty:
-        os.system('rm -rf {}'.format(self._temp_directory))
+        os.system(f'rm -rf {self._temp_directory}')
       else:
         os.rmdir(self._temp_directory)
 

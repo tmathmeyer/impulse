@@ -118,6 +118,7 @@ def py_binary(target, name, **kwargs):
 @buildrule
 def py_test(target, name, srcs, **kwargs):
   target.SetTags('exe', 'test')
+  _add_files(target, srcs + kwargs.get('data', []))
   # Create the init files
   import os
   directory = target.GetPackageDirectory()
@@ -134,7 +135,7 @@ def py_test(target, name, srcs, **kwargs):
   package = '.'.join(target.package_target.GetPackagePathDirOnly().split('/'))
 
   for src in srcs:
-    main_contents += import_fmt.format(package, os.path.splitext(src)[0])
+    main_contents += f'from {package} import {os.path.splitext(src)[0]}\n'
   main_contents += main_exec
 
   _write_file(target, '__main__.py', main_contents)

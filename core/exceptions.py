@@ -100,7 +100,7 @@ class FileImportException(Exception):
     super().__init__('Exception occured importing {}:\n{}'.format(file, ex))
 
 
-class BuildTargetMissingFrom(Exception):
+class BuildTargetMissingFrom(ImpulseBaseException):
   """Raised when a build target is missing."""
   def __init__(self, target, buildrule):
     super().__init__('Target "{}", used in "{}", is missing.'.format(

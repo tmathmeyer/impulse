@@ -46,7 +46,7 @@ class Directory(ArgComplete):
     if not os.path.islink(shell):
       return
 
-    cmd = 'compgen -o bashdefault -o default -o nospace -F _cd {}'.format(stub)
+    cmd = f'compgen -o bashdefault -o default -o nospace -F _cd {stub}'
     stdout =  subprocess.Popen(cmd, shell=True,
       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     for line in stdout.stdout.readlines():
@@ -68,7 +68,7 @@ class File(ArgComplete):
     if not os.path.islink(shell):
       return
 
-    cmd = 'compgen -o bashdefault -o default -o nospace -F _ls {}'.format(stub)
+    cmd = f'compgen -o bashdefault -o default -o nospace -F _ls {stub}'
     stdout =  subprocess.Popen(cmd, shell=True,
       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     for line in stdout.stdout.readlines():
@@ -135,7 +135,7 @@ class ArgumentParser(object):
 
   def _invalid_syntax(self, func, argname, missing):
     decorator_call = inspect.stack()[2]
-    msg = 'Argument {} requires {}.'.format(argname, missing)
+    msg = f'Argument {argname} requires {missing}.'
     filepath = decorator_call.filename
     lineno = decorator_call.lineno
     codeline = decorator_call.code_context
@@ -237,3 +237,41 @@ class ArgumentParser(object):
       self._exec_func(self._methods[parsed.task]['func'], parsed)
     else:
       self._parser.print_help(sys.stderr)
+
+
+def _GetForwardingWrapperFrame():
+  previous = None
+  for entry in inspect.stack():
+    if entry.frame.f_code.co_name == '_exec_func':
+      module = inspect.getmodule(previous)
+      return previous, getattr(module, previous.f_code.co_name)
+    previous = entry.frame
+
+def _GetDefaultValue(func, name):
+  for arg, info in inspect.signature(func).parameters.items():
+    if arg == name:
+      return info.default
+  return None
+
+
+def Forward(name):
+  frame, func = _GetForwardingWrapperFrame()
+  argtype = func.__annotations__[name]
+  argvalue = frame.f_locals[name]
+  argdefault = _GetDefaultValue(func, name)
+
+  if argtype == bool:
+    if argvalue == True:
+      return f'--{name}'
+    return ''
+
+  if argdefault == inspect.Parameter.empty:
+    return argvalue.wrapped
+
+  if argvalue == None:
+    return ''
+
+  if argtype in (str, bool, int):
+    return f'--{name} {argvalue}'
+
+  return f'--{name} {argvalue.wrapped}'

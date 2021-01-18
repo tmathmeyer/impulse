@@ -13,14 +13,14 @@ py_library (
 py_library (
   name = "runner_lib",
   srcs = [
-    "runnertype.py",
     "runner.py",
+    "runnertype.py",
   ],
   deps = [
     ":run_integration_impl",
+    "//impulse/core:interface",
     "//impulse/host:libhost",
     "//impulse/rpc:rpc",
-    "//impulse/core:interface",
   ],
 )
 
@@ -31,7 +31,7 @@ py_library (
     ":github_auth",
     ":integration_base",
     "//impulse/hal:hal",
-  ]
+  ],
 )
 
 py_library (
@@ -45,7 +45,7 @@ py_library (
 
 py_library (
   name = "github_auth",
-  srcs = [ "githubauth.py" ]
+  srcs = [ "githubauth.py" ],
 )
 
 py_binary (
@@ -57,15 +57,13 @@ py_binary (
     ":runner_lib",
     "//impulse/hal:hal",
     "//impulse/host:libhost",
-  ]
+  ],
 )
 
 container (
   name = "ci-service",
   main_executable = "service",
-  binaries = [
-    "impulse",
-  ],
+  binaries = [ "impulse" ],
   deps = [
     ":service",
     "//impulse:impulse",
@@ -83,5 +81,5 @@ container (
     ],
     "environment": [ "FUSE_LIBRARY_PATH=/usr/lib/libfuse.so.2" ],
     "ports": [ 5566 ],
-  }
+  },
 )

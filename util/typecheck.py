@@ -1,52 +1,92 @@
 
 import inspect
+import sys
+import typing
 
-def Ensure(fn, debug=lambda x:x):
-  argspec = inspect.getfullargspec(fn)
-  annotations = argspec.annotations
-  def replacement(*args, **kwargs):
-    argvalues = {a:kwargs.get(a, None) for a in argspec.args}
-    if argspec.defaults:
-      last_args = argspec.args[-len(argspec.defaults):]
-      for a,b in zip(last_args, argspec.defaults):
-        argvalues[a] = b
-    for a,b in zip(argspec.args[:len(args)], args):
-      argvalues[a] = b
+from impulse.core import debug
 
-    debug(argvalues)
-    debug(argspec)
-    for n,t in argspec.annotations.items():
-      if n == 'return':
+
+def CheckType(generics:dict, actual, expected) -> (type, type):
+  if type(expected) == list:
+    if type(actual) != list:
+      return type(actual), expected
+
+    if not len(expected) == 1:
+      raise TypeError('Expected list types may only have one element')
+
+    exp2 = expected[0]
+    for e in actual:
+      actual_type, expected_type = CheckType(generics, e, exp2)
+      if actual_type is not None:
+        return [actual_type], [expected_type]
+    return None, None
+
+  if type(expected) == typing.TypeVar:
+    generic_name = expected.__name__
+    if generic_name not in generics:
+      generics[generic_name] = type(actual)
+    expected = generics[generic_name]
+
+  if not issubclass(type(actual), expected):
+    return type(actual), expected
+
+  return None, None
+
+
+class FunctionWrapper():
+  def __init__(self, fn):
+    self._func = fn
+    self._argspec = inspect.getfullargspec(fn)
+    self._spec = dict(self._argspec.annotations.items())
+    self._generics = {}
+
+  def __call__(self, *args, **kwargs):
+    self._generics = {}
+    self._CheckArgs(args, kwargs)
+    return_value = self._func(*args, **kwargs)
+    self._CheckReturn(return_value)
+    return return_value
+
+  def _CheckReturn(self, actual):
+    if 'return' not in self._spec:
+      return
+    if type(self._spec['return']) == str:
+      module = sys.modules[self._func.__module__]
+      self._spec['return'] = getattr(module, self._spec[arg], None)
+    actual_type, expected_type = CheckType(
+      self._generics, actual, self._spec['return'])
+    if actual_type is not None:
+      raise TypeError(
+        f'Expected type {expected_type} for return, got {actual_type}')
+
+  def _CheckArgs(self, args, kwargs):
+    argvalues = self._GetArgValues(args, kwargs)
+    for arg in self._spec:
+      if type(self._spec[arg]) == str:
+        module = sys.modules[self._func.__module__]
+        self._spec[arg] = getattr(module, self._spec[arg], None)
+      if arg == 'return':
         continue
-      if type(t) != str:
-        actual = str(type(argvalues[n]))
-        if not issubclass(type(argvalues[n]), t):
-          raise TypeError(
-            f'Expected type {str(t)} for "{n}", got {actual}')
-      else:
-        actual = str(type(argvalues[n]))
-        expanded = f"<class '{fn.__module__}.{t}'>"
-        if t != actual and expanded != actual:
-          raise TypeError(
-            f'Expected type {t} or {expanded} for "{n}", got {actual}')
+      actual_type, expected_type = CheckType(
+        self._generics, argvalues[arg], self._spec[arg])
+      if actual_type is not None:
+        raise TypeError(
+          f'Expected type {expected_type} for arg "{arg}", got {actual_type}')
 
-    retval = fn(*args, **kwargs)
-    if 'return' in argspec.annotations:
-      t = argspec.annotations['return']
-      if type(t) != str:
-        if not issubclass(type(retval), t):
-          raise TypeError(
-            f'Expected type {str(t)} for return, got {type(retval)}')
-      else:
-        actual = str(type(retval))
-        expanded = f"<class '{fn.__module__}.{t}'>"
-        if t != actual and expanded != actual:
-          raise TypeError(
-            f'Expected type {t} or {expanded} for return, got {actual}')
+  def _GetArgValues(self, args, kwargs):
+    result = {a:kwargs.get(a, None) for a in self._spec}
+    if self._argspec.defaults:
+      last_args = self._argspec.args[-len(self._argspec.defaults):]
+      for a, b in zip(last_args, self._argspec.defaults):
+        result[a] = b
+    for a, b in zip(self._argspec.args[:len(args)], args):
+      result[a] = b
+    return result
 
 
-    return retval
-  return replacement
-
-def Debug(fn):
-  return Ensure(fn, print)
+def Ensure(fn):
+  def metawrapper(*args, **kwargs):
+    return FunctionWrapper(fn)(*args, **kwargs)
+  if debug.IsDebug('typing'):
+    return metawrapper
+  return fn

@@ -11,6 +11,7 @@ from impulse import build_target
 from impulse.core import debug
 from impulse.core import exceptions
 from impulse.util import resources
+from impulse.util import typecheck
 
 
 INVALID_RULE_RECURSION_CANARY = object()
@@ -87,7 +88,8 @@ class ParsedBuildTarget(object):
       try:
         dependencies |= self._evaluator.ConvertTarget(target)
       except exceptions.BuildTargetMissing:
-        raise exceptions.BuildTargetMissingFrom(str(target), self._build_rule)
+        raise exceptions.BuildTargetMissingFrom(
+          str(target), self._build_rule) from None
 
     # Create a BuildTarget graph node
     return set([build_target.BuildTarget(
@@ -254,8 +256,8 @@ class RecursiveFileParser(object):
       build_file_index += 1
     return build_file
 
-  def _get_macro_invoker_file(self):
-    starting_index = 2 # 0 and 1 are the definition of the macro.
+  def _get_macro_invoker_file(self, k=2):
+    starting_index = k # 0 and 1 are the definition of the macro.
     stack = self._stack_without_recursive_loader()
     while starting_index < len(stack):
       if stack[starting_index].filename.endswith('build_defs.py'):
@@ -264,6 +266,11 @@ class RecursiveFileParser(object):
         return stack[starting_index].filename
       starting_index += 1
     return 'OH FUCK'
+
+  def _get_macro_expansion_site(self):
+    for frame in self._stack_without_recursive_loader():
+      if frame.filename.endswith('BUILD'):
+        return f'{frame.filename}:{frame.lineno}'
 
   def _buildmacro(self, fn):
     class MockArg(object):
@@ -370,11 +377,12 @@ class RecursiveFileParser(object):
           raise exceptions.NoSuchRuleType('/dev/null', 0, rulename)
         buildfile = self._loader._get_macro_invoker_file()
 
-        def Wrapper(**kwargs):
-          argbuilder = {'tags': TryEval(tags, kwargs), 'buildfile': buildfile}
+        def Wrapper(expansion_site, **kwargs):
+          argbuilder = {'tags': TryEval(tags, kwargs), 'buildfile': expansion_site}
           for asName, value in TryEval(args, kwargs).items():
             argbuilder[asName] = TryEval(value, kwargs)
           return rule(**argbuilder)
+
         self.macros.append(Wrapper)
 
     mock_args = {}
@@ -391,8 +399,10 @@ class RecursiveFileParser(object):
 
     fn(expander, **mock_args)
     def replacement(**kwargs):
+      macro_expansion_file = self._get_macro_expansion_site()
       for macro in expander.macros:
-        pbt = macro(**kwargs)
+        # Calls the |Wrapper| function above
+        pbt = macro(macro_expansion_file, **kwargs)
         if pbt:
           self._meta_targets.add(pbt._build_rule)
     return replacement
@@ -405,7 +415,7 @@ class RecursiveFileParser(object):
     buildrule_name = fn.__name__
 
     # all params to a build rule must be keyword!
-    def replacement(**kwargs):
+    def replacement(DBBG=False, **kwargs):
       # 'name' is a required argument!
       assert 'name' in kwargs
       name = kwargs['name']
@@ -479,15 +489,13 @@ class RecursiveFileParser(object):
   def ConvertAllTargets(self):
     for target, parsed in self._targets.items():
       if target.GetFullyQualifiedRulePath() not in self._meta_targets:
-        try:
-          self.ConvertTarget(target)
-        except:
-          pass
+        self.ConvertTarget(target)
 
-
-def generate_graph(build_target, allow_meta=None, **kwargs):
+@typecheck.Ensure
+def generate_graph(build_target:impulse_paths.ParsedTarget,
+                   allow_meta:bool=False, **kwargs):
   allow_meta = allow_meta or [build_target]
   re = RecursiveFileParser(kwargs)
   re.ParseTarget(build_target)
   re.ConvertTarget(build_target)
-  return re.GetAllConvertedTargets(allow_meta=allow_meta)
+  return re.GetAllConvertedTargets(allow_meta=True)

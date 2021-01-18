@@ -1,8 +1,6 @@
 langs("Python")
 
-py_library(
+py_library (
   name = "rpc",
-  srcs = [
-    "rpc.py",
-  ],
+  srcs = [ "rpc.py" ],
 )

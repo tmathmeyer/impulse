@@ -1,17 +1,13 @@
 langs("Python")
 
-py_library(
+py_library (
   name = "args",
-  srcs = [
-    "args.py",
-  ],
+  srcs = [ "args.py" ],
 )
 
-py_test(
+py_test (
   name = "args_unittest",
-  srcs = [
-    "args_test.py",
-  ],
+  srcs = [ "args_test.py" ],
   deps = [
     ":args",
     "//impulse/util:temp_dir",
