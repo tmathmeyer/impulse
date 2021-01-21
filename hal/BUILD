@@ -6,6 +6,6 @@ py_library (
     "api.py",
     "logger.py",
   ],
-  deps = [ "//impulse/rpc:rpc" ],
+  deps = [ "//impulse/util:rpc" ],
   data = [ "frontend.html" ],
 )

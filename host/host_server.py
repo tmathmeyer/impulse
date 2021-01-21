@@ -8,7 +8,7 @@ import requests
 
 from impulse.hal import api
 from impulse.host import libhost
-from impulse.rpc import rpc
+from impulse.util import rpc
 from nginxweb import nginxio
 
 

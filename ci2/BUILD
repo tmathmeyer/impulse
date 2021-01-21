@@ -20,7 +20,7 @@ py_library (
     ":run_integration_impl",
     "//impulse/core:interface",
     "//impulse/host:libhost",
-    "//impulse/rpc:rpc",
+    "//impulse/util:rpc",
   ],
 )
 

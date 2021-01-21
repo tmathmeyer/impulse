@@ -32,3 +32,8 @@ py_test (
   srcs = [ "typecheck_unittest.py" ],
   deps = [ ":typecheck" ],
 )
+
+py_library (
+  name = "rpc",
+  srcs = [ "rpc.py" ],
+)

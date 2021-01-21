@@ -2,7 +2,7 @@
 from impulse.ci2 import runnertype
 from impulse.ci2 import run_integration_impl
 from impulse.host import libhost
-from impulse.rpc import rpc
+from impulse.util import rpc
 
 import multiprocessing
 

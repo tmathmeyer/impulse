@@ -13,7 +13,7 @@ py_binary (
     "//impulse/hal:hal",
     "//impulse/host/frontend:frontend",
     "//impulse/host:libhost",
-    "//impulse/rpc:rpc",
+    "//impulse/util:rpc",
   ],
 )
 

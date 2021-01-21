@@ -3,7 +3,7 @@ import time
 import typing
 
 from impulse.hal import api
-from impulse.rpc import rpc
+from impulse.util import rpc
 
 
 class LogManager(object):

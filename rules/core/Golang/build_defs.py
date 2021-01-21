@@ -6,9 +6,11 @@ def ThirdParty(target, **kwargs):
     def __enter__(self):
       output = self.temp_dir.__enter__()
       target.SetEnvVar('GOPATH', output)
+      arch = os.path.join(output, 'pkg', kwargs.get('arch', 'linux_amd64'))
       for dependency in kwargs.get('third_party', []):
         target.Execute(f'go get {dependency}')
-      return os.path.join(output, 'pkg', kwargs.get('arch', 'linux_amd64'))
+        archive = os.path.join(arch, f'{dependency}.a')
+        yield (dependency, archive)
     def __exit__(self, *args, **kwargs):
       target.UnsetEnvVar('GOPATH')
       self.temp_dir.__exit__()
@@ -27,7 +29,13 @@ def WriteImportCFG(target, stdlib, gopkg, arch):
           cfg.write(f'packagefile {package_name}={archive}\n')
 
 
-@using(ThirdParty, WriteImportCFG)
+def UpdateImportCFG(packages):
+  with open('importcfg', 'a') as cfg:
+    for dependency, archive in packages:
+      cfg.write(f'packagefile {dependency}={archive}\n')
+
+
+@using(ThirdParty, WriteImportCFG, UpdateImportCFG)
 @buildrule
 def go_package(target: 'ExportablePackage', name: str, srcs:[str], **kwargs):
   target.SetTags('go_pkg')
@@ -38,19 +46,20 @@ def go_package(target: 'ExportablePackage', name: str, srcs:[str], **kwargs):
 
   srcs = list(os.path.join(target.GetPackageDirectory(), s) for s in srcs)
   with ThirdParty(target, **kwargs) as packages:
+    UpdateImportCFG(packages)
     obj_file = os.path.join(target.GetPackageDirectory(), name+'.a')
     src_str = ' '.join(srcs)
     target.Execute(
       f'go tool compile '
       f'-trimpath . '
       f'-importcfg importcfg '
-      f'-I {packages} '
       f'-o {obj_file} '
       f'-pack {src_str}')
     target.AddFile(obj_file)
+    target.AddFile('importcfg')
 
 
-@using(ThirdParty, WriteImportCFG)
+@using(ThirdParty, WriteImportCFG, UpdateImportCFG)
 @buildrule
 def go_binary(target: 'ExportablePackage', name:str, srcs:[str], **kwargs):
   if len(srcs) != 1:
@@ -66,7 +75,7 @@ def go_binary(target: 'ExportablePackage', name:str, srcs:[str], **kwargs):
     'internal/testlog', 'io', 'math', 'math/bits', 'os', 'reflect', 'runtime',
     'runtime/internal/atomic', 'runtime/internal/math', 'runtime/internal/sys',
     'sort', 'strconv', 'sync', 'sync/atomic', 'syscall', 'time', 'unicode',
-    'unicode/utf8',])
+    'unicode/utf8', 'fmt'])
 
   std_include.update(kwargs.get('std_include', []))
 
@@ -76,17 +85,25 @@ def go_binary(target: 'ExportablePackage', name:str, srcs:[str], **kwargs):
 
   binary = os.path.join(target.GetPackageDirectory(), 'exe')
   with ThirdParty(target, **kwargs) as packages:
+    UpdateImportCFG(packages)
+    os.system('cp importcfg ~/')
     with target.UseTempDir() as tmp:
       object_file = os.path.join(tmp, 'main.o')
       binary_intermediate = os.path.join(tmp, 'exe')
       importcfg = '-importcfg importcfg'
-      target.Execute(
-        f'go tool compile -o {object_file} {importcfg} {mainfile}',
+      print(target.Execute(
+        f'go tool compile -o {object_file} {importcfg} {mainfile}'))
+      print(target.Execute(
         f'go tool link -o {binary_intermediate} {importcfg} {object_file}',
-        f'cp {binary_intermediate} {binary}')
+        ))#f'cp {binary_intermediate} {binary}')
+      os.system(f'tree {tmp}')
+      os.system('tree')
+      os.system(f'type {binary_intermediate}')
+      target.AddFile(binary)
 
   def export_binary(_, package_name, package_file, binary_location):
     binary_file = os.path.join(binary_location, package_name)
+    os.system('tree')
     target.Execute(f'cp {binary} {binary_file}')
 
   return export_binary
