@@ -88,7 +88,7 @@ class BuildTargetCycle(Exception):
       BuildTargetCycle._Message(newstack), newstack)
 
 
-class BuildTargetMissing(Exception):
+class BuildTargetMissing(ImpulseBaseException):
   """Raised when a build target is missing."""
   def __init__(self, ex6):
     super().__init__(ex6)

@@ -92,7 +92,6 @@ class ExportedPackage(object):
         r = self.RunCommand(command)
         if r.returncode:
           raise exceptions.FatalException(f'command "{command}" failed.')
-        return r.stdout
       except:
         raise exceptions.FatalException(f'command "{command}" failed.')
 
@@ -406,7 +405,6 @@ class ExportablePackage(Hasher):
         if r.returncode:
           raise exceptions.FatalException(
             f'command "{command}" failed:\n{r.stdout}\n{r.stderr}')
-        return r
       except Exception as e:
         if type(e) == exceptions.FatalException:
           raise
