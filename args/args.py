@@ -148,7 +148,8 @@ class ArgumentParser(object):
         if argname.startswith('-') and argname.startswith(F):
           yield argname
         elif not argname.startswith('-') and not F.startswith('-') and argtype:
-          yield from argtype.get_completion_list(F)
+          if argtype not in [str, int, float]:
+            yield from argtype.get_completion_list(F)
 
     # If we have no args at all, populate everything
     if not len(args):
