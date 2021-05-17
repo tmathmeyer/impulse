@@ -325,8 +325,7 @@ class _FLASK_WRAPPER(object):
     self._CreateAPI(provider)
     self._CreateAPIExplorer(provider, meta_handler)
 
-  def RegisterBoundMethod(self, method):
-    verb, path = method.rest_verb
+  def RegisterUnboundMethod(self, path, method):
     self.flask_app.route(path)(method)
 
   def _CreateAPI(self, provider):
