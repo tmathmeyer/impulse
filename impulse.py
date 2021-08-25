@@ -170,7 +170,7 @@ def docker(target:impulse_paths.BuildTarget,
     return
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
     os.system(f'unzip {ruleinfo.output}')
-    os.system(f'docker build -t {os.path.basename(ruleinfo.output)}')
+    os.system(f'docker build -t {os.path.basename(ruleinfo.output)} .')
 
 
 @command
