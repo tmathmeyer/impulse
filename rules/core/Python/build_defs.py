@@ -47,33 +47,6 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
 
-@depends_targets("//impulse/proto:protocompile")
-@using(_write_file)
-@buildrule
-def py_proto(target, name, **kwargs):
-  import subprocess
-  target.SetTags('py_library')
-  if 'srcs' not in kwargs or len(kwargs['srcs']) != 1:
-    target.ExecutionFailed('prepare', 'srcs must have exactly one proto file')
-
-  directory = target.GetPackageDirectory()
-  command = f'./bin/protocompile --proto {directory}/{kwargs["srcs"][0]} python'
-  result = subprocess.run(command, encoding='utf-8', shell=True,
-    stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-
-  if result.returncode:
-    target.ExecutionFailed(command, result.stderr)
-
-  for line in result.stdout.split('\n'):
-    line = line.strip()
-    if line:
-      target.AddFile(line)
-      direct = os.path.dirname(line)
-      while direct:
-        _write_file(target, os.path.join(direct, '__init__.py'), '#generated')
-        direct = os.path.dirname(direct)
-
-
 @depends_targets("//impulse/util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary)
 @buildrule

@@ -346,8 +346,9 @@ def GitClone(target, name, repo, url):
   with open('gitlocation', 'w+') as f:
     f.write(repo_destination)
   target.AddFile('gitlocation')
-  target.SetInputFiles([os.path.join(
-    repo_destination, '.git', 'HEAD')])
+  if os.path.exists(os.path.join(repo_destination, '.git', 'HEAD')):
+    target.SetInputFiles([os.path.join(
+      repo_destination, '.git', 'HEAD')])
 
 
 def GitCheckout(target, name, commit):
