@@ -9,7 +9,7 @@ def service(macro_env, name, description, binary, deps):
     rulename = 'template',
     args = {
       'name': metadata_template,
-      'deps': [ '//impulse/systemd:metadata-template' ],
+      'deps': [ '//rules/env/SystemD:metadata-template' ],
       'tags': [ 'data' ],
       'template_data': {
         'executable': binary,
@@ -22,7 +22,7 @@ def service(macro_env, name, description, binary, deps):
     rulename = 'template',
     args = {
       'name': target_template,
-      'deps': [ '//impulse/systemd:target-template' ],
+      'deps': [ '//rules/env/SystemD:target-template' ],
       'tags': [ 'data' ],
       'template_data': {
         'executable': binary,
@@ -41,7 +41,7 @@ def service(macro_env, name, description, binary, deps):
       'mainfile': 'installer',
       'mainpackage': 'impulse.systemd',
       'deps': deps + [
-        '//impulse/systemd:installer',
+        '//impulse/tools/SystemDInstaller:installer',
         metadata_template.prepend(':'),
         target_template.prepend(':')
       ],

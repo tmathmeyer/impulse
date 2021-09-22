@@ -1,13 +1,4 @@
-langs("Python", "Template")
-
-py_library (
-  name = "installer",
-  srcs = [ "installer.py" ],
-  deps = [
-    "//impulse/args:args",
-    "//impulse/util:bintools",
-  ],
-)
+langs("Template")
 
 raw_template (
   name = "metadata-template",
