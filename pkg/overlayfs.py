@@ -140,10 +140,11 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
     return self._change_file(path, utime)
 
   def symlink(self, name, target):
-    def _ensure_target(target):
-      rw, _ = self._find_shadow_nodes(name)
-      return os.symlink(rw, target)
-    return self._change_file(target, _ensure_target)
+    def _ensure_target(name):
+      if not os.path.exists(os.path.dirname(name)):
+        os.makedirs(os.path.dirname(name))
+      return os.symlink(target, name)
+    return self._change_file(name, _ensure_target)
 
 
   # Write from scratch - easy, just create a new node in the RW space
@@ -203,10 +204,7 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
 
   def readlink(self, path):
     def _readlink(path):
-      pathname = os.readlink(path)
-      if pathname.startswith('/'):
-        ACCESS_ERR() # TODO: might have to ban symlinks entirely.
-      return pathname
+      return os.readlink(path)
     return self._fallback_on_read(path, _readlink)
 
 

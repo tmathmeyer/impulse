@@ -157,6 +157,18 @@ def _transform_rule(target, name, tags, rule, tool=None):
       target.AddFile(f)
 
 
+def _toolchain_rule(target, name, srcs, links, **args):
+  target.SetTags('toolchain')
+  for src in srcs:
+    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+
+  for link in links:
+    linkname = os.path.join(target.GetPackageDirectory(), link)
+    linktarget = os.path.join(impulse_paths.root(), linkname)
+    os.system(f'ln -sf {linktarget} {linkname}')
+    target.AddFile(linkname)
+
+
 class RecursiveFileParser(object):
   """Loads files based on load() and buildrule statements."""
   def __init__(self, carried_args):
@@ -177,7 +189,8 @@ class RecursiveFileParser(object):
       'data': self._buildrule(_data_buildrule),
       'git_repo': build_target.ParsedGitTarget,
       'langs': self._load_core_langs,
-      'transform': self._buildrule(_transform_rule)
+      'transform': self._buildrule(_transform_rule),
+      'toolchain': self._buildrule(_toolchain_rule),
     }
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):

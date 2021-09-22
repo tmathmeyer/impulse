@@ -247,7 +247,7 @@ class ExportablePackage(Hasher):
 
     with open('pkg_contents.json', 'w+') as f:
       f.write(self._GetJson())
-    cmd = 'zip {} pkg_contents.json {} 2>&1 > /dev/null'
+    cmd = 'zip --symlinks {} pkg_contents.json {} 2>&1 > /dev/null'
     filename = self.GetPackageName()
     cmd = cmd.format(filename, ' '.join(self.included_files))
     EnsureDirectory(os.path.dirname(filename))
