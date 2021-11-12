@@ -1,14 +1,9 @@
 def _compile(target, compiler, name, include, srcs, objs, flags, std):
-  import subprocess
   if std:
     command = f'{compiler} -o {name} {include} {srcs} {objs} {flags} -std={std}'
   else:
     command = f'{compiler} -o {name} {include} {srcs} {objs} {flags}'
-  result = subprocess.run(command,
-    encoding='utf-8', shell=True,
-    stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-  if result.returncode:
-    target.ExecutionFailed(command, result.stderr)
+  target.Execute(command)
   return name
 
 
@@ -72,6 +67,8 @@ def cpp_object(target, name, srcs, **kwargs):
     std=kwargs.get('std', 'c++17'))
 
   target.AddFile(binary)
+  for file in objects:
+    target.AddFile(file)
 
 @using(_compile, _get_objects)
 @buildrule
