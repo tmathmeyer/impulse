@@ -71,12 +71,12 @@ def py_binary(target, name, **kwargs):
   mainfile = name
   package = '.'.join(target.GetPackageDirectory().split('/'))
   if kwargs.get('mainfile', None) is not None:
-    mainfile = kwargs.get('mainfile').rstrip('.py')
+    mainfile = kwargs.get('mainfile').rstrip('py').rstrip('.')
     if kwargs.get('mainpackage', None) is not None:
       package = kwargs.get('mainpackage')
   elif f'{name}.py' not in srcs:
     if len(srcs) == 1:
-      mainfile = srcs[0].rstrip('.py')
+      mainfile = srcs[0].rstrip('py').rstrip('.')
 
   # Create the __main__ file
   main_contents = f'from {package} import {mainfile}\n{mainfile}.main()\n'
