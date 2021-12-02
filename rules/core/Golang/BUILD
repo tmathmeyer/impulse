@@ -47,7 +47,8 @@ igo_compile (
     "/usr/lib/go/src/runtime/internal/sys/zgoos_linux.go",
     "/usr/lib/go/src/runtime/internal/sys/zversion.go",
   ],
-  asm_src = [ ],
+  asm_src = [
+  ],
   incl = [ "/usr/lib/go/pkg/include" ],
   goos = "linux",
   arch = "amd64",
@@ -58,7 +59,8 @@ igo_compile (
   name = "math",
   pkg = "runtime/internal/math",
   go_src = [ "/usr/lib/go/src/runtime/internal/math/math.go" ],
-  asm_src = [ ],
+  asm_src = [
+  ],
   incl = [ "/usr/lib/go/pkg/include" ],
   goos = "linux",
   arch = "amd64",
@@ -89,9 +91,7 @@ igo_compile (
   incl = [ "/usr/lib/go/pkg/include" ],
   goos = "linux",
   arch = "amd64",
-  deps = [
-    ":cpu",
-  ]
+  deps = [ ":cpu" ],
 )
 
 igo_compile (
@@ -232,9 +232,9 @@ igo_compile (
   goos = "linux",
   arch = "amd64",
   deps = [
+    ":atomic",
     ":bytealg",
     ":cpu",
-    ":atomic",
     ":math",
     ":sys",
   ],

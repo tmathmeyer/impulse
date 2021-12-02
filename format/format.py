@@ -146,6 +146,23 @@ class FormattingBuildFileReader(readers.BuildFileReaderImpl):
     if type(data) == ProxyPattern:
       return f'pattern("{data.pattern}")'
 
+    if type(data) == bool:
+      return f'{data}'
+
+    if type(data) == tuple:
+      if len(data) == 1:
+        return f'( {self._print_data(data[0], indent)} )'
+      expected = f'({", ".join(self._print_data(d, indent) for d in data)})'
+      if len(expected) < 80:
+        return expected
+      l = '(\n'
+      for d in data:
+        l += ' ' * (indent + 2)
+        l += self._print_data(d, indent+2)
+        l += ',\n'
+      l += ' ' * indent + ')'
+      return l
+
     raise FormattingError(f'unknown type of {data}')
 
 

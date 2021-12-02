@@ -205,6 +205,8 @@ class RecursiveFileParser(object):
     return self._ParseFileFromLocation(file, file)
 
   def _ParseFileFromLocation(self, file:str, location:str):
+    if debug.IsDebug():
+      print(f'Loading File: {file}')
     if file not in self._loaded_files:
       self._loaded_files.add(file)
       try:
@@ -426,6 +428,9 @@ class RecursiveFileParser(object):
     
     # Store the type of buildrule
     buildrule_name = fn.__name__
+
+    if debug.IsDebug():
+      print(f'Adding Buildrule: {buildrule_name}')
 
     # all params to a build rule must be keyword!
     def replacement(DBBG=False, **kwargs):

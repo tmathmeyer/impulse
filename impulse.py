@@ -132,9 +132,9 @@ def info(target:impulse_paths.BuildTarget,
 
 @command
 def targets(fakeroot:args.Directory=None,
-            debug:str=None,
             project:str=None,
-            roots:bool=False):
+            roots:bool=False,
+            debug:bool=False,):
   """Lists targets."""
   setup(debug, fakeroot)
   targets = set(graph_for_directory(project, False)[0])
