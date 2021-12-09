@@ -287,6 +287,12 @@ class RecursiveFileParser(object):
       if frame.filename.endswith('BUILD'):
         return f'{frame.filename}:{frame.lineno}'
 
+
+  def _get_macro_expansion_directory(self):
+    for frame in self._stack_without_recursive_loader():
+      if frame.filename.endswith('BUILD'):
+        return os.path.dirname(frame.filename)
+
   def _buildmacro(self, fn):
     class MockArg(object):
       def __init__(self, argname, appended=None,
@@ -312,6 +318,9 @@ class RecursiveFileParser(object):
 
       def get(self, value, default):
         return DictMockArg(self, value, default)
+
+      def Map(self, lam):
+        return MapMockArg(self._argname, lam)
 
       def prepend(self, other):
         if self._prepended is not None:
@@ -367,6 +376,17 @@ class RecursiveFileParser(object):
         self.value = value
         self.default = default
 
+    class MapMockArg(MockArg):
+      def __init__(self, argname, lam):
+        self._argname = argname
+        self._lam = lam
+
+      def eval(self, kwargs):
+        if self._argname not in kwargs:
+          raise exceptions.FatalException(
+            f'Missing required argument: {self._argname} - found: {list(kwargs.keys())}')
+        return [self._lam(x) for x in kwargs[self._argname]]
+
     def TryEval(value, kwargs):
       if type(value) == list:
         return [TryEval(v, kwargs) for v in value]
@@ -374,17 +394,20 @@ class RecursiveFileParser(object):
         return {k:TryEval(v, kwargs) for k,v in value.items()}
       if type(value) == MockArg:
         return value.eval(kwargs)
+      if type(value) == MapMockArg:
+        return value.eval(kwargs)
       return value
 
     class MacroExpander(object):
       def __init__(self, loader, name):
         self._loader = loader
         self.name = name
-        self.macros = []
+        self.macros = {}
+
+      def GetLocation(self):
+        return self._loader._get_macro_expansion_directory()
 
       def ImitateRule(self, rulefile, rulename, args, tags=[]):
-        if debug.IsDebug():
-          print(f'Adding Rule: {rulefile}::{rulename}')
         self._loader._load_files(rulefile)
         rule = self._loader._environ.get(rulename)
         if rule is None:
@@ -398,7 +421,7 @@ class RecursiveFileParser(object):
             argbuilder[asName] = TryEval(value, kwargs)
           return rule(**argbuilder)
 
-        self.macros.append(Wrapper)
+        self.macros[rulename] = Wrapper
 
     mock_args = {}
     expander = MacroExpander(self, fn.__name__)
@@ -413,9 +436,13 @@ class RecursiveFileParser(object):
         mock_args[arg] = MockArg(arg)
 
     fn(expander, **mock_args)
+    if debug.IsDebug():
+      print(f'Expanding Macro {expander.name}:')
+      for rulename in expander.macros:
+        print(f'  => {rulename}')
     def replacement(**kwargs):
       macro_expansion_file = self._get_macro_expansion_site()
-      for macro in expander.macros:
+      for macro in expander.macros.values():
         # Calls the |Wrapper| function above
         pbt = macro(macro_expansion_file, **kwargs)
         if pbt:

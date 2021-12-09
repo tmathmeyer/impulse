@@ -180,7 +180,23 @@ class ExportablePackage(Hasher):
 
     return json.dumps(copydict, indent=2)
 
+  def Help(self):
+    for potential in dir(self):
+      if potential.startswith('__'):
+        continue
+      try:
+        potential = getattr(self, potential)
+      except:
+        continue
+      if not callable(potential):
+        continue
+      if not hasattr(potential, '__doc__') or potential.__doc__ is None:
+        continue
+      print(f'{potential.__name__}:')
+      print(f'  {potential.__doc__}')
+
   def GetHash(self, filename:str) -> str:
+    '''Gets the hash of a file, given its name'''
     try:
       return self.MD5(filename)
     except FileNotFoundError as e:
@@ -204,32 +220,40 @@ class ExportablePackage(Hasher):
     self.build_file = HashedFile(hashpath, self)
 
   def AddFile(self, filename:str):
+    '''Adds a file to the output package.'''
     self.included_files.append(filename)
 
   def AddDependency(self, dependency):
+    '''Add a dependency on another target.'''
     if dependency not in self.depends_on_targets:
       self.depends_on_targets.append(dependency)
 
-  def GetPackageName(self):
+  def GetPackageName(self) -> str:
+    '''Gets the name of the package.'''
     return self.package_target.GetPackagePkgFile()
 
   def GetPackageDirectory(self):
+    '''Gets the package source directory.'''
     return self.package_target.GetPackagePathDirOnly()
 
-  def ExecutionFailed(self, command, stderr):
+  def ExecutionFailed(self, command:str, stderr:str):
+    '''Triggers an exception with given cmdline and stderr.'''
     raise exceptions.BuildDefsRaisesException(self.package_target.target_name,
       self.package_ruletype, command + "\n\n" + stderr)
 
   def ExecutionNotRequired(self):
     raise exceptions.BuildTargetNoBuildNecessary()
 
-  def GetBinariesDir(self):
+  def GetBinariesDir(self) -> str:
+    '''Gets the directory where binaries are exported to.'''
     return self._binaries_location
 
   def GetPreviousBuildTimestamp(self):
+    '''Gets the timestamp for when this rule was previously built.'''
     return self._previous_build_timestamp
 
   def RunCommand(self, command):
+    '''Executes a command.'''
     return subprocess.run(command,
                           encoding='utf-8',
                           shell=True,
@@ -320,7 +344,8 @@ class ExportablePackage(Hasher):
       else:
         return self._extracted_dir, {}, exported_package
 
-  def MakeTempDir(self):
+  def MakeTempDir(self) -> str:
+    '''Makes a temporary directory. Please clean up after yourself.'''
     exists = True
     chrs = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     dirname = ''
@@ -334,6 +359,7 @@ class ExportablePackage(Hasher):
     return f'/tmp/{dirname}'
 
   def UseTempDir(self):
+    '''Context manage for a temporary directory that auto cleans up.'''
     wrapper = self
     class DirManager(object):
       def __init__(self):
@@ -377,6 +403,7 @@ class ExportablePackage(Hasher):
     self._extracted_dir = None
 
   def Dependencies(self, **filters):
+    '''Generates a list targets that this target depends on.'''
     def yieldPackage(pkg):
       for k, v in filters.items():
         valueof = getattr(pkg, k, None)
@@ -395,9 +422,11 @@ class ExportablePackage(Hasher):
         yield package
 
   def SetTags(self, *tags):
+    '''Adds tags to this target.'''
     self.tags.update(set(tags))
 
   def Execute(self, *cmds):
+    '''Executes |cmds| in order.'''
     for command in cmds:
       command = f'{self._exec_env_str} {command}'
       try:
@@ -411,18 +440,20 @@ class ExportablePackage(Hasher):
         raise exceptions.FatalException(f'command "{command}" failed.')
 
   def SetEnvVar(self, var, value):
+    '''Sets an environment variable for execution.'''
     self._exec_env[var] = value
     self._update_exec_env_str()
 
   def UnsetEnvVar(self, var):
+    '''Unsets an environment variable for execution.'''
     self._exec_env.pop(var)
     self._update_exec_env_str()
 
   def _update_exec_env_str(self):
     self._exec_env_str = ' '.join(f'{k}={v}' for k,v in self._exec_env.items())
 
-
   def IncludedFiles(self):
+    '''A list of all files included in this package.'''
     return [f for f in self.included_files]
 
   def Semaphor(pkg):
