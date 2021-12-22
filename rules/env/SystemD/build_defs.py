@@ -9,7 +9,7 @@ def service(macro_env, name, description, binary, deps):
     rulename = 'template',
     args = {
       'name': metadata_template,
-      'deps': [ '//rules/env/SystemD:metadata-template' ],
+      'deps': [ '//impulse/rules/env/SystemD:metadata-template' ],
       'tags': [ 'data' ],
       'template_data': {
         'executable': binary,
@@ -22,7 +22,7 @@ def service(macro_env, name, description, binary, deps):
     rulename = 'template',
     args = {
       'name': target_template,
-      'deps': [ '//rules/env/SystemD:target-template' ],
+      'deps': [ '//impulse/rules/env/SystemD:target-template' ],
       'tags': [ 'data' ],
       'template_data': {
         'executable': binary,

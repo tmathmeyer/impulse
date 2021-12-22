@@ -83,12 +83,13 @@ def get_target_from_graph(target, graph):
 def build(target:impulse_paths.BuildTarget,
           debug:bool=False,
           force:bool=False,
-          fakeroot:args.Directory=None):
+          fakeroot:args.Directory=None,
+          threads:int=6):
   """Builds the given target."""
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
   build_and_await(debug, recursive_loader.generate_graph(parsed_target,
-    force_build=force, allow_meta=True))
+    force_build=force, allow_meta=True), threads)
   return parsed_target.GetRuleInfo()
 
 
