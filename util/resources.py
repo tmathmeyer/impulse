@@ -25,7 +25,6 @@ class ResourceOpener(object):
     extracted, do_clean = self._extracted, self._extracted_cleanup
     self._extracted, self._extracted_cleanup = None, None
     if extracted and do_clean:
-      import shutil
       shutil.rmtree(extracted)
     self._TeardownSignal()
 
