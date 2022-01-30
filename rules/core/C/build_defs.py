@@ -1,8 +1,10 @@
-def _compile(target, compiler, name, include, srcs, objs, flags, std):
+def _compile(target, compiler, name, include, srcs, objs, flags, std, log=False):
   if std:
     command = f'{compiler} -o {name} {include} {srcs} {objs} {flags} -std={std}'
   else:
     command = f'{compiler} -o {name} {include} {srcs} {objs} {flags}'
+  if log:
+    print(command);
   target.Execute(command)
   return name
 
@@ -14,10 +16,12 @@ def _get_include_dirs(target, includes):
 
 
 def _get_objects(target, tags):  # cpp_library cpp_object
+  objects = set()
   for tag in tags:
     for deplib in target.Dependencies(tags=tag):
       for obj in deplib.IncludedFiles():
-        yield obj
+        objects.add(obj)
+  return objects
 
 
 def _get_src_files(target, srcs):
@@ -57,12 +61,13 @@ def cpp_object(target, name, srcs, **kwargs):
   flags = set(kwargs.get('flags', []))
   flags.update(['-Wall', '-c', '-fdiagnostics-color=always'])
   binary = _compile(
+    log=False,
     target=target,
     compiler=compiler,
     name=os.path.join(target.GetPackageDirectory(), name+'.o'),
     include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
     srcs=' '.join(_get_src_files(target, srcs)),
-    objs=' '.join(objects),
+    objs='',
     flags=' '.join(flags),
     std=kwargs.get('std', 'c++17'))
 
@@ -78,6 +83,7 @@ def cpp_library(target, name, deps, **kwargs):
   flags = set(kwargs.get('flags', []))
   flags.update(['-r'])
   binary = _compile(
+    log=False,
     target=target,
     compiler=kwargs.get('compiler', 'ld'),
     name=os.path.join(target.GetPackageDirectory(), name+'.o'),
@@ -101,6 +107,7 @@ def cpp_binary(target, name, **kwargs):
   flags = set(kwargs.get('flags', []))
   flags.update(['-Wall', '-fdiagnostics-color=always'])
   binary = _compile(
+    log=False,
     target=target,
     compiler=compiler,
     name=os.path.join(target.GetPackageDirectory(), name),
@@ -136,6 +143,7 @@ def cpp_test(target, name, **kwargs):
   ]
 
   binary = _compile(
+    log=False,
     target=target,
     compiler=kwargs.get('compiler', 'g++'),
     name=os.path.join(target.GetPackageDirectory(), name),
