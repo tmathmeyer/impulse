@@ -145,7 +145,7 @@ def targets(fakeroot:args.Directory=None,
         if dep in targets:
           targets.remove(dep)
   for target in targets:
-    print(target)
+    print(target.get_name())
 
 
 @command

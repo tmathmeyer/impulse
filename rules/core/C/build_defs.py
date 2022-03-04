@@ -11,9 +11,18 @@ def _compile(target, compiler, name, include, srcs, objs, flags, std, log=False)
 
 def _get_include_dirs(target, includes):
   includes.append(target.GetPackageDirectory())
+  for deplib in target.Dependencies(tags=Any('cpp_header', 'c_header')):
+    includes += deplib.GetPropagatedData('includes')
   includes = ' '.join(f'-I{d}' for d in includes)
   return f'-I. {includes}'
 
+def _get_flags(target, kwargs):
+  flags = set(kwargs.get('flags', []))
+  for deplib in target.Dependencies(tags=Any('cpp_input')):
+    flags.update(deplib.GetPropagatedData('buildflags'))
+  for flag in flags:
+    target.PropagateData('buildflags', flag)
+  return flags
 
 def _get_objects(target, tags):  # cpp_library cpp_object
   objects = set()
@@ -48,9 +57,13 @@ def cpp_header(target, name, srcs, **kwargs):
   for deplib in target.Dependencies(tags=Any('cpp_header', 'c_header')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
+    for include in deplib.GetPropagatedData('includes'):
+      target.PropagateData('includes', include)
+  for include in kwargs.get('include_dirs', []):
+    target.PropagateData('includes', include)
 
 
-@using(_compile, _get_include_dirs, _get_objects, _get_src_files)
+@using(_compile, _get_include_dirs, _get_objects, _get_src_files, _get_flags)
 @buildrule
 def cpp_object(target, name, srcs, **kwargs):
   compiler = kwargs.get('compiler', 'g++')
@@ -58,7 +71,7 @@ def cpp_object(target, name, srcs, **kwargs):
   target.SetTags(f'{lang}_input')
 
   objects = list(_get_objects(target, [f'{lang}_input']))
-  flags = set(kwargs.get('flags', []))
+  flags = _get_flags(target, kwargs)
   flags.update(['-Wall', '-c', '-fdiagnostics-color=always'])
   binary = _compile(
     log=False,
@@ -75,12 +88,12 @@ def cpp_object(target, name, srcs, **kwargs):
   for file in objects:
     target.AddFile(file)
 
-@using(_compile, _get_objects)
+@using(_compile, _get_objects, _get_flags)
 @buildrule
 def cpp_library(target, name, deps, **kwargs):
   target.SetTags('c_input', 'cpp_input')
   objects = list(_get_objects(target, ['c_input', 'cpp_input']))
-  flags = set(kwargs.get('flags', []))
+  flags = _get_flags(target, kwargs)
   flags.update(['-r'])
   binary = _compile(
     log=False,
@@ -96,7 +109,7 @@ def cpp_library(target, name, deps, **kwargs):
   target.AddFile(binary)
 
 
-@using(_compile, _get_include_dirs, _get_objects, _get_src_files)
+@using(_compile, _get_include_dirs, _get_objects, _get_src_files, _get_flags)
 @buildrule
 def cpp_binary(target, name, **kwargs):
   compiler = kwargs.get('compiler', 'g++')
@@ -104,7 +117,7 @@ def cpp_binary(target, name, **kwargs):
   target.SetTags('exe')
 
   objects = _get_objects(target, [f'{lang}_input'])
-  flags = set(kwargs.get('flags', []))
+  flags = _get_flags(target, kwargs)
   flags.update(['-Wall', '-fdiagnostics-color=always'])
   binary = _compile(
     log=False,
@@ -128,13 +141,13 @@ def cpp_binary(target, name, **kwargs):
 
 @depends_targets("//googletest:googletest",
                  "//googletest:googletest_headers")
-@using(_compile, _get_include_dirs, _get_objects, _get_src_files)
+@using(_compile, _get_include_dirs, _get_objects, _get_src_files, _get_flags)
 @buildrule
 def cpp_test(target, name, **kwargs):
   target.SetTags('exe', 'test')
   objects = _get_objects(target, ['cpp_input'])
   # We need the -lpthread for gtest
-  flags = set(kwargs.get('flags', []))
+  flags = _get_flags(target, kwargs)
   flags.update(['-Wextra', '-Wall', '-lpthread', '-fdiagnostics-color=always'])
 
   include_dirs = kwargs.get('include_dirs', []) + [

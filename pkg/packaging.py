@@ -79,6 +79,11 @@ class ExportedPackage(object):
   def IncludedFiles(self):
     return [file for file in self.included_files]
 
+  def GetPropagatedData(self, key):
+    if key in self.__dict__:
+      return self.__dict__[key]
+    return []
+
   def RunCommand(self, command):
     return subprocess.run(command,
                           encoding='utf-8',
@@ -140,6 +145,7 @@ class ExportablePackage(Hasher):
     self._previous_build_timestamp = 0
     self._exec_env = {}
     self._exec_env_str = ''
+    self._propagated_data = {}
 
   def __getstate__(self):
     return self.__dict__.copy()
@@ -178,6 +184,10 @@ class ExportablePackage(Hasher):
       if k == 'tags':
         copydict[k] = list(v)
 
+    for k, v in self._propagated_data.items():
+      if k not in copydict:
+        copydict[k] = v
+
     return json.dumps(copydict, indent=2)
 
   def Help(self):
@@ -205,6 +215,11 @@ class ExportablePackage(Hasher):
     except IsADirectoryError:
       raise exceptions.ListedSourceNotFound(
         filename, str(self.package_target))
+
+  def PropagateData(self, key, data):
+    if key not in self._propagated_data:
+      self._propagated_data[key] = []
+    self._propagated_data[key].append(data)
 
   def SetInternalAccess(self, access):
     self._buildqueue_ref = access
