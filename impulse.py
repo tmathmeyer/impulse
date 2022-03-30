@@ -1,5 +1,6 @@
 """IdeMpotent Python bUiLd SystEm"""
 
+import json
 import glob
 import os
 import sys
@@ -169,9 +170,17 @@ def docker(target:impulse_paths.BuildTarget,
   if not ruleinfo.type == 'container':
     print('Only docker containers can be run')
     return
+  container = os.path.basename(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
     os.system(f'unzip {ruleinfo.output}')
-    os.system(f'docker build -t {os.path.basename(ruleinfo.output)} .')
+    os.system(f'docker build -t {container} .')
+    with open('pkg_contents.json', 'r') as f:
+      docker_args = json.loads(f.read())['docker_args'][0]
+      run_cmd = 'docker run -d '
+      if docker_args['ports']:
+        run_cmd += '-P '
+      run_cmd += f'{container}:latest'
+      os.system(run_cmd)
 
 
 @command

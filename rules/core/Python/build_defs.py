@@ -47,8 +47,39 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
 
+def _get_pip_metadata(pips):
+  import sysconfig
+  import re
+  lib_path = sysconfig.get_path('platlib', sysconfig.get_default_scheme())
+  py_version = lib_path.split('/')[3][6:]
+  packages = []
+  while pips:
+    pip = pips[0]
+    pips = pips[1:]
+    verz = r'\d+(.\d+)+'
+    egg_fmt = f'{pip}-{verz}-py{py_version}.egg-info'
+    egg_info = None
+    for file in os.listdir(lib_path):
+      if re.match(egg_fmt, file):
+        egg_info = f'{lib_path}/{file}'
+        break
+    if egg_info == None:
+      raise ValueError(f'Error! Cant find {pip} installation')
+    if os.path.exists(f'{egg_info}/requires.txt'):
+      with open(f'{egg_info}/requires.txt', 'r') as f:
+        for line in f.readlines():
+          if not line.strip():
+            break;
+          pips.append(line.split('>=')[0])
+    with open(f'{egg_info}/top_level.txt', 'r') as f:
+      packages.append(f.read().strip())
+  return [(p, f'{lib_path}/{p}') for p in packages]
+
+
+
 @depends_targets("//impulse/util:bintools")
-@using(_add_files, _write_file, _get_tools_paths, py_make_binary)
+@using(_add_files, _write_file, _get_tools_paths, py_make_binary,
+       _get_pip_metadata)
 @buildrule
 def py_binary(target, name, **kwargs):
   target.SetTags('exe')
@@ -81,6 +112,11 @@ def py_binary(target, name, **kwargs):
   # Create the __main__ file
   main_contents = f'from {package} import {mainfile}\n{mainfile}.main()\n'
   _write_file(target, '__main__.py', main_contents)
+  for pkgname, pkgpath in _get_pip_metadata(kwargs.get('pips', [])):
+    os.system(f'cp -r {pkgpath} {pkgname}')
+    for dn, _, files in os.walk(pkgname):
+      for file in files:
+        target.AddFile(f'{dn}/{file}')
 
   # Converter from pkg to binary
   return py_make_binary
