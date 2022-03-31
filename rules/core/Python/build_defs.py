@@ -53,24 +53,36 @@ def _get_pip_metadata(pips):
   lib_path = sysconfig.get_path('platlib', sysconfig.get_default_scheme())
   py_version = lib_path.split('/')[3][6:]
   packages = []
-  while pips:
-    pip = pips[0]
-    pips = pips[1:]
+
+  def GetPipEgg(pip, req, retry=True):
     verz = r'\d+(.\d+)+'
     egg_fmt = f'{pip}-{verz}-py{py_version}.egg-info'
-    egg_info = None
     for file in os.listdir(lib_path):
       if re.match(egg_fmt, file):
-        egg_info = f'{lib_path}/{file}'
-        break
-    if egg_info == None:
-      raise ValueError(f'Error! Cant find {pip} installation')
+        return f'{lib_path}/{file}'
+    if retry:
+      if pip[0].upper() == pip[0]:
+        return GetPipEgg(pip[0].lower() + pip[1:], req, False)
+      else:
+        return GetPipEgg(pip[0].upper() + pip[1:], req, False)
+    raise ValueError(f'Cant find {pip} installation, required by {req}')
+
+  def ParseRequirementLine(line):
+    match = re.match(r'([a-zA-Z0-9-_]+).*', line.strip())
+    return match.groups()[0]
+
+  pips = [(p,'root') for p in pips]
+
+  while pips:
+    pip, req = pips[0]
+    pips = pips[1:]
+    egg_info = GetPipEgg(pip, req)
     if os.path.exists(f'{egg_info}/requires.txt'):
       with open(f'{egg_info}/requires.txt', 'r') as f:
         for line in f.readlines():
           if not line.strip():
             break;
-          pips.append(line.split('>=')[0])
+          pips.append((ParseRequirementLine(line), pip))
     with open(f'{egg_info}/top_level.txt', 'r') as f:
       packages.append(f.read().strip())
   return [(p, f'{lib_path}/{p}') for p in packages]
