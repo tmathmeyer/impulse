@@ -56,9 +56,11 @@ def _get_pip_metadata(pips):
 
   def GetPipEgg(pip, req, retry=True):
     verz = r'\d+(.\d+)+'
-    egg_fmt = f'{pip}-{verz}-py{py_version}.egg-info'
+    egg_fmt = rf'-py{py_version}.egg'
+    dist_fmt = rf'\.dist'
+    dir_fmt = rf'{pip}-{verz}(({egg_fmt})|({dist_fmt}))-info'
     for file in os.listdir(lib_path):
-      if re.match(egg_fmt, file):
+      if re.match(dir_fmt, file):
         return f'{lib_path}/{file}'
     if retry:
       if pip[0].upper() == pip[0]:
@@ -84,7 +86,7 @@ def _get_pip_metadata(pips):
             break;
           pips.append((ParseRequirementLine(line), pip))
     with open(f'{egg_info}/top_level.txt', 'r') as f:
-      packages.append(f.read().strip())
+      packages.append(f.read().split('\n')[0].strip())
   return [(p, f'{lib_path}/{p}') for p in packages]
 
 
