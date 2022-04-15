@@ -82,7 +82,7 @@ def cpp_object(target, name, srcs, **kwargs):
     srcs=' '.join(_get_src_files(target, srcs)),
     objs='',
     flags=' '.join(flags),
-    std=kwargs.get('std', 'c++17'))
+    std=kwargs.get('std', 'c++20'))
 
   target.AddFile(binary)
   for file in objects:
@@ -128,7 +128,7 @@ def cpp_binary(target, name, **kwargs):
     srcs=' '.join(_get_src_files(target, kwargs.get('srcs', []))),
     objs=' '.join(objects),
     flags=' '.join(flags),
-    std=kwargs.get('std', 'c++17'))
+    std=kwargs.get('std', 'c++20'))
   target.AddFile(binary)
 
   def export_binary(_, package_name, package_file, binary_location):
@@ -164,7 +164,7 @@ def cpp_test(target, name, **kwargs):
     srcs=' '.join(_get_src_files(target, kwargs.get('srcs', []))),
     objs=' '.join(objects),
     flags=' '.join(flags),
-    std=kwargs.get('std', 'c++17'))
+    std=kwargs.get('std', 'c++20'))
   target.AddFile(binary)
 
   def export_binary(_, package_name, package_file, binary_location):
