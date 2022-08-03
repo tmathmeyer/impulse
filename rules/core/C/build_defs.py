@@ -5,7 +5,12 @@ def _compile(target, compiler, name, include, srcs, objs, flags, std, log=False)
     command = f'{compiler} -o {name} {include} {srcs} {objs} {flags}'
   if log:
     print(command);
-  target.Execute(command)
+  try:
+    target.Execute(command)
+  except Exception as e:
+    if target.IsDebug() and 'No such file or directory' in str(e):
+      os.system('tree')
+    raise e
   return name
 
 
@@ -72,7 +77,7 @@ def cpp_object(target, name, srcs, **kwargs):
 
   objects = list(_get_objects(target, [f'{lang}_input']))
   flags = _get_flags(target, kwargs)
-  flags.update(['-Wall', '-c', '-fdiagnostics-color=always'])
+  flags.update(['-Wall', '-c', '-fdiagnostics-color=always', '-g', '-Wextra'])
   binary = _compile(
     log=False,
     target=target,
@@ -94,7 +99,7 @@ def cpp_library(target, name, deps, **kwargs):
   target.SetTags('c_input', 'cpp_input')
   objects = list(_get_objects(target, ['c_input', 'cpp_input']))
   flags = _get_flags(target, kwargs)
-  flags.update(['-r'])
+  flags.update(['-r', '-g'])
   binary = _compile(
     log=False,
     target=target,
@@ -118,7 +123,7 @@ def cpp_binary(target, name, **kwargs):
 
   objects = _get_objects(target, [f'{lang}_input'])
   flags = _get_flags(target, kwargs)
-  flags.update(['-Wall', '-fdiagnostics-color=always'])
+  flags.update(['-Wall', '-fdiagnostics-color=always', '-g', '-Wextra'])
   binary = _compile(
     log=False,
     target=target,

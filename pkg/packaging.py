@@ -459,6 +459,9 @@ class ExportablePackage(Hasher):
     self._exec_env[var] = value
     self._update_exec_env_str()
 
+  def IsDebug(self):
+    return debug.IsDebug()
+
   def UnsetEnvVar(self, var):
     '''Unsets an environment variable for execution.'''
     self._exec_env.pop(var)

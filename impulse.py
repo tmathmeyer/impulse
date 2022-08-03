@@ -95,6 +95,22 @@ def build(target:impulse_paths.BuildTarget,
 
 
 @command
+def buildall(fakeroot:args.Directory=None,
+            project:str=None,
+            roots:bool=False,
+            debug:bool=False,):
+  """Builds every target in the current directory."""
+  setup(debug, fakeroot)
+  targets = set(graph_for_directory(project, False)[0])
+  if roots:
+    for target in set(targets):
+      for dep in target.dependencies:
+        if dep in targets:
+          targets.remove(dep)
+  build_and_await(debug, targets, 16)
+
+
+@command
 def info(target:impulse_paths.BuildTarget,
          fakeroot:args.Directory=None,
          debug:bool=False,
