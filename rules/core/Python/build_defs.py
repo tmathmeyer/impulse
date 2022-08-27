@@ -54,6 +54,16 @@ def _get_pip_metadata(pips):
   py_version = lib_path.split('/')[3][6:]
   packages = []
 
+  def GetOtherNameCombinations(pip):
+    dash = pip.replace('_', '-')
+    under = pip.replace('-', '_')
+    return [
+      under[0].upper() + under[1:],
+      under[0].lower() + under[1:],
+      dash[0].upper() + dash[1:],
+      dash[0].lower() + dash[1:],
+    ]
+
   def GetPipEgg(pip, req, retry=True):
     verz = r'\d+(.\d+)+'
     egg_fmt = rf'-py{py_version}.egg'
@@ -63,11 +73,13 @@ def _get_pip_metadata(pips):
       if re.match(dir_fmt, file):
         return f'{lib_path}/{file}'
     if retry:
-      if pip[0].upper() == pip[0]:
-        return GetPipEgg(pip[0].lower() + pip[1:], req, False)
-      else:
-        return GetPipEgg(pip[0].upper() + pip[1:], req, False)
-    raise ValueError(f'Cant find {pip} installation, required by {req}')
+      for name in GetOtherNameCombinations(pip):
+        try:
+          return GetPipEgg(name, req, False)
+        except:
+          pass
+    raise ValueError(
+      f'Cant find {pip} installation, required by {req} (checked {lib_path})')
 
   def ParseRequirementLine(line):
     match = re.match(r'([a-zA-Z0-9-_]+).*', line.strip())
@@ -87,8 +99,15 @@ def _get_pip_metadata(pips):
           pips.append((ParseRequirementLine(line), pip))
     with open(f'{egg_info}/top_level.txt', 'r') as f:
       packages.append(f.read().split('\n')[0].strip())
-  return [(p, f'{lib_path}/{p}') for p in packages]
 
+  result = []
+  for p in pips:
+    lib = f'{lib_path}/{p}'
+    if os.path.exists(lib):
+      result.push_back((p, lib))
+    elif os.path.exists(f'{lib}.py'):
+      result.push_back((p, f'{lib}.py'))
+  return result
 
 
 @depends_targets("//impulse/util:bintools")

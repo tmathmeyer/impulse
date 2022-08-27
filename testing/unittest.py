@@ -143,6 +143,11 @@ class TestIsolator():
       if a != b:
         AssertRaiseError('assertNoDiff', self.name, stack, b, a)
 
+  @call_with_stack
+  def assertIn(self, stack, A, B):
+    if A not in B:
+      AssertRaiseError("assertIn", self.name, stack, f'[..., {A}, ...]', B)
+
 
   @call_with_stack
   def assertCalledWithArgs(self, stack, *argsets):

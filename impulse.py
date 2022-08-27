@@ -85,8 +85,16 @@ def build(target:impulse_paths.BuildTarget,
           debug:bool=False,
           force:bool=False,
           fakeroot:args.Directory=None,
-          threads:int=6):
+          threads:int=6,
+          hackermode:bool=False):
   """Builds the given target."""
+  if hackermode:
+    os.system('impulse build //impulse:impulse')
+    binary = f'{impulse_paths.root()}/GENERATED/BINARIES/impulse/impulse'
+    os.system(f'{binary} build {target.value()} --debug --force')
+    return
+
+
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
   build_and_await(debug, recursive_loader.generate_graph(parsed_target,
