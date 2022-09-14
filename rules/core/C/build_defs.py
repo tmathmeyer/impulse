@@ -7,8 +7,10 @@ def _compile(target, compiler, name, include, srcs, objs, flags, std, log=False)
     print(command);
   try:
     target.Execute(command)
+    if not os.path.exists(name):
+      raise Exception(f'Compiler Command: |{command}|\nfailed to create output')
   except Exception as e:
-    if target.IsDebug() and 'No such file or directory' in str(e):
+    if target.IsDebug():
       os.system('tree')
     raise e
   return name
@@ -75,43 +77,27 @@ def cpp_object(target, name, srcs, **kwargs):
   lang = 'c' if compiler == 'gcc' else 'cpp'
   target.SetTags(f'{lang}_input')
 
-  objects = list(_get_objects(target, [f'{lang}_input']))
   flags = _get_flags(target, kwargs)
   flags.update(['-Wall', '-c', '-fdiagnostics-color=always', '-g', '-Wextra'])
-  binary = _compile(
-    log=False,
-    target=target,
-    compiler=compiler,
-    name=os.path.join(target.GetPackageDirectory(), name+'.o'),
-    include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
-    srcs=' '.join(_get_src_files(target, srcs)),
-    objs='',
-    flags=' '.join(flags),
-    std=kwargs.get('std', 'c++20'))
+  
+  includes = _get_include_dirs(target, kwargs.get('include_dirs', []))
+  flagstr = ' '.join(flags)
+  std = kwargs.get('std', 'c++20')
+  temp_files = []
+  for srcfile in _get_src_files(target, srcs):
+    target.AddFile(_compile(
+      log=False,
+      target=target,
+      compiler=compiler,
+      name=srcfile+'.o',
+      include=includes,
+      srcs=srcfile,
+      objs='',
+      flags=flagstr,
+      std=std))
 
-  target.AddFile(binary)
-  for file in objects:
+  for file in _get_objects(target, [f'{lang}_input']):
     target.AddFile(file)
-
-@using(_compile, _get_objects, _get_flags)
-@buildrule
-def cpp_library(target, name, deps, **kwargs):
-  target.SetTags('c_input', 'cpp_input')
-  objects = list(_get_objects(target, ['c_input', 'cpp_input']))
-  flags = _get_flags(target, kwargs)
-  flags.update(['-r', '-g'])
-  binary = _compile(
-    log=False,
-    target=target,
-    compiler=kwargs.get('compiler', 'ld'),
-    name=os.path.join(target.GetPackageDirectory(), name+'.o'),
-    objs=' '.join(objects),
-    flags=' '.join(flags),
-    std='',
-    include='',
-    srcs='')
-
-  target.AddFile(binary)
 
 
 @using(_compile, _get_include_dirs, _get_objects, _get_src_files, _get_flags)
