@@ -23,6 +23,7 @@ py_library (
     "//impulse/core:job_printer",
     "//impulse/core:threading",
     "//impulse/format:format",
+    "//impulse/loaders:loaders",
     "//impulse/pkg:packaging",
     "//impulse/rules:core_rules",
     "//impulse/util:bintools",

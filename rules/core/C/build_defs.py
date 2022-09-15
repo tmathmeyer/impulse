@@ -16,10 +16,11 @@ def _compile(target, compiler, name, include, srcs, objs, flags, std, log=False)
   return name
 
 
-def _get_include_dirs(target, includes):
-  includes.append(target.GetPackageDirectory())
-  for deplib in target.Dependencies(tags=Any('cpp_header', 'c_header')):
-    includes += deplib.GetPropagatedData('includes')
+def _get_include_dirs(target, kwargs):
+  includes = set(kwargs.get('include_dirs', []))
+  includes.add(target.GetPackageDirectory())
+  for deplib in target.Dependencies(tags='header'):
+    includes.update(deplib.GetPropagatedData('includes'))
   includes = ' '.join(f'-I{d}' for d in includes)
   return f'-I. {includes}'
 
@@ -31,13 +32,13 @@ def _get_flags(target, kwargs):
     target.PropagateData('buildflags', flag)
   return flags
 
-def _get_objects(target, tags):  # cpp_library cpp_object
+def _get_objects(target, tags:[str]) -> str:
   objects = set()
   for tag in tags:
     for deplib in target.Dependencies(tags=tag):
       for obj in deplib.IncludedFiles():
         objects.add(obj)
-  return objects
+  return ' '.join(objects)
 
 
 def _get_src_files(target, srcs):
@@ -48,20 +49,21 @@ def _get_src_files(target, srcs):
 @using(_get_src_files)
 @buildrule
 def c_header(target, name, srcs, **kwargs):
-  target.SetTags('c_header')
+  target.SetTags('header')
   for src in _get_src_files(target, srcs):
     target.AddFile(src)
-  for deplib in target.Dependencies(tags='c_header'):
+  for deplib in target.Dependencies(tags='header'):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
+
 
 @using(_get_src_files)
 @buildrule
 def cpp_header(target, name, srcs, **kwargs):
-  target.SetTags('cpp_header')
+  target.SetTags('header')
   for src in _get_src_files(target, srcs):
     target.AddFile(src)
-  for deplib in target.Dependencies(tags=Any('cpp_header', 'c_header')):
+  for deplib in target.Dependencies(tags='header'):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
     for include in deplib.GetPropagatedData('includes'):
@@ -70,57 +72,76 @@ def cpp_header(target, name, srcs, **kwargs):
     target.PropagateData('includes', include)
 
 
-@using(_compile, _get_include_dirs, _get_objects, _get_src_files, _get_flags)
+@using(_compile, _get_include_dirs, _get_flags)
 @buildrule
-def cpp_object(target, name, srcs, **kwargs):
+def cc_compile(target, name, srcs, **kwargs):
   compiler = kwargs.get('compiler', 'g++')
-  lang = 'c' if compiler == 'gcc' else 'cpp'
-  target.SetTags(f'{lang}_input')
+  language = kwargs.get('language', 'cpp')
+  std_vers = kwargs.get('std', 'c++20')
+  argflags = _get_flags(target, kwargs)
+  includes = _get_include_dirs(target, kwargs)
+  argflags.update(
+    ['-Wall', '-c', '-fdiagnostics-color=always', '-g', '-Wextra'])
 
-  flags = _get_flags(target, kwargs)
-  flags.update(['-Wall', '-c', '-fdiagnostics-color=always', '-g', '-Wextra'])
-  
-  includes = _get_include_dirs(target, kwargs.get('include_dirs', []))
-  flagstr = ' '.join(flags)
-  std = kwargs.get('std', 'c++20')
-  temp_files = []
-  for srcfile in _get_src_files(target, srcs):
-    target.AddFile(_compile(
-      log=False,
-      target=target,
-      compiler=compiler,
-      name=srcfile+'.o',
-      include=includes,
-      srcs=srcfile,
-      objs='',
-      flags=flagstr,
-      std=std))
+  if len(srcs) != 1:
+    raise ValueError('cc_compile::srcs must have length 1')
+  srcfile = os.path.join(target.GetPackageDirectory(), srcs[0])
 
-  for file in _get_objects(target, [f'{lang}_input']):
-    target.AddFile(file)
+  target.SetTags(f'{language}_input')
+  target.AddFile(_compile(
+    log=False,
+    target=target,
+    compiler=compiler,
+    name=srcfile.replace('.cc', '.o'),
+    include=includes,
+    srcs=srcfile,
+    objs='',
+    flags=' '.join(argflags),
+    std=std_vers))
 
 
-@using(_compile, _get_include_dirs, _get_objects, _get_src_files, _get_flags)
+@using(_compile, _get_objects, _get_flags)
 @buildrule
-def cpp_binary(target, name, **kwargs):
-  compiler = kwargs.get('compiler', 'g++')
-  lang = 'c' if compiler == 'gcc' else 'cpp'
+def cc_combine(target, name, **kwargs):
+  # force flag propagation, don't use result
+  outname = os.path.join(target.GetPackageDirectory(), f'{name}_pkg.o')
+  language = kwargs.get('language', 'cpp')
+  objects = _get_objects(target, [f'{language}_input'])
+  target.SetTags(f'{language}_input')
+  _get_flags(target, kwargs)
+  if objects == outname:
+    target.AddFile(outname)
+    return
+  target.AddFile(_compile(
+    log=False,
+    target=target,
+    compiler=kwargs.get('compiler', 'ld'),
+    name=outname,
+    include='',
+    srcs='',
+    objs=objects,
+    flags='-r -z muldefs',
+    std=None))
+
+
+@using(_compile, _get_objects, _get_flags, _get_include_dirs)
+@buildrule
+def cc_package_binary(target, name, **kwargs):
   target.SetTags('exe')
-
-  objects = _get_objects(target, [f'{lang}_input'])
-  flags = _get_flags(target, kwargs)
-  flags.update(['-Wall', '-fdiagnostics-color=always', '-g', '-Wextra'])
-  binary = _compile(
+  compiler = kwargs.get('compiler', 'g++')
+  language = kwargs.get('language', 'cpp')
+  argflags = _get_flags(target, kwargs)
+  argflags.update(['-Wall', '-fdiagnostics-color=always', '-g', '-Wextra'])
+  target.AddFile(_compile(
     log=False,
     target=target,
     compiler=compiler,
     name=os.path.join(target.GetPackageDirectory(), name),
-    include=_get_include_dirs(target, kwargs.get('include_dirs', [])),
-    srcs=' '.join(_get_src_files(target, kwargs.get('srcs', []))),
-    objs=' '.join(objects),
-    flags=' '.join(flags),
-    std=kwargs.get('std', 'c++20'))
-  target.AddFile(binary)
+    include=_get_include_dirs(target, kwargs),
+    srcs='',
+    objs=_get_objects(target, [f'{language}_input']),
+    flags=' '.join(argflags),
+    std=kwargs.get('std', 'c++20')))
 
   def export_binary(_, package_name, package_file, binary_location):
     package_exe = os.path.join(target.GetPackageDirectory(), package_name)
@@ -130,37 +151,67 @@ def cpp_binary(target, name, **kwargs):
   return export_binary
 
 
-@depends_targets("//googletest:googletest",
-                 "//googletest:googletest_headers")
-@using(_compile, _get_include_dirs, _get_objects, _get_src_files, _get_flags)
-@buildrule
-def cpp_test(target, name, **kwargs):
-  target.SetTags('exe', 'test')
-  objects = _get_objects(target, ['cpp_input'])
-  # We need the -lpthread for gtest
-  flags = _get_flags(target, kwargs)
-  flags.update(['-Wextra', '-Wall', '-lpthread', '-fdiagnostics-color=always'])
+@buildmacro
+def cc_object(macro_env, name, srcs, deps=None, includes=None, **kwargs):
+  subtargets = []
+  deps = deps or []
+  includes = includes or []
+  for cc_file in srcs:
+    subtarget = cc_file.replace('.', '_') + '_o'
+    macro_env.ImitateRule(
+      rulefile = '//rules/core/C/build_defs.py',
+      rulename = 'cc_compile',
+      kwargs = kwargs,
+      args = {
+        'name': subtarget,
+        'srcs': [ cc_file ],
+        'deps': includes,
+      })
+    subtargets.append(f':{subtarget}')
 
-  include_dirs = kwargs.get('include_dirs', []) + [
-    'googletest/googletest/include',
-    'googletest/googletest',
-  ]
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/C/build_defs.py',
+    rulename = 'cc_combine',
+    kwargs = kwargs,
+    args = {
+      'name': name,
+      'deps': subtargets + deps
+    })
 
-  binary = _compile(
-    log=False,
-    target=target,
-    compiler=kwargs.get('compiler', 'g++'),
-    name=os.path.join(target.GetPackageDirectory(), name),
-    include=_get_include_dirs(target, include_dirs),
-    srcs=' '.join(_get_src_files(target, kwargs.get('srcs', []))),
-    objs=' '.join(objects),
-    flags=' '.join(flags),
-    std=kwargs.get('std', 'c++20'))
-  target.AddFile(binary)
 
-  def export_binary(_, package_name, package_file, binary_location):
-    package_exe = os.path.join(target.GetPackageDirectory(), package_name)
-    binary_file = os.path.join(binary_location, package_name)
-    os.system(f'cp {package_exe} {binary_file}')
+@buildmacro
+def cc_binary(macro_env, name, srcs, deps=None, includes=None, **kwargs):
+  subtargets = []
+  deps = deps or []
+  includes = includes or []
+  for cc_file in srcs:
+    subtarget = cc_file.replace('.', '_') + '_o'
+    macro_env.ImitateRule(
+      rulefile = '//rules/core/C/build_defs.py',
+      rulename = 'cc_compile',
+      kwargs = kwargs,
+      args = {
+        'name': subtarget,
+        'srcs': [ cc_file ],
+        'deps': includes,
+      })
+    subtargets.append(f':{subtarget}')
 
-  return export_binary
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/C/build_defs.py',
+    rulename = 'cc_combine',
+    kwargs = kwargs,
+    args = {
+      'name': f'{name}_o',
+      'deps': subtargets + deps
+    })
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/C/build_defs.py',
+    rulename = 'cc_package_binary',
+    kwargs = kwargs,
+    args = {
+      'name': name,
+      'deps': [f':{name}_o']
+    }
+  )

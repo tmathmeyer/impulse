@@ -10,6 +10,7 @@ from impulse import build_target
 
 from impulse.core import debug
 from impulse.core import exceptions
+from impulse.loaders import buildmacro
 from impulse.util import resources
 from impulse.util import typecheck
 
@@ -287,168 +288,13 @@ class RecursiveFileParser(object):
       if frame.filename.endswith('BUILD'):
         return f'{frame.filename}:{frame.lineno}'
 
-
   def _get_macro_expansion_directory(self):
     for frame in self._stack_without_recursive_loader():
       if frame.filename.endswith('BUILD'):
         return os.path.dirname(frame.filename)
 
   def _buildmacro(self, fn):
-    class MockArg(object):
-      def __init__(self, argname, appended=None,
-                                  prepended=None,
-                                  update_dict=None):
-        self._argname = argname
-        self._appended = appended
-        self._prepended = prepended
-        self._update_dict = update_dict
-
-      def __add__(self, other):
-        if self._appended is not None:
-          return MockArg(
-            argname = self._argname,
-            appended = self._appended + other,
-            prepended = self._prepended,
-            update_dict = self._update_dict)
-        return MockArg(
-          argname = self._argname,
-          appended = other,
-          prepended = self._prepended,
-          update_dict = self._update_dict)
-
-      def get(self, value, default):
-        return DictMockArg(self, value, default)
-
-      def Map(self, lam):
-        return MapMockArg(self._argname, lam)
-
-      def prepend(self, other):
-        if self._prepended is not None:
-          return MockArg(
-            argname = self._argname,
-            appended = self._appended,
-            prepended = other + self._prepended,
-            update_dict = self._update_dict)
-        return MockArg(
-          argname = self._argname,
-          appended = self._appended,
-          prepended = other,
-          update_dict = self._update_dict)
-
-      def update(self, odict):
-        new_updates = {}
-        if self._update_dict is not None:
-          new_updates.update(self._update_dict)
-          return MockArg(
-            argname = self._argname,
-            appended = self._appended,
-            prepended = self._prepended,
-            update_dict = new_updates)
-        new_updates.update(odict)
-        return MockArg(
-          argname = self._argname,
-          appended = self._appended,
-          prepended = self._prepended,
-          update_dict = new_updates)
-
-      def eval(self, kwargs):
-        if self._argname in kwargs:
-          value = kwargs[self._argname]
-          if self._prepended is not None:
-            if type(value) is list and type(self._prepended) is str:
-              value = [self._prepended+v for v in value]
-            else:
-              value = self._prepended + value
-          if self._appended is not None:
-            if type(value) is list and type(self._appended) is str:
-              value = [v+self._appended for v in value]
-            else:
-              value += self._appended
-          if self._update_dict is not None:
-            value.update(self._update_dict)
-          return TryEval(value, kwargs)
-        raise exceptions.FatalException(
-          f'Missing required argument: {self._argname} - found: {list(kwargs.keys())}')
-
-    class DictMockArg(MockArg):
-      def __init__(self, parent, value, default):
-        self.parent = parent
-        self.value = value
-        self.default = default
-
-    class MapMockArg(MockArg):
-      def __init__(self, argname, lam):
-        self._argname = argname
-        self._lam = lam
-
-      def eval(self, kwargs):
-        if self._argname not in kwargs:
-          raise exceptions.FatalException(
-            f'Missing required argument: {self._argname} - found: {list(kwargs.keys())}')
-        return [self._lam(x) for x in kwargs[self._argname]]
-
-    def TryEval(value, kwargs):
-      if type(value) == list:
-        return [TryEval(v, kwargs) for v in value]
-      if type(value) == dict:
-        return {k:TryEval(v, kwargs) for k,v in value.items()}
-      if type(value) == MockArg:
-        return value.eval(kwargs)
-      if type(value) == MapMockArg:
-        return value.eval(kwargs)
-      return value
-
-    class MacroExpander(object):
-      def __init__(self, loader, name):
-        self._loader = loader
-        self.name = name
-        self.macros = {}
-
-      def GetLocation(self):
-        return self._loader._get_macro_expansion_directory()
-
-      def ImitateRule(self, rulefile, rulename, args, tags=[]):
-        self._loader._load_files(rulefile)
-        rule = self._loader._environ.get(rulename)
-        if rule is None:
-          # Uh oh...
-          raise exceptions.NoSuchRuleType('/dev/null', 0, rulename)
-        buildfile = self._loader._get_macro_invoker_file()
-
-        def Wrapper(expansion_site, **kwargs):
-          argbuilder = {'tags': TryEval(tags, kwargs), 'buildfile': expansion_site}
-          for asName, value in TryEval(args, kwargs).items():
-            argbuilder[asName] = TryEval(value, kwargs)
-          return rule(**argbuilder)
-
-        self.macros[rulename] = Wrapper
-
-    mock_args = {}
-    expander = MacroExpander(self, fn.__name__)
-    for arg, info in inspect.signature(fn).parameters.items():
-      if str(info).startswith('**'):
-        raise exceptions.MacroException(
-          fn.__name__, 'macro', 'Glob arguments disallowed')
-      if '=' in str(info):
-        raise exceptions.MacroException(
-          fn.__name__, 'macro', 'Default arguments disallowed')
-      if arg != 'macro_env':
-        mock_args[arg] = MockArg(arg)
-
-    fn(expander, **mock_args)
-    if debug.IsDebug():
-      print(f'Expanding Macro {expander.name}:')
-      for rulename in expander.macros:
-        print(f'  => {rulename}')
-    def replacement(**kwargs):
-      macro_expansion_file = self._get_macro_expansion_site()
-      for macro in expander.macros.values():
-        # Calls the |Wrapper| function above
-        pbt = macro(macro_expansion_file, **kwargs)
-        if pbt:
-          self._meta_targets.add(pbt._build_rule)
-    return replacement
-
+    return buildmacro.Buildmacro(self, fn)
 
   def _buildrule(self, fn):
     """Decorates a function allowing it to be used as a target buildrule."""
@@ -507,6 +353,18 @@ class RecursiveFileParser(object):
         embeddedBuildDef = resources.Resources.Get(embeddedPath)
         self._ParseFileFromLocation(expanded, embeddedBuildDef)
 
+  def LoadFile(self, rulefile:str):
+    return self._load_files(rulefile)
+
+  def GetRulenameFromLoader(self, buildrule:str):
+    return self._environ.get(buildrule)
+
+  def GetMacroInvokerFile(self):
+    return self._get_macro_invoker_file()
+
+  def AddMetaTarget(self, target):
+    self._meta_targets.add(target)
+
   def GetAllConvertedTargets(self, allow_meta=None):
     allow_meta = allow_meta or []
     def converted_targets():
@@ -535,6 +393,16 @@ class RecursiveFileParser(object):
     for target, parsed in self._targets.items():
       if target.GetFullyQualifiedRulePath() not in self._meta_targets:
         self.ConvertTarget(target)
+
+  def GetRulenameFromRawTarget(self, targetname) -> str:
+    # This is the buildfile that the rule is called from
+    build_file = self._get_buildfile_from_stack()
+    build_path = impulse_paths.get_qualified_build_file_dir(build_file)
+    build_rule = impulse_paths.convert_to_build_target(targetname, build_path)
+    if build_rule in self._targets:
+      return self._targets[build_rule]._rule_type
+    return None
+
 
 @typecheck.Ensure
 def generate_graph(build_target:impulse_paths.ParsedTarget,
