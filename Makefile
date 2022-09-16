@@ -30,8 +30,8 @@ copy_srcs:
 	@touch impulse/util/__init__.py
 	@cp -r testing impulse/testing
 	@touch impulse/testing/__init__.py
-	@cp -r testing impulse/testing
-	@touch impulse/testing/__init__.py
+	@cp -r loaders impulse/loaders
+	@touch impulse/loaders/__init__.py
 
 install: GENERATED/BINARIES/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'
