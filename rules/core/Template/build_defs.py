@@ -147,7 +147,7 @@ def template(target, name, template_data, **kwargs):
 
 @buildmacro
 def template_expand(macro_env, name, template_file, tags, template_data):
-  template_raw_target_ = name + '_raw_template'
+  template_raw_target_ = f'{name}_raw_template'
 
   macro_env.ImitateRule(
     rulefile = '//rules/core/Template/build_defs.py',
@@ -163,6 +163,6 @@ def template_expand(macro_env, name, template_file, tags, template_data):
     tags = tags,
     args = {
       'name': name,
-      'deps': [ template_raw_target_.prepend(':') ],
+      'deps': [ f':{template_raw_target_}' ],
       'template_data': template_data
     })

@@ -97,8 +97,9 @@ def _get_pip_metadata(pips):
           if not line.strip():
             break;
           pips.append((ParseRequirementLine(line), pip))
-    with open(f'{egg_info}/top_level.txt', 'r') as f:
-      packages.append(f.read().split('\n')[0].strip())
+    if os.path.exists(f'{egg_info}/requires.txt'):
+      with open(f'{egg_info}/top_level.txt', 'r') as f:
+        packages.append(f.read().split('\n')[0].strip())
 
   result = []
   for p in pips:

@@ -15,18 +15,19 @@ def build_container(target, name, main_executable, **kwargs):
 
 @buildmacro
 def container(macro_env, name, binaries, main_executable, docker_args, deps):
-  dockername = name + '_dockerfile'
+  dockername = f'{name}_dockerfile'
+  docker_args.update({
+    'main_executable': main_executable,
+    'binaries': ['bin/', *binaries],
+  })
   macro_env.ImitateRule(
     rulefile = '//rules/core/Template/build_defs.py',
     rulename = 'template',
+    tags = [ 'dockerfile' ],
     args = {
       'name': dockername,
       'deps': ['//impulse/rules/env/Docker:python-dockerfile-template'],
-      'tags': [ 'dockerfile' ],
-      'template_data': docker_args.update({
-        'main_executable': main_executable,
-        'binaries': binaries.prepend('bin/')
-      })
+      'template_data': docker_args
     })
 
   macro_env.ImitateRule(
@@ -34,8 +35,8 @@ def container(macro_env, name, binaries, main_executable, docker_args, deps):
     rulename = 'build_container',
     args = {
       'name': name,
-      'deps': deps + [ dockername.prepend(':') ],
+      'deps': deps + [ f':{dockername}' ],
       'main_executable': main_executable,
-      'binaries': binaries.prepend('bin/'),
+      'binaries': binaries,
       'docker_args': docker_args,
     })
