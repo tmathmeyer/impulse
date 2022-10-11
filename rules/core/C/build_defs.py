@@ -92,7 +92,7 @@ def cc_compile(target, name, srcs, **kwargs):
     log=False,
     target=target,
     compiler=compiler,
-    name=srcfile.replace('.cc', '.o'),
+    name=srcfile.replace('.cc', '.o').replace('.c', '.o'),
     include=includes,
     srcs=srcfile,
     objs='',

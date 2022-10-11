@@ -232,6 +232,10 @@ class ArgumentParser(object):
       self._print_completion()
       return
 
+    if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacompdbg':
+      self._print_completion_for_testing(sys.argv[2:], print)
+      return
+
     parsed = self._parser.parse_args()
 
     if 'task' in parsed:

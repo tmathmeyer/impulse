@@ -35,12 +35,15 @@ class ResourceOpener(object):
     for file in glob.glob(self.Get(fileRegex)):
       return open(file, mode)
 
-  def Get(self, filename):
+  def Get(self, filename, binary=False):
     if self._extracted == None:
       self._Extract()
     if self._extracted == None:
       raise FileNotFoundError(filename)
-    return os.path.join(self._extracted, filename)
+    result = os.path.join(self._extracted, filename)
+    if binary:
+      os.system(f'chmod +x {result}')
+    return result
 
   def Dir(self):
     if self._extracted == None:

@@ -37,3 +37,8 @@ py_library (
   name = "rpc",
   srcs = [ "rpc.py" ],
 )
+
+py_library (
+  name = "buildvars",
+  srcs = [ "buildvars.py" ],
+)

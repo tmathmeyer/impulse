@@ -94,7 +94,6 @@ def build(target:impulse_paths.BuildTarget,
     os.system(f'{binary} build {target.value()} --debug --force')
     return
 
-
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
   build_and_await(debug, recursive_loader.generate_graph(parsed_target,
