@@ -18,7 +18,7 @@ def container(macro_env, name, binaries, main_executable, docker_args, deps):
   dockername = f'{name}_dockerfile'
   docker_args.update({
     'main_executable': main_executable,
-    'binaries': ['bin/', *binaries],
+    'binaries': binaries,
   })
   macro_env.ImitateRule(
     rulefile = '//rules/core/Template/build_defs.py',
