@@ -187,7 +187,8 @@ def run(target:impulse_paths.BuildTarget,
 @command
 def docker(target:impulse_paths.BuildTarget,
            debug:bool=False,
-           fakeroot:args.Directory=None):
+           fakeroot:args.Directory=None,
+           norun:bool=False):
   """Builds a docker container from the target."""
   ruleinfo = build(target, debug, False, fakeroot)
   if not ruleinfo.type == 'container':
@@ -197,6 +198,8 @@ def docker(target:impulse_paths.BuildTarget,
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
     os.system(f'unzip {ruleinfo.output}')
     os.system(f'docker build -t {container} .')
+    if norun:
+      return
     with open('pkg_contents.json', 'r') as f:
       docker_args = json.loads(f.read())['docker_args'][0]
       run_cmd = 'docker run -d '
