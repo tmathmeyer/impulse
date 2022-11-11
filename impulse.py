@@ -82,6 +82,7 @@ def get_target_from_graph(target, graph):
 
 @command
 def build(target:impulse_paths.BuildTarget,
+          platform:impulse_paths.BuildTarget=None,
           debug:bool=False,
           force:bool=False,
           fakeroot:args.Directory=None,
@@ -96,25 +97,12 @@ def build(target:impulse_paths.BuildTarget,
 
   setup(debug, fakeroot)
   parsed_target = fix_build_target(target)
-  build_and_await(debug, recursive_loader.generate_graph(parsed_target,
-    force_build=force, allow_meta=True), threads)
+  build_and_await(debug, recursive_loader.generate_graph(
+    parsed_target,
+    platform=platform,
+    force_build=force,
+    allow_meta=True), threads)
   return parsed_target.GetRuleInfo()
-
-
-@command
-def buildall(fakeroot:args.Directory=None,
-            project:str=None,
-            roots:bool=False,
-            debug:bool=False,):
-  """Builds every target in the current directory."""
-  setup(debug, fakeroot)
-  targets = set(graph_for_directory(project, False)[0])
-  if roots:
-    for target in set(targets):
-      for dep in target.dependencies:
-        if dep in targets:
-          targets.remove(dep)
-  build_and_await(debug, targets, 16)
 
 
 @command
@@ -186,6 +174,7 @@ def run(target:impulse_paths.BuildTarget,
 
 @command
 def docker(target:impulse_paths.BuildTarget,
+           platform:impulse_paths.BuildTarget=None,
            debug:bool=False,
            fakeroot:args.Directory=None,
            norun:bool=False):
@@ -236,7 +225,7 @@ def testsuite(project:str=None,
               fakeroot:args.Directory=None):
   setup(debug, fakeroot)
   targets, graph = graph_for_directory(project, True)
-  build_and_await(debug, graph, threads)
+  build_and_await(debug, None, graph, threads)
 
   ntc = args.Forward("notermcolor")
   filter = args.Forward("filter")

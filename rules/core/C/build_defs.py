@@ -24,6 +24,7 @@ def _get_include_dirs(target, kwargs):
   includes = ' '.join(f'-I{d}' for d in includes)
   return f'-I. {includes}'
 
+
 def _get_flags(target, kwargs):
   flags = set(kwargs.get('flags', []))
   for deplib in target.Dependencies(tags=Any('cpp_input')):
@@ -31,6 +32,7 @@ def _get_flags(target, kwargs):
   for flag in flags:
     target.PropagateData('buildflags', flag)
   return flags
+
 
 def _get_objects(target, tags:[str]) -> str:
   objects = set()
@@ -75,7 +77,7 @@ def cpp_header(target, name, srcs, **kwargs):
 @using(_compile, _get_include_dirs, _get_flags)
 @buildrule
 def cc_compile(target, name, srcs, **kwargs):
-  compiler = kwargs.get('compiler', 'g++')
+  compiler = target.GetPlatform().cc_compiler
   language = kwargs.get('language', 'cpp')
   std_vers = kwargs.get('std', 'c++20')
   argflags = _get_flags(target, kwargs)
@@ -115,7 +117,7 @@ def cc_combine(target, name, **kwargs):
   target.AddFile(_compile(
     log=False,
     target=target,
-    compiler=kwargs.get('compiler', 'ld'),
+    compiler=target.GetPlatform().cc_linker,
     name=outname,
     include='',
     srcs='',
@@ -128,7 +130,7 @@ def cc_combine(target, name, **kwargs):
 @buildrule
 def cc_package_binary(target, name, **kwargs):
   target.SetTags('exe')
-  compiler = kwargs.get('compiler', 'g++')
+  compiler = target.GetPlatform().cc_compiler
   language = kwargs.get('language', 'cpp')
   argflags = _get_flags(target, kwargs)
   argflags.update(['-Wall', '-fdiagnostics-color=always', '-g', '-Wextra'])

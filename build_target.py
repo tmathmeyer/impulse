@@ -55,6 +55,7 @@ class BuildTarget(threading.GraphNode):
                      buildrule_name: str, # The buildrule type, ex: c_header
                      scope: dict, # A map from name to marshalled bytecode
                      dependencies: set, # A set of BuildTargets dependencies
+                     platform: impulse_paths.Platform, # the platform definition
                      extra_tags: list, # A list of tags that come from a target
                      can_access_internal: bool = False, # Has internal access
                      force_build:bool = False): # Always build even if recent
@@ -71,7 +72,7 @@ class BuildTarget(threading.GraphNode):
     self._force_build = force_build
 
     self._package = packaging.ExportablePackage(
-      rule, buildrule_name, can_access_internal,
+      rule, buildrule_name, platform, can_access_internal,
       os.path.join(impulse_paths.output_directory(), 'BINARIES'))
     self._package.SetTags(*extra_tags)
 
@@ -246,22 +247,6 @@ class BuildTarget(threading.GraphNode):
       shutil.rmtree(rw_directory)
       for d in self.dependencies:
         d.UnloadPackageDirectory()
-
-
-class FileParserResult(object):
-  def __init__(self, name, checkout, args, pgt: 'ParsedGitTarget'):
-    self._converted = BuildTarget(
-      target_name = name,
-      func = marshal.dumps(checkout.__code__),
-      args = args,
-      rule = pgt,
-      buildrule_name = 'gitclone',
-      scope = {},
-      dependencies = set(),
-      force_build = True)
-
-  def Convert(self):
-    return set([self._converted])
 
 
 class MockConvertedTarget(object):

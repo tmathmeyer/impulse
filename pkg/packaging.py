@@ -17,6 +17,9 @@ from impulse.core import debug
 from impulse import impulse_paths
 
 
+NOT_THE_SAME = object()
+
+
 def EnsureDirectory(directory):
   if not os.path.exists(directory):
     os.makedirs(directory, exist_ok=True)
@@ -121,6 +124,7 @@ class ExportablePackage(Hasher):
   """A wrapper class for building a package file."""
 
   def __init__(self, package_target, ruletype: str,
+               platform:impulse_paths.Platform,
                can_access_internal: bool=False,
                binaries_location: str=''):
     self.included_files:typing.List[str] = []
@@ -146,6 +150,7 @@ class ExportablePackage(Hasher):
     self._exec_env = {}
     self._exec_env_str = ''
     self._propagated_data = {}
+    self._platform = platform
 
   def __getstate__(self):
     return self.__dict__.copy()
@@ -183,6 +188,8 @@ class ExportablePackage(Hasher):
         copydict[k] = v.dict()
       if k == 'tags':
         copydict[k] = list(v)
+      if k == '_platform':
+        copydict['platform'] = v._values
 
     for k, v in self._propagated_data.items():
       if k not in copydict:
@@ -267,6 +274,9 @@ class ExportablePackage(Hasher):
     '''Gets the timestamp for when this rule was previously built.'''
     return self._previous_build_timestamp
 
+  def GetPlatform(self):
+    return self._platform
+
   def RunCommand(self, command):
     '''Executes a command.'''
     return subprocess.run(command,
@@ -306,6 +316,13 @@ class ExportablePackage(Hasher):
     previous_build = self._GetPreviousBuild(package_dir)
     if not previous_build:
       return self, True, 'No previous build'
+
+    if 'platform' not in previous_build:
+      return self, True, 'No platform set on previous build'
+
+    for platkey, value in previous_build.get('platform', []).items():
+      if self._platform._values.get(platkey, NOT_THE_SAME) != value:
+        return self, True, f'platform value |{platkey}| differs'
 
     self._previous_build_timestamp = previous_build.get('build_timestamp', 0)
 

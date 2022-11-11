@@ -128,3 +128,8 @@ class FatalException(Exception):
 class MacroException(Exception):
   def __init__(self, macro, name, reason):
     super().__init__(f'{name}<{macro}> expansion failed: {reason}')
+
+
+class PlatformKeyAbsentError(ImpulseBaseException):
+  def __init__(self, platname, platkey):
+    super().__init__(f'platform {platname} missing property {platkey}')

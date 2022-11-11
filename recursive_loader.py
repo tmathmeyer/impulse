@@ -32,7 +32,7 @@ class ParsedBuildTarget(object):
     self._converted = None
     self._scope = {}
 
-  def Convert(self):
+  def Convert(self, platform):
     # If we try to convert this rule again while conversion is in progress
     # we need to fail, as a cyclic graph can't be built. Conversion is
     # single threaded, so this test-and-set will suffice.
@@ -41,7 +41,7 @@ class ParsedBuildTarget(object):
     if not self._converted:
       self._converted = INVALID_RULE_RECURSION_CANARY
       try:
-        self._converted = self._CreateConverted()
+        self._converted = self._CreateConverted(platform)
       except exceptions.BuildTargetCycle as e:
         raise e.ChainException(self)
     return self._converted
@@ -81,7 +81,7 @@ class ParsedBuildTarget(object):
   def GetDependencies(self):
     return list(self._update_arg_dependencies_get_list())
 
-  def _CreateConverted(self):
+  def _CreateConverted(self, platform):
     # set(build_target.BuildTarget)
     dependencies = set()
     # Convert all 'deps' into edges between BuildTargets
@@ -95,7 +95,7 @@ class ParsedBuildTarget(object):
     # Create a BuildTarget graph node
     return set([build_target.BuildTarget(
       self._name, self._func, self._args, self._build_rule,
-      self._rule_type, self._scope, dependencies,
+      self._rule_type, self._scope, dependencies, platform,
       self._extra_tags, **self._carried_args)])
 
   def AddScopes(self, funcs):
@@ -172,11 +172,13 @@ def _toolchain_rule(target, name, srcs, links, **args):
 
 class RecursiveFileParser(object):
   """Loads files based on load() and buildrule statements."""
-  def __init__(self, carried_args):
+  def __init__(self, platform=None, **carried_args):
     self._carried_args = carried_args
     self._targets = {} # Map[BuildTarget->ParsedBuildTarget]
     self._meta_targets = set() # Set[str]
     self._loaded_files = set() # We don't want to load files multiple times
+    self._platforms = {} # All the so-far-declared platforms
+    self._platform = None # The selected platform
 
     # We need to store the environment across compilations, since it allows
     # files to call eachother's functions.
@@ -192,7 +194,20 @@ class RecursiveFileParser(object):
       'langs': self._load_core_langs,
       'transform': self._buildrule(_transform_rule),
       'toolchain': self._buildrule(_toolchain_rule),
+      'platform': self._generate_platform_config,
     }
+
+    if platform and platform.value():
+      self.ParsePlatform(platform.value())
+    else:
+      self.ParsePlatform('//rules/platform:x64-linux-gnu')
+
+  def ParsePlatform(self, platstr):
+    plat_target = impulse_paths.convert_to_build_target(
+      platstr, impulse_paths.relative_pwd(), True)
+    self.ParseTarget(plat_target)
+    assert plat_target in self._platforms
+    self._platform = self._platforms[plat_target]
 
   def ParseTarget(self, target: impulse_paths.ParsedTarget):
     target.ParseFile(self, self._ParseFile)
@@ -200,7 +215,7 @@ class RecursiveFileParser(object):
   def ConvertTarget(self, target):
     if target not in self._targets:
       raise exceptions.BuildTargetMissing(target)
-    return self._targets[target].Convert()
+    return self._targets[target].Convert(self._platform)
 
   def _ParseFile(self, file: str):
     return self._ParseFileFromLocation(file, file)
@@ -228,7 +243,17 @@ class RecursiveFileParser(object):
             # Wrap any exception that we get, so we don't have crashes
             raise exceptions.FileImportException(e, file)
       except FileNotFoundError as e:
-        pass
+        # Wrap any exception that we get, so we don't have crashes
+        raise exceptions.FileImportException(e, file)
+
+  def _generate_platform_config(self, **kwargs):
+    assert 'name' in kwargs
+    name = kwargs['name']
+    build_file = self._get_buildfile_from_stack()
+    build_path = impulse_paths.get_qualified_build_file_dir(build_file)
+    build_rule = impulse_paths.convert_name_to_build_target(name, build_path)
+    self._platforms[build_rule] = impulse_paths.Platform(
+      platform_target=repr(build_rule), **kwargs)
 
   @increase_stack_arg_decorator
   def _depends_on_targets(self, fn, *targets):
@@ -406,9 +431,11 @@ class RecursiveFileParser(object):
 
 @typecheck.Ensure
 def generate_graph(build_target:impulse_paths.ParsedTarget,
-                   allow_meta:bool=False, **kwargs):
+                   allow_meta:bool=False,
+                   platform=None,
+                   **kwargs):
   allow_meta = allow_meta or [build_target]
-  re = RecursiveFileParser(kwargs)
+  re = RecursiveFileParser(platform, **kwargs)
   re.ParseTarget(build_target)
   re.ConvertTarget(build_target)
   return re.GetAllConvertedTargets(allow_meta=True)

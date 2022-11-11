@@ -200,6 +200,19 @@ def get_qualified_build_file_dir(build_file_path):
     build_file_path)
 
 
+class Platform():
+  def __init__(self, **kwargs):
+    self._values = kwargs
+
+  def __getattr__(self, attr):
+    if attr.startswith('__'):
+      raise AttributeError(attr)
+    if attr not in self._values:
+      raise exceptions.PlatformKeyAbsentError(
+        self._values['platform_target'], attr)
+    return self._values[attr]
+
+
 class BuildTarget(args.ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
