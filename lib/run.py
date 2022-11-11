@@ -9,6 +9,7 @@ def RunCommand(command):
                         stderr=subprocess.PIPE,
                         stdout=subprocess.PIPE)
 
+
 def OutputOrError(cmd):
   result = RunCommand(cmd)
   if result.returncode:

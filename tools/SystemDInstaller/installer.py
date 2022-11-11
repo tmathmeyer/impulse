@@ -4,14 +4,17 @@ import os
 from impulse.args import args
 from impulse.util import resources
 
+
 command = args.ArgumentParser(complete=True)
 DRY = False
+
 
 def run(cmd):
   if DRY:
     print(cmd)
   else:
     os.system(cmd)
+
 
 @command
 def install(upgrade:bool=False, dryrun:bool=False):
@@ -23,7 +26,7 @@ def install(upgrade:bool=False, dryrun:bool=False):
     for line in f.readlines():
       k,v = line.strip().split('=', 1)
       data[k] = v
-  
+
   binary = data['binary']
   destination = f'/usr/local/bin/{binary}'
   servicesrc = os.path.join(resources.Resources.Dir(), data['servicefile'])
@@ -46,6 +49,7 @@ def install(upgrade:bool=False, dryrun:bool=False):
   run('systemctl daemon-reload')
 
   print('installation complete!')
+
 
 @command
 def uninstall(dryrun:bool=False):
