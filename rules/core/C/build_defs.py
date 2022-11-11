@@ -78,12 +78,13 @@ def cpp_header(target, name, srcs, **kwargs):
 @buildrule
 def cc_compile(target, name, srcs, **kwargs):
   compiler = target.GetPlatform().cc_compiler
+  cc_flags = target.GetPlatform().cc_flags
   language = kwargs.get('language', 'cpp')
   std_vers = kwargs.get('std', 'c++20')
   argflags = _get_flags(target, kwargs)
   includes = _get_include_dirs(target, kwargs)
-  argflags.update(
-    ['-Wall', '-c', '-fdiagnostics-color=always', '-g', '-Wextra'])
+  argflags.update(cc_flags)
+  argflags.update(['-c', '-g'])
 
   if len(srcs) != 1:
     raise ValueError('cc_compile::srcs must have length 1')
@@ -106,14 +107,24 @@ def cc_compile(target, name, srcs, **kwargs):
 @buildrule
 def cc_combine(target, name, **kwargs):
   # force flag propagation, don't use result
-  outname = os.path.join(target.GetPackageDirectory(), f'{name}_pkg.o')
   language = kwargs.get('language', 'cpp')
-  objects = _get_objects(target, [f'{language}_input'])
   target.SetTags(f'{language}_input')
-  _get_flags(target, kwargs)
+
+  outname = os.path.join(target.GetPackageDirectory(), f'{name}_pkg.o')
+  objects = _get_objects(target, [f'{language}_input'])
   if objects == outname:
     target.AddFile(outname)
     return
+  
+  _get_flags(target, kwargs)
+  ld_flags = set()
+  ld_flags.update(target.GetPlatform().ld_flags)
+  ld_flags.update(['-r', '-z muldefs'])
+
+  if objects == outname:
+    target.AddFile(outname)
+    return
+
   target.AddFile(_compile(
     log=False,
     target=target,
@@ -122,7 +133,7 @@ def cc_combine(target, name, **kwargs):
     include='',
     srcs='',
     objs=objects,
-    flags='-r -z muldefs',
+    flags=' '.join(ld_flags),
     std=None))
 
 
@@ -131,9 +142,10 @@ def cc_combine(target, name, **kwargs):
 def cc_package_binary(target, name, **kwargs):
   target.SetTags('exe')
   compiler = target.GetPlatform().cc_compiler
+  cc_flags = _get_flags(target, kwargs)
   language = kwargs.get('language', 'cpp')
-  argflags = _get_flags(target, kwargs)
-  argflags.update(['-Wall', '-fdiagnostics-color=always', '-g', '-Wextra'])
+  cc_flags.update(target.GetPlatform().cc_flags)
+  cc_flags.update(['-g'])
   target.AddFile(_compile(
     log=False,
     target=target,
@@ -142,7 +154,7 @@ def cc_package_binary(target, name, **kwargs):
     include=_get_include_dirs(target, kwargs),
     srcs='',
     objs=_get_objects(target, [f'{language}_input']),
-    flags=' '.join(argflags),
+    flags=' '.join(cc_flags),
     std=kwargs.get('std', 'c++20')))
 
   def export_binary(_, package_name, package_file, binary_location):
