@@ -154,17 +154,6 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
       raise PathException(target)
     return ParsedTarget(_target[1], _target[0])
 
-  if target.startswith('git@'):
-    match = re.compile(f'git@(.*):(.*):(.*)').match(target)
-    if not match:
-      raise PathException(target)
-
-    host, repo, subtarget = match.groups()
-    url = f'git@{host}:{repo}'
-    clone_into = os.path.basename(repo)
-    subtarget = f'//{clone_into}:{subtarget}'
-    return ParsedTarget.GitTarget(url, clone_into, subtarget)
-
   if quit_on_err:
     raise PathException(target)
 

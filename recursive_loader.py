@@ -131,33 +131,6 @@ def _data_buildrule(target, name, srcs):
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
 
 
-def _transform_rule(target, name, tags, rule, tool=None):
-  target.SetTags(*tags)
-  import subprocess
-  
-  rule = next(target.Dependencies(
-    package_target=rule.GetFullyQualifiedRulePath()))
-  tool_pkg = next(target.Dependencies(
-    package_target=tool.GetFullyQualifiedRulePath()), None)
-
-  if tool_pkg is not None and 'exe' not in tool_pkg.tags:
-    target.ExecutionFailed('', f'{tool} is not an executable')
-
-  for f in rule.IncludedFiles():
-    if tool_pkg:
-      command = f'bin/{tool.target_name} {f}'
-      result = subprocess.run(command,
-        encoding='utf-8', shell=True,
-        stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-      if result.returncode:
-        target.ExecutionFailed(command, result.stderr)
-      for outputfile in result.stdout.split('\n'):
-        if outputfile.strip():
-          target.AddFile(outputfile.strip())
-    else:
-      target.AddFile(f)
-
-
 def _toolchain_rule(target, name, srcs, links, **args):
   target.SetTags('toolchain')
   for src in srcs:
@@ -190,9 +163,7 @@ class RecursiveFileParser(object):
       'pattern': self._find_files_pattern,
       'depends_targets': self._depends_on_targets,
       'data': self._buildrule(_data_buildrule),
-      'git_repo': build_target.ParsedGitTarget,
       'langs': self._load_core_langs,
-      'transform': self._buildrule(_transform_rule),
       'toolchain': self._buildrule(_toolchain_rule),
       'platform': self._generate_platform_config,
     }
