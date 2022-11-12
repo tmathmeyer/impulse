@@ -209,11 +209,15 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
 
 
   # IO methods
-  def open(self, original_path, flags):
+  def open(self, original_path, flags, mode=None):
     if flags & (os.O_RDONLY|os.O_WRONLY|os.O_RDWR) == os.O_RDONLY:
       return self._fallback_on_read(original_path, lambda p: os.open(p, flags))
     def copy_on_write_open(path):
-      file_desc = os.open(path, flags)
+      file_desc = None
+      if mode is None:
+        file_desc = os.open(path, flags)
+      else:
+        file_desc = os.open(path, flags, mode)
       if not path.startswith(self._rw_directory):
         # Default state for a COW remapping file is (-1, flags)
         # the -1 signifies that it has not been remapped, and flags
@@ -236,9 +240,10 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
     return self.flush(path, handle)
 
   def release(self, path, handle):
+    closehandle = handle
     if handle in self._open_files[path]:
-      os.close(self._open_files[path].pop(handle)[0])
-    os.close(handle)
+      closehandle = self._open_files[path].pop(handle)[0]
+    os.close(closehandle)
 
   def write(self, path, buf, offset, handle):
     mapped_handle, flags = self._open_files[path].get(handle, (handle, 0))
@@ -257,7 +262,7 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
       raise "Can't create a file that already exists (i think?)"
     if not os.path.exists(os.path.dirname(rw_file)):
       os.makedirs(os.path.dirname(rw_file))
-    return os.open(rw_file, os.O_WRONLY | os.O_CREAT, mode)
+    return self.open(path, os.O_RDWR | os.O_CREAT, mode)
 
   def readdir(self, path, fh):
     rw_dir, ro_dirs = self._find_shadow_nodes(path)

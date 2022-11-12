@@ -40,7 +40,7 @@ def _get_objects(target, tags:[str]) -> str:
     for deplib in target.Dependencies(tags=tag):
       for obj in deplib.IncludedFiles():
         objects.add(obj)
-  return ' '.join(objects)
+  return objects
 
 
 def _get_src_files(target, srcs):
@@ -112,18 +112,17 @@ def cc_combine(target, name, **kwargs):
 
   outname = os.path.join(target.GetPackageDirectory(), f'{name}_pkg.o')
   objects = _get_objects(target, [f'{language}_input'])
-  if objects == outname:
+  objstrs = ' '.join(o for o in objects if 'FS_LOG' not in o)
+  if objstrs == outname:
     target.AddFile(outname)
     return
   
   _get_flags(target, kwargs)
   ld_flags = set()
   ld_flags.update(target.GetPlatform().ld_flags)
-  ld_flags.update(['-r', '-z muldefs'])
 
-  if objects == outname:
-    target.AddFile(outname)
-    return
+  for export in kwargs.get('exports', []):
+    ld_flags.add(f'-export={export}')
 
   target.AddFile(_compile(
     log=False,
@@ -132,7 +131,7 @@ def cc_combine(target, name, **kwargs):
     name=outname,
     include='',
     srcs='',
-    objs=objects,
+    objs=objstrs,
     flags=' '.join(ld_flags),
     std=None))
 
@@ -153,7 +152,7 @@ def cc_package_binary(target, name, **kwargs):
     name=os.path.join(target.GetPackageDirectory(), name),
     include=_get_include_dirs(target, kwargs),
     srcs='',
-    objs=_get_objects(target, [f'{language}_input']),
+    objs=' '.join(_get_objects(target, [f'{language}_input'])),
     flags=' '.join(cc_flags),
     std=kwargs.get('std', 'c++20')))
 

@@ -946,16 +946,17 @@ class FUSE(object):
 
 def _debug_method(fn):
     def replacement(*args):
+        print('\n\n==========================================')
         print(fn.__name__)
         print(args)
         try:
             result = fn(*args)
+            print(result)
+            print('==========================================')
             return result
         except Exception as e:
-            print('\n\n==========================================')
             print(e)
-            print(fn.__name__)
-            print('==========================================\n\n')
+            print('==========================================')
             raise e
     return replacement
 
