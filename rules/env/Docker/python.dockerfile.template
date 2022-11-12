@@ -4,13 +4,13 @@ FROM python:3-alpine
 LABEL {.}
 {{/args}}
 
-{{pip_packages}}
-RUN pip install {.}
-{{/pip_packages}}
-
 {{alpine_packages}}
 RUN apk add --no-cache {.}
 {{/alpine_packages}}
+
+{{pip_packages}}
+RUN pip install {.}
+{{/pip_packages}}
 
 {{environment}}
 ENV {.}
