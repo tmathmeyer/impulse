@@ -1,47 +1,70 @@
 
-
-
-def _add_pkg_deps(target):
-  for deplib in target.Dependencies(tags='rpkg'):
-    for pkg in deplib.IncludedFiles():
-      target.AddFile(pkg)
-
-@using(_add_pkg_deps)
-@buildrule
-def r_binary_package(target, name, **kwargs):
-  target.SetTags('rpkg')
+def _get_pkg_dep_tree(pkglist):
   import requests
-  url = f'https://cran.r-project.org/web/packages/{name}/index.html'
-  for line in str(requests.get(url).content.decode('utf-8')).split('\n'):
-    if f'<a href="../../../src/contrib/{name}' in line:
-      pkg = line.split('"')[1].split('/')[-1].strip()
-      target.Execute(f'wget https://cran.r-project.org/src/contrib/{pkg}')
-      target.AddFile(pkg)
-  _add_pkg_deps(target)
+  import dataclasses
+
+  pkgmap = {}
+  @dataclasses.dataclass
+  class RPackage:
+    name:str
+    archive:str
+    dlfrom:str
+    deps:['RPackage']
+
+  def get_package(name, packages):
+    host = 'https://cran.r-project.org'
+    if name in packages:
+      return packages[name]
+    url = f'{host}/web/packages/{name}/index.html'
+    
+    parse_archive = False
+    parse_depends = False
+    dependencies = []
+    archive = None
+    
+    for line in str(requests.get(url).content.decode('utf-8')).split('\n'):
+      line = line.strip()
+      if line == '<td>Depends:</td>':
+        parse_depends = True
+        continue
+
+      if line == '<td> Package&nbsp;source: </td>':
+        parse_archive = True
+        continue
+
+      if line == '<td>Imports:</td>':
+        parse_depends = True
+        continue
+
+      if parse_depends:
+        for part in line.split('"'):
+          if 'index.html' in part:
+            dependencies.append(part.split('/')[1])
+
+      if parse_archive:
+        pkg = line.split('"')[1].split('/')[-1].strip()
+        archive = pkg
+
+      parse_archive = False
+      parse_depends = False
+
+    package = RPackage(
+      name,
+      archive,
+      f'{host}/src/contrib/{pkg}',
+      [get_package(p, packages) for p in dependencies])
+    packages[name] = package
+    return package
+
+  for package in pkglist:
+    get_package(package, pkgmap)
+
+  return pkgmap.values()
 
 
-@using(_add_pkg_deps)
+@using(_get_pkg_dep_tree)
 @buildrule
-def r_source_package(target, name, srcs, **kwargs):
-  target.SetTags('rpkg')
-  def GetVersion():
-    with open(f'{name}/DESCRIPTION', 'r') as f:
-      for line in f.readlines():
-        if line.startswith('Version: '):
-          return line[9:].strip()
-  pwd = os.getcwd()
-  os.chdir(target.GetPackageDirectory())
-  os.chdir('..')
-  target.Execute(f'R CMD build {name}')
-  archive = f'{name}_{GetVersion()}.tar.gz'
-  target.Execute(f'mv {archive} ..')
-  os.chdir(pwd)
-  target.AddFile(archive)
-  _add_pkg_deps(target)
-
-
-@buildrule
-def r_environment(target, name, **kwargs):
+def r_environment(target, packages, **kwargs):
   if not os.path.exists('rlib'):
     target.Execute('mkdir rlib')
 
@@ -50,22 +73,20 @@ def r_environment(target, name, **kwargs):
     for pkg in deplib.IncludedFiles():
       pkgs.append(pkg)
 
-  failed = []
-  change = True
-  while change:
-    for pkg in pkgs:
-      try:
-        target.Execute(f'R CMD INSTALL {pkg} --library=rlib')
-      except Exception as e:
-        failed.append(pkg)
-
-    if len(failed) == 0:
-      change = False
-    elif len(failed) == len(pkgs):
-      return
-    else:
-      pkgs = failed
-      failed = []
+  installed = []
+  pending = _get_pkg_dep_tree(packages)
+  while pending:
+    not_installed = []
+    for pkg in pending:
+      if all(dep.name in installed for dep in pkg.deps):
+        target.Execute(f'wget {pkg.dlfrom}')
+        target.Execute(f'R CMD INSTALL {pkg.archive} --library=rlib')
+        installed.append(pkg.name)
+      else:
+        not_installed.append(pkg)
+    if len(pending) == len(not_installed):
+      raise ValueError('could not install: ', pending)
+    pending = not_installed
 
   for root, dirs, files in os.walk('rlib'):
     for file in files:
