@@ -165,7 +165,10 @@ def run(target:impulse_paths.BuildTarget,
         debug:bool=False,
         fakeroot:args.Directory=None):
   """Builds a testcase and executes it."""
-  ruleinfo = build(target, debug, False, fakeroot)
+  ruleinfo = build(target=target,
+                   debug=debug,
+                   force=False,
+                   fakeroot=fakeroot)
   if not ruleinfo.type.endswith('_binary'):
     print('Only binary targets can be run')
     return
