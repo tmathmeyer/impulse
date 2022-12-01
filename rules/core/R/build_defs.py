@@ -99,3 +99,4 @@ def r_process_data(target, name, srcs, **kwargs):
   script = os.path.join(target.GetPackageDirectory(), srcs[0])
   target.Execute(f'Rscript {script} {file}')
   target.AddFile(file)
+  target.AddFile(script)

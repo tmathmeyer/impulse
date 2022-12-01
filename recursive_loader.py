@@ -143,6 +143,26 @@ def _toolchain_rule(target, name, srcs, links, **args):
     target.AddFile(linkname)
 
 
+def _scp_buildrule(target, name, host, user, path, **kwargs):
+  def ssh(cmd):
+    target.Execute(f'ssh {user}@{host} "{cmd}"')
+
+  def scp(file, subdir):
+    target.Execute(f'scp {file} {user}@{host}:{os.path.join(path, subdir)}')
+
+  for dep in target.Dependencies():
+    filedir = os.path.dirname(dep.filename)
+    remote_dir = os.path.join(path, filedir)
+    pkg = f'{impulse_paths.output_directory()}/PACKAGES/{dep.filename}'
+    ssh(f'mkdir -p {remote_dir}')
+    scp(pkg, filedir)
+    if 'perm' in kwargs:
+      ssh(f'chmod {kwargs["perm"]} -R {remote_dir}')
+    if 'ownr' in kwargs:
+      ssh(f'chown {kwargs["ownr"]} -R {remote_dir}')
+
+
+
 class RecursiveFileParser(object):
   """Loads files based on load() and buildrule statements."""
   def __init__(self, platform=None, **carried_args):
@@ -166,6 +186,7 @@ class RecursiveFileParser(object):
       'langs': self._load_core_langs,
       'toolchain': self._buildrule(_toolchain_rule),
       'platform': self._generate_platform_config,
+      'upload': self._buildrule(_scp_buildrule),
     }
 
     if platform and platform.value():
