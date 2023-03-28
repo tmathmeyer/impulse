@@ -27,7 +27,7 @@ def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
   if enable_debug:
     debug.EnableDebug()
   fakeroot = typing.cast(args.Directory, fakeroot)
-  if fakeroot.value():
+  if fakeroot and fakeroot.value():
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
 
 
