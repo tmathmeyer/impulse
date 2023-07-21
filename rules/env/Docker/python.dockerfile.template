@@ -21,12 +21,12 @@ EXPOSE {.}/tcp
 EXPOSE {.}/udp
 {{/ports}}
 
+RUN mkdir -p bin
 {{binaries}}
 COPY {.} bin/
 RUN chmod +x {.}
 {{/binaries}}
 
-RUN mkdir -p bin
 COPY {main_executable} ./
 RUN chmod +x {main_executable}
 

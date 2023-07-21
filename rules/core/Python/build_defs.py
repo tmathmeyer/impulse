@@ -9,7 +9,10 @@ def py_make_binary(target, package_name, package_file, binary_location):
 
 def _add_files(target, srcs):
   for src in srcs:
-    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+    added_file = os.path.join(target.GetPackageDirectory(), src)
+    if not os.path.exists(added_file):
+      target.ExecutionFailed(f'CHECKFILE {added_file}', 'file does not exist')
+    target.AddFile(added_file)
   for deplib in target.Dependencies(tags=Any('py_library')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)

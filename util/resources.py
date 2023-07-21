@@ -32,6 +32,10 @@ class ResourceOpener(object):
   def Open(self, filename, mode='r'):
     return open(self.Get(filename), mode)
 
+  def Read(self, filename):
+    with open(self.Get(filename), 'r') as f:
+      return f.read()
+
   def OpenGlob(self, fileRegex, mode='r'):
     for file in glob.glob(self.Get(fileRegex)):
       return open(file, mode)

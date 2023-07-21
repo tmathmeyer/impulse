@@ -10,6 +10,9 @@ FAILED_ = '\033[38;5;88m'
 ENDC = '\033[0m'
 
 
+ANY = object()
+
+
 class EarlyExitPassedError(Exception):
   pass
 
@@ -51,8 +54,8 @@ class GenericCrashHandler(object):
 
 
 def call_with_stack(method):
-  def replacement(self, *args):
-    return method(self, inspect.currentframe().f_back, *args)
+  def replacement(self, *args, **kwargs):
+    return method(self, inspect.currentframe().f_back, *args, **kwargs)
   replacement._wrapped = method
   return replacement
 
@@ -277,5 +280,79 @@ class TestCase(object):
     crash.print();
 
 
-      
+class MockMethod():
+  __slots__ = ('_calls', '_name', '_returns')
+  def __init__(self, name):
+    self._calls = []
+    self._returns = []
+    self._name = name
 
+  def __call__(self, *args, **kwargs):
+    self._calls.append((args, kwargs))
+    for a,k,v in self._returns:
+      if self._deepcomp(a, args) and self._deepcomp(k, kwargs):
+        return v
+
+  def _deepcomp(self, X, Y):
+    if (X is ANY) or (Y is ANY):
+      return True
+    if type(X) != type(Y):
+      return False
+    if type(X) == list:
+      return self._listcompare(X,Y)
+    if type(X) == dict:
+      return self._dictcompare(X,Y)
+    return X == Y
+
+  def _listcompare(self, X, Y):
+    if len(X) != len(Y):
+      return False
+    for x,y in zip(X,Y):
+      if not self._deepcomp(x,y):
+        return False
+    return True
+
+  def _dictcompare(self, X, Y):
+    if len(X) != len(Y):
+      return False
+    for k,v in X.items():
+      if k not in Y:
+        return False
+      if not self._deepcomp(v,Y[k]):
+        return False
+    return True
+
+  def ReturnWhenCalled(self, retval, *args, **kwargs):
+    for ent in self._returns:
+      if self._deepcomp(args, ent[0]) and self._deepcomp(kwargs, ent[1]):
+        ent[2] = retval
+        return
+    self._returns.append([args, kwargs, retval])
+
+  @call_with_stack
+  def AssertCalled(self, stack, *args, **kwargs):
+    if not self._calls:
+      AssertRaiseError('assertCall', self._name, stack,
+        f'{self._name} to be called', 'not called')
+    sargs, skwargs = self._calls.pop()
+    if not self._listcompare(sargs, args):
+      AssertRaiseError('assertCall', self._name, stack, sargs, args)
+    if not self._dictcompare(skwargs, kwargs):
+      AssertRaiseError('assertCall', self._name, stack, skwargs, kwargs)
+
+  @call_with_stack
+  def AssertCallsChecked(self, stack):
+    if self._calls:
+      AssertRaiseError('assertCallsChecked', self._name, stack, 
+        f'No unchecked calls to {self._name}',
+        f'called with args: {self._calls}')
+
+
+def MockAllModuleMethods(module):
+  for name in dir(module):
+    entry = getattr(module, name)
+    if type(entry) == type(MockAllModuleMethods):
+      setattr(module, name, MockMethod(name))
+    if type(entry) == MockMethod:
+      setattr(module, name, MockMethod(name))
+      
