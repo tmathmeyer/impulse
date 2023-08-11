@@ -261,6 +261,8 @@ def _GetDefaultValue(func, name):
 
 def Forward(name):
   frame, func = _GetForwardingWrapperFrame()
+  if name not in func.__annotations__:
+    return ''
   argtype = func.__annotations__[name]
   argvalue = frame.f_locals[name]
   argdefault = _GetDefaultValue(func, name)

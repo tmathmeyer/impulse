@@ -7,7 +7,6 @@ import time
 import types
 
 from impulse import impulse_paths
-from impulse.core import debug
 from impulse.core import exceptions
 from impulse.core import threading
 from impulse.pkg import overlayfs
@@ -101,6 +100,11 @@ class BuildTarget(threading.GraphNode):
 
   def UnloadPackageDirectory(self):
     return self._package.UnloadPackageDirectory()
+  
+  def GetRequiredFiles(self):
+    rulepath = self._buildrule_pt.GetPackagePathDirOnly()
+    build_root = os.path.join(impulse_paths.root(), rulepath)
+    return self._GetBuildRuleIncludedFiles(build_root, rulepath)
 
   def _GetExecEnv(self):
     self.check_thread()

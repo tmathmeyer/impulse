@@ -141,6 +141,11 @@ class TestIsolator():
       AssertRaiseError('assertEqual', self.name, stack, B, A)
 
   @call_with_stack
+  def assertNotEqual(self, stack, A, B):
+    if A == B:
+      AssertRaiseError('assertNotEqual', self.name, stack, B, A)
+
+  @call_with_stack
   def assertNoDiff(self, stack, A, B):
     for a, b in zip(A.split('\n'), B.split('\n')):
       if a != b:

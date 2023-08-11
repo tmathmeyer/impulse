@@ -32,6 +32,8 @@ copy_srcs:
 	@touch impulse/testing/__init__.py
 	@cp -r loaders impulse/loaders
 	@touch impulse/loaders/__init__.py
+	@cp -r lib impulse/lib
+	@touch impulse/lib/__init__.py
 
 install: GENERATED/BINARIES/impulse/impulse
 	@echo 'installing to /usr/local/bin/impulse'

@@ -25,8 +25,12 @@ class ResourceOpener(object):
     extracted, do_clean = self._extracted, self._extracted_cleanup
     self._extracted, self._extracted_cleanup = None, None
     if extracted and do_clean:
-      import shutil
-      shutil.rmtree(extracted)
+      try:
+        import shutil
+        shutil.rmtree(extracted)
+      except ImportError:
+        # Probably a shutdown, do nothing
+        pass
     self._TeardownSignal()
 
   def Open(self, filename, mode='r'):

@@ -93,10 +93,14 @@ class ParsedBuildTarget(object):
           str(target), self._build_rule) from None
 
     # Create a BuildTarget graph node
-    return set([build_target.BuildTarget(
-      self._name, self._func, self._args, self._build_rule,
-      self._rule_type, self._scope, dependencies, platform,
-      self._extra_tags, **self._carried_args)])
+    try:
+      return set([build_target.BuildTarget(
+        self._name, self._func, self._args, self._build_rule,
+        self._rule_type, self._scope, dependencies, platform,
+        self._extra_tags, **self._carried_args)])
+    except:
+      print(self._carried_args)
+      raise
 
   def AddScopes(self, funcs):
     if self._converted:
