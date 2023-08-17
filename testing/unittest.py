@@ -1,4 +1,4 @@
-
+from contextlib import contextmanager
 import inspect
 import re
 import sys
@@ -8,7 +8,6 @@ PASSED = '\033[38;5;2m'
 FAILED = '\033[38;5;9m'
 FAILED_ = '\033[38;5;88m'
 ENDC = '\033[0m'
-
 
 ANY = object()
 
@@ -34,8 +33,12 @@ class FailedAssertError(Exception):
     fileLocation = self._file_location
     if len(fileLocation) < string_len:
       fileLocation += ' ' * (string_len - len(fileLocation))
-    print(fmt.format(FAILED_, fileLocation, ENDC,
-      self._casename, self._expected, self._actual))
+    print(
+      fmt.format(
+        FAILED_, fileLocation, ENDC, self._casename, self._expected,
+        self._actual
+      )
+    )
 
   def FileLocationLength(self):
     return len(self._file_location)
@@ -56,6 +59,7 @@ class GenericCrashHandler(object):
 def call_with_stack(method):
   def replacement(self, *args, **kwargs):
     return method(self, inspect.currentframe().f_back, *args, **kwargs)
+
   replacement._wrapped = method
   return replacement
 
@@ -67,7 +71,7 @@ def methods_on(cls):
       yield entry, test
 
 
-def ExpectRaises(errtype):
+def _ExpectRaises(errtype):
   def decorator(fn):
     def replacement(*args, **kwargs):
       try:
@@ -78,20 +82,40 @@ def ExpectRaises(errtype):
         raise EarlyExitPassedError()
       raise FailedAssertError(
         fn.__code__.co_filename, fn.__name__, fn.__code__.co_firstlineno,
-        'ExpectFailed', errtype.__name__, 'Nothing Raised')
+        'ExpectFailed', errtype.__name__, 'Nothing Raised'
+      )
+
     return replacement
+
   return decorator
 
 
 def ExpectFailed(fn):
-  return ExpectRaises(FailedAssertError)(fn)
+  return _ExpectRaises(FailedAssertError)(fn)
+
+
+@contextmanager
+def ExpectException(tester, errtype):
+  try:
+    yield tester
+  except FailedAssertError as e:
+    raise e
+  except Exception as e:
+    tester.assertEqual._wrapped(
+      tester,
+      inspect.currentframe().f_back.f_back, type(e), errtype
+    )
+  else:
+    tester.assertEqual._wrapped(
+      tester, inspect.currentframe().f_back.f_back, errtype, 'Nothing Raised'
+    )
 
 
 def AssertRaiseError(assertname, casename, stack, A, B):
-    case = stack.f_code.co_name
-    file = stack.f_code.co_filename
-    line = stack.f_lineno
-    raise FailedAssertError(file, casename, line, assertname, A, B)
+  case = stack.f_code.co_name
+  file = stack.f_code.co_filename
+  line = stack.f_lineno
+  raise FailedAssertError(file, casename, line, assertname, A, B)
 
 
 class TestIsolator():
@@ -156,7 +180,6 @@ class TestIsolator():
     if A not in B:
       AssertRaiseError("assertIn", self.name, stack, f'[..., {A}, ...]', B)
 
-
   @call_with_stack
   def assertCalledWithArgs(self, stack, *argsets):
     class CalledWithArgsExpector():
@@ -168,13 +191,17 @@ class TestIsolator():
         sentinel = object()
         if next(cwae.itr, sentinel) is not sentinel:
           AssertRaiseError(
-            'assertCalledWithArgs', self.name, stack, list(argsets), cwae.actual)
+            'assertCalledWithArgs', self.name, stack, list(argsets), cwae.actual
+          )
 
     cwae = CalledWithArgsExpector()
+
     def called(*args, **_):
-      self.assertEqual._wrapped(self, stack, list(args),
-        list(next(cwae.itr, ['NOT CALLED'])))
+      self.assertEqual._wrapped(
+        self, stack, list(args), list(next(cwae.itr, ['NOT CALLED']))
+      )
       cwae.actual.append(list(args))
+
     self.expectations.append(cwae)
     return called
 
@@ -182,7 +209,7 @@ class TestIsolator():
 class TestCase(object):
   @classmethod
   def RunAll(cls, notermcolor, export_as='print'):
-    cls.RunTests(notermcolor, (lambda x:True), export_as)
+    cls.RunTests(notermcolor, (lambda x: True), export_as)
 
   @classmethod
   def RunFilter(cls, notermcolor, filter, export_as='print'):
@@ -203,11 +230,7 @@ class TestCase(object):
       FAILED = ''
       FAILED_ = ''
       ENDC = ''
-    out = {
-      'passes': [],
-      'failures': [],
-      'crashes': []
-    }
+    out = {'passes': [], 'failures': [], 'crashes': []}
     for clazz in TestCase.__subclasses__():
       test_methods = []
       setup_method = None
@@ -224,17 +247,19 @@ class TestCase(object):
         full_name = f'{clazz.__name__}.{name[5:]}'
         if not filtrfn(full_name):
           continue
-        cls.RunIsolated(out, TestIsolator(
-          clazz, name, method, setup_method, cleanup_method))
+        cls.RunIsolated(
+          out, TestIsolator(clazz, name, method, setup_method, cleanup_method)
+        )
     return getattr(cls, export_fn)(out)
 
   @classmethod
   def _Matches(cls, regex):
     matcher = re.compile(regex)
+
     def filterer(name):
       return matcher.match(name)
-    return filterer
 
+    return filterer
 
   @classmethod
   def RunIsolated(cls, out, isolator):
@@ -254,39 +279,43 @@ class TestCase(object):
     p_len = len(out['passes'])
     f_len = len(out['failures'])
     c_len = len(out['crashes'])
-    print('{}{} test{} passed.{}'.format(
-      PASSED, 
-      p_len, '' if p_len == 1 else 's',
-      ENDC))
+    print(
+      '{}{} test{} passed.{}'.format(
+        PASSED, p_len, '' if p_len == 1 else 's', ENDC
+      )
+    )
 
     if (f_len):
-      print('{}{} test{} failed:{}'.format(
-        FAILED,
-        f_len, '' if f_len == 1 else 's',
-        ENDC))
+      print(
+        '{}{} test{} failed:{}'.format(
+          FAILED, f_len, '' if f_len == 1 else 's', ENDC
+        )
+      )
       max_len = max(f.FileLocationLength() for f in out['failures'])
       for f in out['failures']:
         cls.PrintFailure(f, max_len)
-      
+
     if (c_len):
-      print('{}{} test{} crashed:{}'.format(
-        FAILED,
-        c_len, '' if c_len == 1 else 's',
-        ENDC))
+      print(
+        '{}{} test{} crashed:{}'.format(
+          FAILED, c_len, '' if c_len == 1 else 's', ENDC
+        )
+      )
       for f in out['crashes']:
         cls.PrintCrashed(f)
 
   @classmethod
   def PrintFailure(cls, failure:FailedAssertError, max_len:int):
-    failure.print(max_len);
+    failure.print(max_len)
 
   @classmethod
   def PrintCrashed(cls, crash:GenericCrashHandler):
-    crash.print();
+    crash.print()
 
 
 class MockMethod():
   __slots__ = ('_calls', '_name', '_returns')
+
   def __init__(self, name):
     self._calls = []
     self._returns = []
@@ -294,7 +323,7 @@ class MockMethod():
 
   def __call__(self, *args, **kwargs):
     self._calls.append((args, kwargs))
-    for a,k,v in self._returns:
+    for a, k, v in self._returns:
       if self._deepcomp(a, args) and self._deepcomp(k, kwargs):
         return v
 
@@ -304,26 +333,26 @@ class MockMethod():
     if type(X) != type(Y):
       return False
     if type(X) == list:
-      return self._listcompare(X,Y)
+      return self._listcompare(X, Y)
     if type(X) == dict:
-      return self._dictcompare(X,Y)
+      return self._dictcompare(X, Y)
     return X == Y
 
   def _listcompare(self, X, Y):
     if len(X) != len(Y):
       return False
-    for x,y in zip(X,Y):
-      if not self._deepcomp(x,y):
+    for x, y in zip(X, Y):
+      if not self._deepcomp(x, y):
         return False
     return True
 
   def _dictcompare(self, X, Y):
     if len(X) != len(Y):
       return False
-    for k,v in X.items():
+    for k, v in X.items():
       if k not in Y:
         return False
-      if not self._deepcomp(v,Y[k]):
+      if not self._deepcomp(v, Y[k]):
         return False
     return True
 
@@ -337,8 +366,10 @@ class MockMethod():
   @call_with_stack
   def AssertCalled(self, stack, *args, **kwargs):
     if not self._calls:
-      AssertRaiseError('assertCall', self._name, stack,
-        f'{self._name} to be called', 'not called')
+      AssertRaiseError(
+        'assertCall', self._name, stack, f'{self._name} to be called',
+        'not called'
+      )
     sargs, skwargs = self._calls.pop()
     if not self._listcompare(sargs, args):
       AssertRaiseError('assertCall', self._name, stack, sargs, args)
@@ -348,9 +379,11 @@ class MockMethod():
   @call_with_stack
   def AssertCallsChecked(self, stack):
     if self._calls:
-      AssertRaiseError('assertCallsChecked', self._name, stack, 
+      AssertRaiseError(
+        'assertCallsChecked', self._name, stack,
         f'No unchecked calls to {self._name}',
-        f'called with args: {self._calls}')
+        f'called with args: {self._calls}'
+      )
 
 
 def MockAllModuleMethods(module):
@@ -360,4 +393,3 @@ def MockAllModuleMethods(module):
       setattr(module, name, MockMethod(name))
     if type(entry) == MockMethod:
       setattr(module, name, MockMethod(name))
-      

@@ -272,10 +272,15 @@ def run_affected_tests(
   executables = []
   for target in affected_targets:
     if target._buildrule_name.endswith('_test'):
-      ruleinfo = build(impulse_paths.BuildTarget(target.get_name()), debug=False, force=False, fakeroot=fakeroot)
+      ruleinfo = build(
+        impulse_paths.BuildTarget(target.get_name()),
+        debug=False,
+        force=False,
+        fakeroot=fakeroot
+      )
       executables.append(ruleinfo.output)
   for e in executables:
-    code = exec_run.RunCommand(f'{e} --notermcolor').returncode
+    code = exec_run.RunCommand(f'{e} run --notermcolor').returncode
     if code:
       return code
 

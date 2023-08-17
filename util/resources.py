@@ -31,6 +31,8 @@ class ResourceOpener(object):
       except ImportError:
         # Probably a shutdown, do nothing
         pass
+      except TypeError:
+        pass
     self._TeardownSignal()
 
   def Open(self, filename, mode='r'):
@@ -68,9 +70,14 @@ class ResourceOpener(object):
   def _TeardownSignal(self):
     if self._oldsignal is None:
       return
-    if threading.current_thread() is threading.main_thread():
-      oldsignal, self._oldsignal = self._oldsignal, None
-      signal.signal(signal.SIGINT, oldsignal)
+    try:
+      if threading.current_thread() is threading.main_thread():
+        oldsignal, self._oldsignal = self._oldsignal, None
+        signal.signal(signal.SIGINT, oldsignal)
+    except AttributeError:
+      pass
+    except ImportError:
+      pass
 
   def _Extract(self):
     if not isinstance(__loader__, zipimport.zipimporter):
