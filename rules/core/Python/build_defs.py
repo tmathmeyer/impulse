@@ -37,11 +37,19 @@ def _get_tools_paths(target, targets):
     yield os.path.join('bin', str(t).split(':')[-1])
 
 
-@using(_add_files, _write_file)
+def _get_recursive_pips(target, kwargs):
+  my_pips = set(kwargs.get('pips', []))
+  for dep in target.Dependencies(tags=Any('py_library', 'py_binary')):
+    my_pips.update(set(dep.GetPropagatedData('pips')))
+  return list(my_pips)
+
+@using(_add_files, _write_file, _get_recursive_pips)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
   target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
+  for pip in _get_recursive_pips(target, kwargs):
+    target.PropagateData('pips', pip)
 
   # Create the init files
   directory = target.GetPackageDirectory()
@@ -89,9 +97,13 @@ def _get_pip_metadata(pips):
     return match.groups()[0]
 
   pips = [(p,'root') for p in pips]
+  parsed_pips = []
 
   while pips:
     pip, req = pips[0]
+    if pip in parsed_pips:
+      continue
+    parsed_pips.append(pip)
     pips = pips[1:]
     egg_info = GetPipEgg(pip, req)
     if os.path.exists(f'{egg_info}/requires.txt'):
@@ -100,23 +112,25 @@ def _get_pip_metadata(pips):
           if not line.strip():
             break;
           pips.append((ParseRequirementLine(line), pip))
-    if os.path.exists(f'{egg_info}/requires.txt'):
+    if os.path.exists(f'{egg_info}/top_level.txt'):
       with open(f'{egg_info}/top_level.txt', 'r') as f:
         packages.append(f.read().split('\n')[0].strip())
+    elif os.path.exists(f'{lib_path}/{pip}'):
+      packages.append(pip)
 
   result = []
-  for p in pips:
+  for p in packages:
     lib = f'{lib_path}/{p}'
     if os.path.exists(lib):
-      result.push_back((p, lib))
+      result.append((p, lib))
     elif os.path.exists(f'{lib}.py'):
-      result.push_back((p, f'{lib}.py'))
+      result.append((p, f'{lib}.py'))
   return result
 
 
 @depends_targets("//impulse/util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary,
-       _get_pip_metadata)
+       _get_pip_metadata, _get_recursive_pips)
 @buildrule
 def py_binary(target, name, **kwargs):
   target.SetTags('exe')
@@ -146,14 +160,19 @@ def py_binary(target, name, **kwargs):
     if len(srcs) == 1:
       mainfile = srcs[0].rstrip('py').rstrip('.')
 
+  for pip in _get_recursive_pips(target, kwargs):
+    target.PropagateData('pips', pip)
+
   # Create the __main__ file
   main_contents = f'from {package} import {mainfile}\n{mainfile}.main()\n'
   _write_file(target, '__main__.py', main_contents)
-  for pkgname, pkgpath in _get_pip_metadata(kwargs.get('pips', [])):
+  for pkgname, pkgpath in _get_pip_metadata(_get_recursive_pips(target, kwargs)):
     os.system(f'cp -r {pkgpath} {pkgname}')
     for dn, _, files in os.walk(pkgname):
       for file in files:
-        target.AddFile(f'{dn}/{file}')
+        sourcefile = f'{dn}/{file}'
+        if '__pycache__' not in sourcefile:
+          target.AddFile(sourcefile)
 
   # Converter from pkg to binary
   return py_make_binary

@@ -243,6 +243,7 @@ def testsuite(
   ntc = args.Forward("notermcolor")
   filter = args.Forward("filter")
   for builder in targets:
+    print('Running', builder.GetRuleInfo().output)
     os.system(f'{builder.GetRuleInfo().output} run {ntc} {filter}')
 
 

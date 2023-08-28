@@ -71,7 +71,7 @@ def methods_on(cls):
       yield entry, test
 
 
-def _ExpectRaises(errtype):
+def ExpectRaises(errtype):
   def decorator(fn):
     def replacement(*args, **kwargs):
       try:
@@ -91,7 +91,7 @@ def _ExpectRaises(errtype):
 
 
 def ExpectFailed(fn):
-  return _ExpectRaises(FailedAssertError)(fn)
+  return ExpectRaises(FailedAssertError)(fn)
 
 
 @contextmanager
