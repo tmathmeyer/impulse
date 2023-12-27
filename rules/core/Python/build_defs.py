@@ -194,7 +194,6 @@ def py_test(target, name, srcs, **kwargs):
   # Track the sources
   _add_files(target, srcs)
 
-  import_fmt = 'from {} import {}\n'
   main_exec = 'from impulse.testing import testmain\ntestmain.main()\n'
   main_contents = ''
   package = '.'.join(target.package_target.GetPackagePathDirOnly().split('/'))

@@ -3,7 +3,10 @@ platform (
   cc_compiler = "g++",
   cc_linker = "ld",
   cc_flags = [
-    "-Wall", "-Wextra", "-Wpedantic", "-Werror",
+    "-Wall",
+    "-Wextra",
+    "-Wpedantic",
+    "-Werror",
     "-fdiagnostics-color=always",
   ],
   ld_flags = [
@@ -18,7 +21,8 @@ platform (
   cc_compiler = "clang++",
   cc_linker = "ld",
   c_compiler = "clang",
-  ld_flags = [],
+  ld_flags = [
+  ],
 )
 
 platform (

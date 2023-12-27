@@ -101,7 +101,10 @@ class ParsedTarget(object):
     parser(self.GetBuildFileForTarget())
 
   def GetBuildFileForTarget(self):
-    return expand_fully_qualified_path(os.path.join(self.target_path, 'BUILD'))
+    try:
+      return expand_fully_qualified_path(os.path.join(self.target_path, 'BUILD'))
+    except exceptions.InvalidPathException as ipe:
+      raise exceptions.BuildTargetMissing(f'Missing rule: {self.GetFullyQualifiedRulePath()}')
 
   def GetFullyQualifiedRulePath(self):
     return self.target_path + ':' + self.target_name

@@ -24,6 +24,9 @@ class MacroEnvironment():
           yield dep
     return list(itr())
 
+  def GetLocation(self) -> str:
+    return self._loader._get_macro_expansion_directory()
+
 
 def Buildmacro(loader: 'RecursiveFileParser', fn: 'function'):
   def replacement(**kwargs):
