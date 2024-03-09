@@ -216,7 +216,7 @@ def test(
   filter:str=None
 ):
   """Builds a testcase and executes it."""
-  ruleinfo = build(target, debug, False, fakeroot)
+  ruleinfo = build(target, None, debug, False, fakeroot)
   if not ruleinfo.type.endswith('_test'):
     print('Only test targets can be run')
     return

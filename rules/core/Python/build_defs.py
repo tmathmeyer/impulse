@@ -1,8 +1,23 @@
 
 def py_make_binary(target, package_name, package_file, binary_location):
+  def _get_exe(minversion):
+    if not minversion:
+      return 'python3'
+    import sys
+    if minversion[1] >= sys.version_info.minor:
+      return f'python3.{minversion[1]}'
+
   binary_file = os.path.join(binary_location, package_name)
+  minversion = target.GetPropagatedData('minversion')
+  pyversion = _get_exe(minversion)
+
+  try:
+    target.Execute(f'which {pyversion}')
+  except:
+    target.FatalError(f'Minimum python version {pyversion} not found')
+
   target.Execute(
-    f'echo "#!/usr/bin/env python3\n" > {binary_file}',
+    f'echo "#!/usr/bin/env {pyversion}\n" > {binary_file}',
     f'cat {package_file} >> {binary_file}',
     f'chmod +x {binary_file}')
 
@@ -43,13 +58,79 @@ def _get_recursive_pips(target, kwargs):
     my_pips.update(set(dep.GetPropagatedData('pips')))
   return list(my_pips)
 
-@using(_add_files, _write_file, _get_recursive_pips)
+
+def _version_check(target, kwargs):
+  def _parse_version(vstr):
+    if vstr is None:
+      return None
+    splitz = vstr.split('.')
+    splitz += (['0'] * (3 - len(splitz)))
+    return [int(x) for x in splitz]
+
+  def _lt(a, b):
+    assert a is not None and b is not None
+    assert len(a) == 3 and len(b) == 3
+    for (aa, bb) in zip(a, b):
+      if aa < bb:
+        return True
+      if aa > bb:
+        return False
+    return False
+
+  def _noversion(x):
+    return x is None or len(x) != 3
+
+  def _version_min(a, b):
+    if _noversion(a) and _noversion(b):
+      return None
+    elif _noversion(a):
+      return b
+    elif _noversion(b):
+      return a
+    elif _lt(a, b):
+      return a
+    return b
+
+  def _version_max(a, b):
+    if _noversion(a) and _noversion(b):
+      return None
+    elif _noversion(a):
+      return b
+    elif _noversion(b):
+      return a
+    elif _lt(a, b):
+      return b
+    return a
+
+  minversion = _parse_version(kwargs.get('minversion', None))
+  maxversion = _parse_version(kwargs.get('maxversion', None))
+  for deplib in target.Dependencies(package_ruletype='py_library'):
+    minversion = _version_max(minversion, deplib.GetPropagatedData('minversion'))
+    maxversion = _version_min(maxversion, deplib.GetPropagatedData('maxversion'))
+
+  if not _noversion(minversion) and not _noversion(maxversion):
+    if _lt(maxversion < minversion):
+      target.ExecutionFailed(
+        'Minimum package version is greater than maximum package version')
+
+  if minversion is not None:
+    for decimal in minversion:
+      target.PropagateData('minversion', decimal)
+  if maxversion is not None:
+    for decimal in maxversion:
+      target.PropagateData('maxversion', decimal)
+  return minversion, maxversion
+
+
+@using(_add_files, _write_file, _get_recursive_pips, _version_check)
 @buildrule
 def py_library(target, name, srcs, **kwargs):
   target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
   for pip in _get_recursive_pips(target, kwargs):
     target.PropagateData('pips', pip)
+
+  _version_check(target, kwargs)
 
   # Create the init files
   directory = target.GetPackageDirectory()
@@ -130,7 +211,7 @@ def _get_pip_metadata(pips):
 
 @depends_targets("//impulse/util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary,
-       _get_pip_metadata, _get_recursive_pips)
+       _get_pip_metadata, _get_recursive_pips, _version_check)
 @buildrule
 def py_binary(target, name, **kwargs):
   target.SetTags('exe')
@@ -174,12 +255,14 @@ def py_binary(target, name, **kwargs):
         if '__pycache__' not in sourcefile:
           target.AddFile(sourcefile)
 
+  _version_check(target, kwargs)
+
   # Converter from pkg to binary
   return py_make_binary
 
 
 @depends_targets("//impulse/testing:unittest")
-@using(_add_files, _write_file, py_make_binary)
+@using(_add_files, _write_file, py_make_binary, _version_check)
 @buildrule
 def py_test(target, name, srcs, **kwargs):
   target.SetTags('exe', 'test')
@@ -203,4 +286,5 @@ def py_test(target, name, srcs, **kwargs):
   main_contents += main_exec
 
   _write_file(target, '__main__.py', main_contents)
+  _version_check(target, kwargs)
   return py_make_binary

@@ -85,6 +85,9 @@ class ExportedPackage(object):
   def GetPropagatedData(self, key):
     if key in self.__dict__:
       return self.__dict__[key]
+    if '_propagated_data' in self.__dict__:
+      if key in self.__dict__['_propagated_data']:
+        return self.__dict__['_propagated_data'][key]
     return []
 
   def RunCommand(self, command):
@@ -102,6 +105,9 @@ class ExportedPackage(object):
           raise exceptions.FatalException(f'command "{command}" failed.')
       except:
         raise exceptions.FatalException(f'command "{command}" failed.')
+
+  def FatalError(self, msg:str):
+    raise exceptions.FatalException(msg)
 
   def __str__(self):
     return '{}@{}'.format(str(self.package_target), self.build_timestamp)
