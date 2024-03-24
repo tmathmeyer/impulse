@@ -1,5 +1,3 @@
-langs("Python")
-
 py_library (
   name = "temp_dir",
   srcs = [ "temp_dir.py" ],

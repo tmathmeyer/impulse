@@ -1,3 +1,4 @@
+
 class MacroEnvironment():
   def __init__(self, loader:'RecursiveFileParser'):
     self._loader = loader

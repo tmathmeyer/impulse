@@ -116,7 +116,7 @@ def cc_combine(target, name, **kwargs):
   if objstrs == outname:
     target.AddFile(outname)
     return
-  
+
   _get_flags(target, kwargs)
   ld_flags = set()
   ld_flags.update(target.GetPlatform().ld_flags)

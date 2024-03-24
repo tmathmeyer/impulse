@@ -1,285 +1,310 @@
 
 import glob
 import inspect
-import marshal
 import os
 import sys
+import typing
 
 from impulse import impulse_paths
-from impulse import build_target
 
 from impulse.core import debug
 from impulse.core import exceptions
 from impulse.loaders import buildmacro
-from impulse.util import resources
-from impulse.util import typecheck
+from impulse.types import typecheck
+from impulse.types import parsed_target
+from impulse.types import paths
 
 
 INVALID_RULE_RECURSION_CANARY = object()
 
 
-class ParsedBuildTarget(object):
-  def __init__(self, name, func, args, build_rule, ruletype, evaluator,
-               carried_args, extra_tags):
-    self._func = marshal.dumps(func.__code__)
-    self._name = name
-    self._args = args
-    self._build_rule = build_rule
-    self._rule_type = ruletype
-    self._evaluator = evaluator
-    self._carried_args = carried_args
-    self._extra_tags = extra_tags
-    self._converted = None
-    self._scope = {}
-
-  def Convert(self, platform):
-    # If we try to convert this rule again while conversion is in progress
-    # we need to fail, as a cyclic graph can't be built. Conversion is
-    # single threaded, so this test-and-set will suffice.
-    if self._converted is INVALID_RULE_RECURSION_CANARY:
-      raise exceptions.BuildTargetCycle.Cycle(self)
-    if not self._converted:
-      self._converted = INVALID_RULE_RECURSION_CANARY
-      try:
-        self._converted = self._CreateConverted(platform)
-      except exceptions.BuildTargetCycle as e:
-        raise e.ChainException(self)
-    return self._converted
-
-  def _update_arg_dependencies_get_list(self):
-    def iterate(update_object, probably):
-      if type(update_object) == dict:
-        replace = {}
-        result = []
-        for k, v in update_object.items():
-          recrep, recres = iterate(v, probably)
-          replace[k] = recrep
-          result += recres
-        return replace, result
-      elif type(update_object) in (list, tuple):
-        replace = []
-        result = []
-        for v in update_object:
-          recrep, recres = iterate(v, probably)
-          replace.append(recrep)
-          result += recres
-        return replace, result
-      else:
-        x = probably(update_object)
-        if x is not None:
-          return x, [x]
-        return update_object, []
-    def is_buildrule(txt):
-      try:
-        return impulse_paths.convert_to_build_target(
-          txt, self._build_rule.target_path, True)
-      except:
-        return None
-    self._args, result = iterate(self._args, is_buildrule)
-    return result
-
-  def GetDependencies(self):
-    return list(self._update_arg_dependencies_get_list())
-
-  def _CreateConverted(self, platform):
-    # set(build_target.BuildTarget)
-    dependencies = set()
-    # Convert all 'deps' into edges between BuildTargets
-    for target in self._update_arg_dependencies_get_list():
-      try:
-        dependencies |= self._evaluator.ConvertTarget(target)
-      except exceptions.BuildTargetMissing:
-        raise exceptions.BuildTargetMissingFrom(
-          str(target), self._build_rule) from None
-
-    # Create a BuildTarget graph node
-    try:
-      return set([build_target.BuildTarget(
-        self._name, self._func, self._args, self._build_rule,
-        self._rule_type, self._scope, dependencies, platform,
-        self._extra_tags, **self._carried_args)])
-    except:
-      print(self._carried_args)
-      raise
-
-  def AddScopes(self, funcs):
-    if self._converted:
-      raise "TOO LATE" # TODO raise a real error...
-    for func in funcs:
-      self._scope[func.__name__] = (marshal.dumps(func.__code__))
-    return self
-
-  def GetName(self):
-    return str(self._name)
+def GetCallSite() -> tuple[str, int]:
+  caller = inspect.stack()[2]
+  return caller.filename, caller.lineno
 
 
-def increase_stack_arg_decorator(replacement):
-  # This converts 'replacement' into a decorator that takes args
-  def _superdecorator(self, *args, **kwargs):
-    # This is the actual 'decorator' which gets called
-    def _decorator(fn):
-      # This is what replacement would have created to decorate the function
-      replaced = replacement(self, fn, *args, **kwargs)
-      # This is what the decorated function is replaced with
-      def newfn(*args, **kwargs):
-        kwargs['__stack__'] = kwargs.get('__stack__', 1) + 2
-        replaced(*args, **kwargs)
-      return newfn
-    return _decorator
-  return _superdecorator
+class EnvironmentLoader(object):
+  pass
 
 
-def _data_buildrule(target, name, srcs):
-  target.SetTags('data')
-  for src in srcs:
-    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+class BuiltinMethod(object):
+  def __init__(self):
+    self._loader = None
+
+  @typecheck.Assert
+  def Attach(self, loader:EnvironmentError) -> None:
+    self._loader = loader
+
+  def _get_buildfile_from_stack(self):
+    build_file = 'Fake'
+    build_file_index = 1
+    while not build_file.endswith('BUILD'):
+      build_file = inspect.stack()[build_file_index].filename
+      build_file_index += 1
+    return build_file
 
 
-def _toolchain_rule(target, name, srcs, links, **args):
-  target.SetTags('toolchain')
-  for src in srcs:
-    target.AddFile(os.path.join(target.GetPackageDirectory(), src))
+class DeprecationWarning(BuiltinMethod):
+  def __init__(self, method:str):
+    super().__init__()
+    self._method = method
 
-  for link in links:
-    linkname = os.path.join(target.GetPackageDirectory(), link)
-    linktarget = os.path.join(impulse_paths.root(), linkname)
-    os.system(f'ln -sf {linktarget} {linkname}')
-    target.AddFile(linkname)
+  def __call__(self, *_, **__):
+    file, line = GetCallSite()
+    debug.DebugMsg(f'[{file}:{line}]: The {self._method} method is deprecated')
 
 
-def _scp_buildrule(target, name, host, user, path, **kwargs):
-  def ssh(cmd):
-    target.Execute(f'ssh {user}@{host} "{cmd}"')
-
-  def scp(file, subdir):
-    target.Execute(f'scp {file} {user}@{host}:{os.path.join(path, subdir)}')
-
-  for dep in target.Dependencies():
-    filedir = os.path.dirname(dep.filename)
-    remote_dir = os.path.join(path, filedir)
-    pkg = f'{impulse_paths.output_directory()}/PACKAGES/{dep.filename}'
-    ssh(f'mkdir -p {remote_dir}')
-    scp(pkg, filedir)
-    if 'perm' in kwargs:
-      ssh(f'chmod {kwargs["perm"]} -R {remote_dir}')
-    if 'ownr' in kwargs:
-      ssh(f'chown {kwargs["ownr"]} -R {remote_dir}')
+class LoadFile(BuiltinMethod):
+  def __call__(self, *files):
+    for loading in files:
+      self._loader.LoadFile(impulse_paths.expand_fully_qualified_path(loading))
 
 
+class Pattern(BuiltinMethod):
+  @typecheck.Assert
+  def _get_buildfile_from_stack(self) -> str:
+    build_file = 'Fake'
+    build_file_index = 1
+    while not build_file.endswith('BUILD'):
+      build_file = inspect.stack()[build_file_index].filename
+      build_file_index += 1
+    return build_file
 
-class RecursiveFileParser(object):
-  """Loads files based on load() and buildrule statements."""
-  def __init__(self, platform=None, **carried_args):
-    self._carried_args = carried_args
-    self._targets = {} # Map[BuildTarget->ParsedBuildTarget]
-    self._meta_targets = set() # Set[str]
-    self._loaded_files = set() # We don't want to load files multiple times
-    self._platforms = {} # All the so-far-declared platforms
-    self._platform = None # The selected platform
-
-    # We need to store the environment across compilations, since it allows
-    # files to call eachother's functions.
-    self._environ = {
-      'load': self._load_files,
-      'buildrule': self._buildrule,
-      'buildmacro': self._buildmacro,
-      'using': self._using,
-      'pattern': self._find_files_pattern,
-      'depends_targets': self._depends_on_targets,
-      'data': self._buildrule(_data_buildrule),
-      'langs': self._load_core_langs,
-      'toolchain': self._buildrule(_toolchain_rule),
-      'platform': self._generate_platform_config,
-      'upload': self._buildrule(_scp_buildrule),
-    }
-
-    if platform and platform.value():
-      self.ParsePlatform(platform.value())
-    else:
-      self.ParsePlatform('//rules/platform:x64-linux-gnu')
-
-  def ParsePlatform(self, platstr):
-    plat_target = impulse_paths.convert_to_build_target(
-      platstr, impulse_paths.relative_pwd(), True)
-    self.ParseTarget(plat_target)
-    assert plat_target in self._platforms
-    self._platform = self._platforms[plat_target]
-
-  def ParseTarget(self, target: impulse_paths.ParsedTarget):
-    target.ParseFile(self, self._ParseFile)
-
-  def ConvertTarget(self, target):
-    if target not in self._targets:
-      raise exceptions.BuildTargetMissing(target)
-    return self._targets[target].Convert(self._platform)
-
-  def _ParseFile(self, file: str):
-    return self._ParseFileFromLocation(file, file)
-
-  def _ParseFileFromLocation(self, file:str, location:str):
-    if debug.IsDebug():
-      print(f'Loading File: {file}')
-    if file not in self._loaded_files:
-      self._loaded_files.add(file)
-      try:
-        with open(location) as f:
-          try:
-            exec(compile(f.read(), location, 'exec'), self._environ)
-          except NameError as e:
-            # TODO: this needs to be fixed, since there could be _other_ name
-            # errors, not just rule-not-found ones.
-            _, _, traceback = sys.exc_info()
-            # drop the frame that is just this file calling exec above.
-            previous_frame = traceback.tb_next.tb_frame
-            filename = previous_frame.f_code.co_filename
-            line_no = previous_frame.f_lineno
-            missing_name = e.args[0].split('\'')[1]
-            raise exceptions.NoSuchRuleType(filename, line_no, missing_name)
-          except Exception as e:
-            # Wrap any exception that we get, so we don't have crashes
-            raise exceptions.FileImportException(e, file)
-      except FileNotFoundError as e:
-        # Wrap any exception that we get, so we don't have crashes
-        raise exceptions.FileImportException(e, file)
-
-  def _generate_platform_config(self, **kwargs):
-    assert 'name' in kwargs
-    name = kwargs['name']
-    build_file = self._get_buildfile_from_stack()
-    build_path = impulse_paths.get_qualified_build_file_dir(build_file)
-    build_rule = impulse_paths.convert_name_to_build_target(name, build_path)
-    self._platforms[build_rule] = impulse_paths.Platform(
-      platform_target=repr(build_rule), **kwargs)
-
-  @increase_stack_arg_decorator
-  def _depends_on_targets(self, fn, *targets):
-    """Used to decorate a buildrule to state that _all_ targets of that type
-       must also depend on the set of targets listed here."""
-    def replacement(*args, **kwargs):
-      # join the dependencies and call the wrapped function.
-      kwargs['deps'] = kwargs.get('deps', []) + list(targets)
-      return fn(*args, **kwargs)
-    return replacement
-
-  @increase_stack_arg_decorator
-  def _using(self, fn, *includes):
-    """Used to decorate a buildrule to allow it to call other functions in the
-       build_defs file. Normally each function is a separate functional unit."""
-    def replacement(*args, **kwargs):
-      return fn(*args, **kwargs).AddScopes(includes)
-    return replacement
-
-  def _find_files_pattern(self, p):
+  def __call__(self, pattern:str):
     build_file = self._get_buildfile_from_stack()
     build_directory = impulse_paths.get_qualified_build_file_dir(build_file)
     build_directory = impulse_paths.expand_fully_qualified_path(build_directory)
-    pattern = os.path.join(build_directory, p)
+    pattern = os.path.join(build_directory, pattern)
     try:
       files = glob.glob(pattern)
       files = [f[len(build_directory)+1:] for f in files]
       return files
     except Exception as e:
       return []
+
+
+class Platform(BuiltinMethod):
+  def __init__(self, archive:parsed_target.TargetArchive):
+    self._archive = archive
+
+  def __call__(self, **kwargs):
+    assert 'name' in kwargs
+    name = kwargs['name']
+    build_file = self._get_buildfile_from_stack()
+    reference_name = parsed_target.GetTargetReferenceFromInvocation(
+      parsed_target.TargetLocalName(name),
+      paths.AbsolutePath(build_file))
+    return self._archive.AddPlatformTarget(parsed_target.PlatformTarget(
+      reference_name, **kwargs))
+
+
+class BuildRule(BuiltinMethod):
+  def __init__(self, archive:parsed_target.TargetArchive, cmdline:dict):
+    self.______thing = archive
+    self._archive = archive
+    self._cmdline = cmdline
+
+  def __call__(self, fn):
+    # Store the type of buildrule
+    buildrule_name = fn.__name__
+
+    #debug.DebugMsg(f'Registering build rule: {buildrule_name}')
+
+    # all params to a build rule must be keyword!
+    def replacement(DBBG=False, **kwargs):
+      # 'name' is a required argument!
+      assert 'name' in kwargs
+      name = kwargs['name']
+
+      # add any extra tags a user sers
+      extra_tags = kwargs.get('tags', [])
+
+      # This is the buildfile that the rule is called from
+      build_file = kwargs.get('buildfile', self._get_buildfile_from_stack())
+
+      reference_name = parsed_target.GetTargetReferenceFromInvocation(
+        parsed_target.TargetLocalName(name),
+        paths.AbsolutePath(build_file))
+
+      return self._archive.AddBuildTarget(
+        parsed_target.BuildTarget(
+          reference_name, fn, kwargs, self._cmdline, extra_tags))
+
+    return replacement
+
+
+class BuildMacro(BuiltinMethod):
+  def __init__(self, thing):
+    self.______thing = thing
+
+  def __call__(self, fn):
+    return buildmacro.Buildmacro(self.______thing, fn)
+
+
+class LazyEnvironmentLoader(EnvironmentLoader):
+  def __init__(self, stub_map:dict[str, list[str]], builtins:dict[str, BuiltinMethod]):
+    self._loaded_files = set()
+    self._environment = builtins
+    for builtin in self._environment.values():
+      builtin.Attach(self)
+    for file, names in stub_map.items():
+      for name in names:
+        self._environment[name] = StubLoader(self, name, file)
+
+  def IsStubOrUndefined(self, key:str) -> bool:
+    if key not in self._environment:
+      return True
+    if isinstance(self._environment[key], StubLoader):
+      return True
+    return False
+
+  def Get(self, key:str) -> typing.Any:
+    return self._environment[key]
+
+  def LoadFile(self, file_path:str):
+    if file_path in self._loaded_files:
+      return
+    self._loaded_files.add(file_path)
+    try:
+      with open(file_path) as f:
+        buildfile_content = f.read()
+    except FileNotFoundError as e:
+      raise exceptions.FileImportException(e, file_path)
+
+    try:
+      compiled = compile(buildfile_content, file_path, 'exec')
+      exec(compiled, self._environment)
+    except NameError as e:
+      _, _, traceback = sys.exc_info()
+      previous_frame = traceback.tb_next.tb_frame
+      filename = previous_frame.f_code.co_filename
+      line_no = previous_frame.f_lineno
+      missing_name = e.args[0].split('\'')[1]
+      raise exceptions.NoSuchRuleType(filename, line_no, missing_name)
+    except Exception as e:
+      raise exceptions.FileImportException(e, file_path)
+
+
+class StubLoader(object):
+  def __init__(self, env:LazyEnvironmentLoader, name:str, filename:str):
+    self._filename = impulse_paths.expand_fully_qualified_path(filename)
+    self._name = name
+    self._env = env
+
+  def __call__(self, *args, **kwargs):
+    self._env.LoadFile(self._filename)
+    if self._env.IsStubOrUndefined(self._name):
+      raise exceptions.FatalException(
+        f'Invalid stub mapping for {self._name} => {self._filename}')
+    return self._env.Get(self._name)(*args, **kwargs)
+
+
+class RecursiveFileParser(parsed_target.TargetArchive):
+  """Loads files based on load() and buildrule statements."""
+  def __init__(self, platform=None, **carried_args):
+    self._carried_args = carried_args
+    self._targets:dict[parsed_target.TargetReferenceName, parsed_target.BuildTarget] = {}
+    self._meta_targets = set() # Set[str]
+    self._loaded_files = set() # We don't want to load files multiple times
+    self._platforms = {} # All the so-far-declared platforms
+    self._platform = None # The selected platform
+
+    stubs = {
+      '//rules/builtins/builtins.py': [
+        'depends_targets', 'using', 'data', 'toolchain'],
+      '//rules/core/C/build_defs.py': [
+        'c_header', 'cpp_header', 'cc_compile', 'cc_combine', 'cc_package_binary', 'cc_object', 'cc_binary'],
+      '//rules/core/Golang/build_defs.py': [
+        'go_package', 'go_binary'],
+      '//rules/core/JS/build_defs.py': [
+        'js_module'],
+      '//rules/core/Python/build_defs.py': [
+        'py_library', 'py_binary', 'py_test'],
+      '//rules/core/R/build_defs.py': [
+        'r_environment', 'r_process_data'],
+      '//rules/core/Shell/build_defs.py': [
+        'shell_script'],
+      '//rules/core/Template/build_defs.py': [
+        'raw_template', 'template', 'template_expand'],
+    }
+
+    builtins = {
+      'langs': DeprecationWarning('langs'),
+      'load': LoadFile(),
+      'pattern': Pattern(),
+      'buildrule': BuildRule(self, dict(self._carried_args)),
+      'platform': Platform(self),
+      'buildmacro': BuildMacro(self),
+    }
+
+    self._env = LazyEnvironmentLoader(stubs, builtins)
+
+    platpath = parsed_target.ParseTargetReferenceFromString(
+      '//rules/platform:x64-linux-gnu')
+    if platform and platform.value():
+      #self.ParsePlatform(platform.value())
+      platpath = parsed_target.ParseTargetReferenceFromString(
+        platform.value())
+
+    self.ParsePlatform(platpath)
+
+  def AddMetaTarget(self, target:None):
+    self._meta_targets.add(target)
+
+  def AddPlatformTarget(self, target:parsed_target.PlatformTarget) -> parsed_target.PlatformTarget:
+    self._platforms[target._name] = target
+    return target
+
+  def AddBuildTarget(self, target:parsed_target.BuildTarget) -> parsed_target.BuildTarget:
+    self._targets[target._name] = target
+    for dependency in target.GetDependencies():
+      self.ParseTarget(dependency)
+    return target
+
+  def GetBuildTarget(self, name:parsed_target.TargetReferenceName) -> parsed_target.Target:
+    return self._targets[name]
+
+  def GetDefaultPlatformTarget(self) -> parsed_target.Target:
+    return self._platform
+
+  def SetDefaultPlatformTarget(self, platform:parsed_target.PlatformTarget):
+    self._platform = platform
+
+  def GetPlatformTarget(self, name:parsed_target.TargetReferenceName) -> parsed_target.Target:
+    return self._platforms[name]
+
+  @typecheck.Assert
+  def ParseTarget(self, name:parsed_target.TargetReferenceName) -> None:
+    #TODO: make LoadFile take an AbsolutePath
+    self._env.LoadFile(name.GetBuildFileForTarget().Value())
+
+  @typecheck.Assert
+  def ParsePlatform(self, name:parsed_target.TargetReferenceName) -> None:
+    self.ParseTarget(name)
+    assert name in self._platforms
+    self._platform = self._platforms[name]
+
+  @typecheck.Assert
+  def StageTarget(self, name:parsed_target.TargetReferenceName) -> None:
+    if name not in self._targets:
+      raise exceptions.BuildTargetMissing(name)
+    self._targets[name].Stage(self)
+
+  @typecheck.Assert
+  def StageAllTargets(self) -> None:
+    for target in self._targets.values():
+      target.Stage(self)
+
+  @typecheck.Assert
+  def GetStagedTargets(self) -> parsed_target.StagedBuildTargetSet:
+    result = parsed_target.StagedBuildTargetSet()
+    for _, target in self._targets.items():
+      if target._staged:
+        result.AddAll(target._staged)
+    return result
+
+
+
 
   def _stack_without_recursive_loader(self):
     return [s for s in inspect.stack()
@@ -314,77 +339,11 @@ class RecursiveFileParser(object):
       if frame.filename.endswith('BUILD'):
         return os.path.dirname(frame.filename)
 
-  def _buildmacro(self, fn):
-    return buildmacro.Buildmacro(self, fn)
-
-  def _buildrule(self, fn):
-    """Decorates a function allowing it to be used as a target buildrule."""
-    
-    # Store the type of buildrule
-    buildrule_name = fn.__name__
-
-    if debug.IsDebug():
-      print(f'Adding Buildrule: {buildrule_name}')
-
-    # all params to a build rule must be keyword!
-    def replacement(DBBG=False, **kwargs):
-      # 'name' is a required argument!
-      assert 'name' in kwargs
-      name = kwargs['name']
-
-      # add any extra tags a user sers
-      extra_tags = kwargs.get('tags', [])
-
-      # This is the buildfile that the rule is called from
-      build_file = kwargs.get('buildfile', self._get_buildfile_from_stack())
-
-      # Directory of the buildfile
-      build_path = impulse_paths.get_qualified_build_file_dir(build_file)
-
-      # This is an 'impulse_paths.ParsedTarget' object
-      build_rule = impulse_paths.convert_name_to_build_target(name, build_path)
-
-      # Create a ParsedBuildTarget which can be converted into the graph later.
-      self._targets[build_rule] = ParsedBuildTarget(
-        name, fn, kwargs, build_rule, buildrule_name,
-        self, self._carried_args, extra_tags)
-
-      # Parse the dependencies and evaluate them too.
-      for dep in self._targets[build_rule].GetDependencies():
-        self.ParseTarget(dep)
-
-      # The wrapper functions (using, depends, etc) need the ParsedBuildTarget
-      return self._targets[build_rule]
-
-    return replacement
-
-  def _load_files(self, *args):
-    for loading in args:
-      self._ParseFile(impulse_paths.expand_fully_qualified_path(loading))
-
-  def _load_core_langs(self, *args):
-    for file in args:
-      expanded = impulse_paths.expand_fully_qualified_path(
-        f'//rules/core/{file}/build_defs.py')
-      try:
-        self._ParseFile(expanded)
-      except FileNotFoundError as e:
-        self._loaded_files.remove(expanded)
-        embeddedPath = f'impulse/rules/core/{file}/build_defs.py'
-        embeddedBuildDef = resources.Resources.Get(embeddedPath)
-        self._ParseFileFromLocation(expanded, embeddedBuildDef)
-
-  def LoadFile(self, rulefile:str):
-    return self._load_files(rulefile)
-
   def GetRulenameFromLoader(self, buildrule:str):
     return self._environ.get(buildrule)
 
   def GetMacroInvokerFile(self):
     return self._get_macro_invoker_file()
-
-  def AddMetaTarget(self, target):
-    self._meta_targets.add(target)
 
   def GetAllConvertedTargets(self, allow_meta=None):
     allow_meta = allow_meta or []
@@ -407,13 +366,8 @@ class RecursiveFileParser(object):
   def ConvertAllTestTargets(self):
     for target, parsed in self._targets.items():
       if parsed._rule_type.endswith('_test'):
-        self.ConvertTarget(target)
+        self.StageTarget(target)
         yield target
-
-  def ConvertAllTargets(self):
-    for target, parsed in self._targets.items():
-      if target.GetFullyQualifiedRulePath() not in self._meta_targets:
-        self.ConvertTarget(target)
 
   def GetRulenameFromRawTarget(self, targetname) -> str:
     # This is the buildfile that the rule is called from
@@ -425,13 +379,27 @@ class RecursiveFileParser(object):
     return None
 
 
-@typecheck.Ensure
 def generate_graph(build_target:impulse_paths.ParsedTarget,
                    allow_meta:bool=False,
                    platform=None,
                    **kwargs):
   allow_meta = allow_meta or [build_target]
   re = RecursiveFileParser(platform, **kwargs)
-  re.ParseTarget(build_target)
-  re.ConvertTarget(build_target)
-  return re.GetAllConvertedTargets(allow_meta=True)
+
+  btstr = build_target.GetFullyQualifiedRulePath()
+  trn = parsed_target.ParseTargetReferenceFromString(btstr)
+
+  re.ParseTarget(trn)
+  re.StageTarget(trn)
+
+  targets = re.GetStagedTargets()._targets
+
+  for target in targets:
+    print(target, len(target.dependencies))
+
+  #return targets
+  return targets
+
+  #re.StageTarget(build_target)
+  #return re.GetAllConvertedTargets(allow_meta=True)
+  return set()

@@ -1,5 +1,3 @@
-langs("Python")
-
 py_library (
   name = "args",
   srcs = [ "args.py" ],

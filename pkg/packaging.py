@@ -133,6 +133,8 @@ class ExportablePackage(Hasher):
                platform:impulse_paths.Platform,
                can_access_internal: bool=False,
                binaries_location: str=''):
+    self._extracted_dir = None
+
     self.included_files:typing.List[str] = []
     self.input_files:typing.Set[HashedFile] = set()
     self.depends_on_targets:typing.List[str] = []
@@ -142,13 +144,12 @@ class ExportablePackage(Hasher):
 
     self.package_target = package_target
     self.build_timestamp = int(time.time())
-    self.is_binary_target = ruletype.endswith(
-      '_binary') or ruletype.endswith('_test')
+    self.is_binary_target = str(ruletype).endswith(
+      '_binary') or str(ruletype).endswith('_test')
     self.package_ruletype = ruletype
     self.execution_count = 0
 
     self._export_binary = None
-    self._extracted_dir = None
     self._can_access_internal = can_access_internal
     self._buildqueue_ref = None
     self._binaries_location = binaries_location
@@ -258,15 +259,15 @@ class ExportablePackage(Hasher):
 
   def GetPackageName(self) -> str:
     '''Gets the name of the package.'''
-    return self.package_target.GetPackagePkgFile()
+    return self.package_target.GetPackageFile()
 
   def GetPackageDirectory(self):
     '''Gets the package source directory.'''
-    return self.package_target.GetPackagePathDirOnly()
+    return self.package_target._target_path.Value()[2:]
 
   def ExecutionFailed(self, command:str, stderr:str):
     '''Triggers an exception with given cmdline and stderr.'''
-    raise exceptions.BuildDefsRaisesException(self.package_target.target_name,
+    raise exceptions.BuildDefsRaisesException(self.package_target._target_name.Value(),
       self.package_ruletype, command + "\n\n" + stderr)
 
   def ExecutionNotRequired(self):
@@ -371,7 +372,7 @@ class ExportablePackage(Hasher):
     with open('pkg_contents.json', 'r+') as f:
       package_contents = json.loads(f.read())
       exported_package = ExportedPackage(
-        self.package_target.GetPackagePkgFile(), package_contents)
+        self.package_target.GetPackageFile(), package_contents)
       if self.is_binary_target:
         relative_binary = os.path.join(
           self.package_target.GetPackagePathDirOnly(),
@@ -416,7 +417,7 @@ class ExportablePackage(Hasher):
       self.UnloadPackageDirectory()
     self._extracted_dir = self.MakeTempDir()
     package_name = os.path.join(pkg_dir,
-      self.package_target.GetPackagePkgFile())
+      self.package_target.GetPackageFile())
 
     extract = f'unzip {package_name} -d {self._extracted_dir}'
     r = self.RunCommand(f'test -e {self._extracted_dir}')

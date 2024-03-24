@@ -244,7 +244,7 @@ class ThreadPool(multiprocessing.Process):
         self._kill_watchdogs()
         self._printer.finished()
         return
-      
+
       if not self._message_pump():
         continue
 

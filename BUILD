@@ -1,5 +1,3 @@
-langs("Python")
-
 py_binary (
   name = "impulse",
   srcs = [ "impulse.py" ],
@@ -31,5 +29,7 @@ py_library (
     "//impulse/util:temp_dir",
     "//impulse/util:tree_builder",
     "//impulse/util:typecheck",
+    "//impulse/types:types",
+    "//impulse/types:typecheck",
   ],
 )
