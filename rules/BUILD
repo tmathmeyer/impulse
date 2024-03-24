@@ -1,5 +1,3 @@
-langs("Python")
-
 py_library (
   name = "core_rules",
   deps = [

@@ -3,7 +3,6 @@ import marshal
 import os
 import shutil
 import tempfile
-import time
 import types
 
 from impulse import impulse_paths
@@ -100,7 +99,7 @@ class BuildTarget(threading.GraphNode):
 
   def UnloadPackageDirectory(self):
     return self._package.UnloadPackageDirectory()
-  
+
   def GetRequiredFiles(self):
     rulepath = self._buildrule_pt.GetPackagePathDirOnly()
     build_root = os.path.join(impulse_paths.root(), rulepath)

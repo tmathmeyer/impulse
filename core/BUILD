@@ -1,5 +1,3 @@
-langs("Python")
-
 py_library (
   name = "debug",
   srcs = [ "debug.py" ],
@@ -26,4 +24,9 @@ py_library (
   name = "interface",
   srcs = [ "interface.py" ],
   deps = [ "//impulse/util:typecheck" ],
+)
+
+py_library (
+  name = "environment",
+  srcs = ["environment.py"],
 )

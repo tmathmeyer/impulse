@@ -1,4 +1,3 @@
-langs("Python")
 load("//rules/core/Golang/internal.py")
 
 py_library (
