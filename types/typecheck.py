@@ -19,8 +19,7 @@ def _TypeErrorExpected(expected, actual, method, location):
 
 def Assert(fn_wrap):
   if not debug.IsDebug():
-    #return fn_wrap
-    pass
+    return fn_wrap
   def _replacement(*args, **kwargs):
     try:
       return _CheckTypes(fn_wrap, args, kwargs)

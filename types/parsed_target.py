@@ -24,63 +24,9 @@ PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')
 BINARIES_DIR = os.path.join(EXPORT_DIR, 'BINARIES')
 
 
-class TargetLocalName(object):
-  @typecheck.Assert
-  def __init__(self, name:str):
-    self._value = name
-
-  @typecheck.Assert
-  def Value(self) -> str:
-    return self._value
-
-
-class TargetReferenceName(object):
-  @typecheck.Assert
-  def __init__(self, name:TargetLocalName, path:paths.Path):
-    self._target_name = name
-    self._target_path = path.QualifiedPath()
-
-  @typecheck.Assert
-  def __repr__(self) -> str:
-    return str(self)
-
-  @typecheck.Assert
-  def __str__(self) -> str:
-    return self._target_path.Value() + ':' + self._target_name.Value()
-
-  @typecheck.Assert
-  def __hash__(self) -> int:
-    return hash(repr(self))
-
-  @typecheck.Assert
-  def __eq__(self, other:typing.Any) -> int:
-    if not isinstance(other, TargetReferenceName):
-      return False
-    return repr(self) == repr(other)
-
-  @typecheck.Assert
-  def GetBuildFileForTarget(self) -> paths.AbsolutePath:
-    try:
-      abspath = self._target_path.AbsolutePath().Value()
-      return paths.AbsolutePath(os.path.join(abspath, 'BUILD'))
-    except exceptions.InvalidPathException:
-      raise exceptions.BuildTargetMissing(
-        f'Definition for rule `{repr(self)}` not found')
-
-  @typecheck.Assert
-  def GetPackageFile(self) -> str:
-    # TODO: replace return type with something defined
-    return os.path.join(
-      self._target_path.QualifiedPath().Value()[2:],
-      self._target_name.Value()) + '.zip'
-
-  @typecheck.Assert
-  def GetRuleInfo(self) -> None:
-    return None
-
 
 class Target(object):
-  def __init__(self, name:TargetReferenceName):
+  def __init__(self, name:names.Target):
     self._name = name
 
   def __repr__(self) -> str:
@@ -88,7 +34,7 @@ class Target(object):
 
 
 class PlatformTarget(Target):
-  def __init__(self, refname_name:TargetReferenceName, **kwargs):
+  def __init__(self, refname_name:names.Target, **kwargs):
     super().__init__(refname_name)
     #TODO: un-sketch this class
     self._values = kwargs
@@ -103,7 +49,7 @@ class PlatformTarget(Target):
 
 
 class StagedBuildTarget(Target):
-  def __init__(self, name:TargetReferenceName):
+  def __init__(self, name:names.Target):
     super().__init__(name)
 
 
@@ -134,7 +80,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
     '''Sets the default platform target'''
 
   @abc.abstractmethod
-  def GetPlatformTarget(self, name:TargetReferenceName) -> Target:
+  def GetPlatformTarget(self, name:names.Target) -> Target:
     '''Gets a platform target by name'''
 
   @abc.abstractmethod
@@ -142,13 +88,13 @@ class TargetArchive(metaclass=abc.ABCMeta):
     '''Gets the default platform target if set'''
 
   @abc.abstractmethod
-  def GetBuildTarget(self, name:TargetReferenceName) -> Target:
+  def GetBuildTarget(self, name:names.Target) -> Target:
     '''Gets a build target by name'''
 
 
 class BuildTarget(Target):
   __slots__ = ('_name', '_func', '_kwargs', '_scope', '_tags', '_deps', '_includes', '_staged')
-  def __init__(self, name:TargetReferenceName,
+  def __init__(self, name:names.Target,
                function:typing.Callable,
                kwargs:dict,
                scope:dict,
@@ -179,23 +125,13 @@ class BuildTarget(Target):
     return search
 
   @typecheck.Assert
-  def _ConvertToTargetRefName(self, item:str) -> TargetReferenceName|None:
-    if not len(item):
+  def _ConvertToTargetRefName(self, item:str) -> names.Target|None:
+    try:
+      return names.Target.Parse(item, self._name.GetDirectory())
+    except exceptions.InvalidPathException:
       return None
-    if item[0] == ':':
-      return TargetReferenceName(
-        TargetLocalName(item[1:]),
-        self._name._target_path.QualifiedPath())
-    if item.startswith('//'):
-      target = item.split(':')
-      if len(target) != 2:
-        raise exceptions.InvalidPathException(
-          item, 'Malformatted buildrule')
-      path, name = target
-      return TargetReferenceName(TargetLocalName(name), paths.QualifiedPath(path))
-    return None
 
-  def GetDependencies(self) -> list[TargetReferenceName]:
+  def GetDependencies(self) -> list[names.Target]:
     return list(self._deps)
 
   def AddIncludes(self, funcs:list[typing.Callable]) -> 'BuildTarget':
@@ -217,7 +153,6 @@ class BuildTarget(Target):
 
   @typecheck.Assert
   def _StageInternal(self, archive:TargetArchive) -> StagedBuildTargetSet:
-    print(self._name)
     dependencies = StagedBuildTargetSet()
     for dependency in self._deps:
       dependencies.AddAll(archive.GetBuildTarget(dependency).Stage(archive))
@@ -311,7 +246,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     self.check_thread()
     buildrule, rule, buildfile = self._CompileBuildRule()
     try:
-      print(self._marshalled_kwargs)
       return buildrule(self._package, **self._marshalled_kwargs), rule, buildfile
     except exceptions.BuildDefsRaisesException:
       raise
@@ -331,7 +265,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
       code = marshal.loads(self._marshalled_func)
       return (
         types.FunctionType(code, self._GetExecEnv(), str(self._buildrule_name)),
-        code.co_filename, self._name.GetBuildFileForTarget().Value()
+        code.co_filename, self._name.GetBuildFile().Absolute().Value()
       )
     except Exception as e:
       raise exceptions.BuildRuleCompilationError(e)
@@ -350,7 +284,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
       self._package.SetInternalAccess(internal_access)
 
     # The absolute path for the directory where this target is defined.
-    build_root = self._name._target_path.AbsolutePath()
+    build_root = self._name.GetDirectory().Absolute()
 
     # Generated files directories
     package_directory = os.path.join(environment.Root(), PACKAGES_DIR)
@@ -371,7 +305,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
         loaded_dep_dirs.append(directory)
       self._package.AddDependency(package)
       forced_files.update(files)
-    print(build_root.Value(), forced_files)
 
     ro_directory = environment.Root()
     if not self._NeedsBuild(package_directory, ro_directory):
@@ -380,7 +313,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     rw_directory = tempfile.mkdtemp()
     working_directory = tempfile.mkdtemp()
 
-    package_export_path = os.path.join(package_directory, self._name.GetPackageFile())
+    package_export_path = os.path.join(package_directory, self._name.GetPackage().GetRelativePath())
 
     try:
       export_binary = None
@@ -403,7 +336,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
                   self._buildrule_name))
               bindir = os.path.join(binaries_directory, build_root.QualifiedPath().Value()[2:])
               packaging.EnsureDirectory(bindir)
-              export_binary(self._package, self._name._target_name.Value(),
+              export_binary(self._package, self._name._target_name.Name(),
                             package_export_path, bindir)
     except exceptions.FilesystemSyncException:
       raise
@@ -417,7 +350,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
 
 
 def CheckRuleFile(rulefile):
-  print('CHECKING', rulefile)
   if rulefile.endswith('/impulse/impulse/recursive_loader.py'):
     return rulefile[:-28]
   if rulefile.endswith('/impulse/impulse/build_target.py'):
@@ -430,28 +362,4 @@ def GetRootRelativePath(path:str):
   if path.startswith(root):
     return path[len(root)+1:]
   return None
-
-
-@typecheck.Assert
-def GetTargetReferenceFromInvocation(name:TargetLocalName,
-                                     path:paths.Path) -> TargetReferenceName:
-  directory, file = path.SplitFile()
-  if file not in ('BUILD', 'build_defs.py'):
-    raise exceptions.InvalidPathException(
-      'Targets must be defined in BUILD files or in macro invocations',
-      path)
-  return TargetReferenceName(name, directory)
-
-
-@typecheck.Assert
-def ParseTargetReferenceFromString(content:str) -> TargetReferenceName:
-  if not content.startswith('//'):
-    raise exceptions.InvalidPathException(
-      'Traget must be a qualified path (start with //)', content)
-  split = content.split(':')
-  if len(split) != 2:
-    raise exceptions.InvalidPathException(
-      'Target must be a qualified path (//path/to/build:rulename)', content)
-  path, name = split
-  return TargetReferenceName(TargetLocalName(name), paths.QualifiedPath(path))
 
