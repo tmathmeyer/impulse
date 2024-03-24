@@ -11,6 +11,7 @@ from impulse.core import debug
 from impulse.core import exceptions
 from impulse.loaders import buildmacro
 from impulse.types import typecheck
+from impulse.types import names
 from impulse.types import parsed_target
 from impulse.types import paths
 
@@ -35,13 +36,14 @@ class BuiltinMethod(object):
   def Attach(self, loader:EnvironmentError) -> None:
     self._loader = loader
 
-  def _get_buildfile_from_stack(self):
+  @typecheck.Assert
+  def _GetBuildFileFromStack(self) -> names.File:
     build_file = 'Fake'
     build_file_index = 1
     while not build_file.endswith('BUILD'):
       build_file = inspect.stack()[build_file_index].filename
       build_file_index += 1
-    return build_file
+    return names.File(paths.AbsolutePath(build_file))
 
 
 class DeprecationWarning(BuiltinMethod):
@@ -57,21 +59,13 @@ class DeprecationWarning(BuiltinMethod):
 class LoadFile(BuiltinMethod):
   def __call__(self, *files):
     for loading in files:
-      self._loader.LoadFile(impulse_paths.expand_fully_qualified_path(loading))
+      loadfile = names.File(paths.QualifiedPath(loading).AbsolutePath())
+      self._loader.LoadFile(loadfile)
 
 
 class Pattern(BuiltinMethod):
-  @typecheck.Assert
-  def _get_buildfile_from_stack(self) -> str:
-    build_file = 'Fake'
-    build_file_index = 1
-    while not build_file.endswith('BUILD'):
-      build_file = inspect.stack()[build_file_index].filename
-      build_file_index += 1
-    return build_file
-
   def __call__(self, pattern:str):
-    build_file = self._get_buildfile_from_stack()
+    build_file = self._GetBuildFileFromStack()
     build_directory = impulse_paths.get_qualified_build_file_dir(build_file)
     build_directory = impulse_paths.expand_fully_qualified_path(build_directory)
     pattern = os.path.join(build_directory, pattern)
@@ -90,10 +84,8 @@ class Platform(BuiltinMethod):
   def __call__(self, **kwargs):
     assert 'name' in kwargs
     name = kwargs['name']
-    build_file = self._get_buildfile_from_stack()
-    reference_name = parsed_target.GetTargetReferenceFromInvocation(
-      parsed_target.TargetLocalName(name),
-      paths.AbsolutePath(build_file))
+    reference_name = names.Target.Parse(
+      f':{name}', self._GetBuildFileFromStack().Directory())
     return self._archive.AddPlatformTarget(parsed_target.PlatformTarget(
       reference_name, **kwargs))
 
@@ -120,15 +112,12 @@ class BuildRule(BuiltinMethod):
       extra_tags = kwargs.get('tags', [])
 
       # This is the buildfile that the rule is called from
-      build_file = kwargs.get('buildfile', self._get_buildfile_from_stack())
+      build_file = self._GetBuildFileFromStack()
 
-      reference_name = parsed_target.GetTargetReferenceFromInvocation(
-        parsed_target.TargetLocalName(name),
-        paths.AbsolutePath(build_file))
-
+      target = names.Target.Parse(f':{name}', build_file.Directory())
       return self._archive.AddBuildTarget(
         parsed_target.BuildTarget(
-          reference_name, fn, kwargs, self._cmdline, extra_tags))
+          target, fn, kwargs, self._cmdline, extra_tags))
 
     return replacement
 
@@ -151,6 +140,7 @@ class LazyEnvironmentLoader(EnvironmentLoader):
       for name in names:
         self._environment[name] = StubLoader(self, name, file)
 
+  @typecheck.Assert
   def IsStubOrUndefined(self, key:str) -> bool:
     if key not in self._environment:
       return True
@@ -158,21 +148,25 @@ class LazyEnvironmentLoader(EnvironmentLoader):
       return True
     return False
 
+  @typecheck.Assert
   def Get(self, key:str) -> typing.Any:
     return self._environment[key]
 
-  def LoadFile(self, file_path:str):
-    if file_path in self._loaded_files:
+  @typecheck.Assert
+  def LoadFile(self, file:names.File) -> None:
+    if file in self._loaded_files:
       return
-    self._loaded_files.add(file_path)
+    self._loaded_files.add(file)
+
+    abspath = file.Absolute().Value()
     try:
-      with open(file_path) as f:
+      with open(abspath) as f:
         buildfile_content = f.read()
     except FileNotFoundError as e:
-      raise exceptions.FileImportException(e, file_path)
+      raise exceptions.FileImportException(e, file)
 
     try:
-      compiled = compile(buildfile_content, file_path, 'exec')
+      compiled = compile(buildfile_content, abspath, 'exec')
       exec(compiled, self._environment)
     except NameError as e:
       _, _, traceback = sys.exc_info()
@@ -182,20 +176,20 @@ class LazyEnvironmentLoader(EnvironmentLoader):
       missing_name = e.args[0].split('\'')[1]
       raise exceptions.NoSuchRuleType(filename, line_no, missing_name)
     except Exception as e:
-      raise exceptions.FileImportException(e, file_path)
+      raise exceptions.FileImportException(e, file)
 
 
 class StubLoader(object):
   def __init__(self, env:LazyEnvironmentLoader, name:str, filename:str):
-    self._filename = impulse_paths.expand_fully_qualified_path(filename)
+    self._file = names.File(paths.QualifiedPath(filename).AbsolutePath())
     self._name = name
     self._env = env
 
   def __call__(self, *args, **kwargs):
-    self._env.LoadFile(self._filename)
+    self._env.LoadFile(self._file)
     if self._env.IsStubOrUndefined(self._name):
       raise exceptions.FatalException(
-        f'Invalid stub mapping for {self._name} => {self._filename}')
+        f'Invalid stub mapping for {self._name} => {self._file}')
     return self._env.Get(self._name)(*args, **kwargs)
 
 
@@ -203,7 +197,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   """Loads files based on load() and buildrule statements."""
   def __init__(self, platform=None, **carried_args):
     self._carried_args = carried_args
-    self._targets:dict[parsed_target.TargetReferenceName, parsed_target.BuildTarget] = {}
+    self._targets:dict[names.Target, parsed_target.BuildTarget] = {}
     self._meta_targets = set() # Set[str]
     self._loaded_files = set() # We don't want to load files multiple times
     self._platforms = {} # All the so-far-declared platforms
@@ -239,13 +233,9 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
     self._env = LazyEnvironmentLoader(stubs, builtins)
 
-    platpath = parsed_target.ParseTargetReferenceFromString(
-      '//rules/platform:x64-linux-gnu')
+    platpath = names.Target.Parse('//rules/platform:x64-linux-gnu')
     if platform and platform.value():
-      #self.ParsePlatform(platform.value())
-      platpath = parsed_target.ParseTargetReferenceFromString(
-        platform.value())
-
+      platpath = names.Target.Parse(platform.value())
     self.ParsePlatform(platpath)
 
   def AddMetaTarget(self, target:None):
@@ -261,7 +251,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       self.ParseTarget(dependency)
     return target
 
-  def GetBuildTarget(self, name:parsed_target.TargetReferenceName) -> parsed_target.Target:
+  def GetBuildTarget(self, name:names.Target) -> parsed_target.Target:
     return self._targets[name]
 
   def GetDefaultPlatformTarget(self) -> parsed_target.Target:
@@ -270,22 +260,22 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   def SetDefaultPlatformTarget(self, platform:parsed_target.PlatformTarget):
     self._platform = platform
 
-  def GetPlatformTarget(self, name:parsed_target.TargetReferenceName) -> parsed_target.Target:
+  def GetPlatformTarget(self, name:names.Target) -> parsed_target.Target:
     return self._platforms[name]
 
   @typecheck.Assert
-  def ParseTarget(self, name:parsed_target.TargetReferenceName) -> None:
+  def ParseTarget(self, name:names.Target) -> None:
     #TODO: make LoadFile take an AbsolutePath
-    self._env.LoadFile(name.GetBuildFileForTarget().Value())
+    self._env.LoadFile(name.GetBuildFile())
 
   @typecheck.Assert
-  def ParsePlatform(self, name:parsed_target.TargetReferenceName) -> None:
+  def ParsePlatform(self, name:names.Target) -> None:
     self.ParseTarget(name)
     assert name in self._platforms
     self._platform = self._platforms[name]
 
   @typecheck.Assert
-  def StageTarget(self, name:parsed_target.TargetReferenceName) -> None:
+  def StageTarget(self, name:names.Target) -> None:
     if name not in self._targets:
       raise exceptions.BuildTargetMissing(name)
     self._targets[name].Stage(self)
@@ -387,19 +377,11 @@ def generate_graph(build_target:impulse_paths.ParsedTarget,
   re = RecursiveFileParser(platform, **kwargs)
 
   btstr = build_target.GetFullyQualifiedRulePath()
-  trn = parsed_target.ParseTargetReferenceFromString(btstr)
-
+  trn = names.Target.Parse(btstr)
   re.ParseTarget(trn)
   re.StageTarget(trn)
-
   targets = re.GetStagedTargets()._targets
-
+  print('DEPENDENCIES:')
   for target in targets:
-    print(target, len(target.dependencies))
-
-  #return targets
+    print('  ', target, len(target.dependencies))
   return targets
-
-  #re.StageTarget(build_target)
-  #return re.GetAllConvertedTargets(allow_meta=True)
-  return set()

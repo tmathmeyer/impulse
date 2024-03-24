@@ -259,11 +259,11 @@ class ExportablePackage(Hasher):
 
   def GetPackageName(self) -> str:
     '''Gets the name of the package.'''
-    return self.package_target.GetPackageFile()
+    return self.package_target.GetPackage().GetRelativePath()
 
   def GetPackageDirectory(self):
     '''Gets the package source directory.'''
-    return self.package_target._target_path.Value()[2:]
+    return self.package_target.GetDirectory().Relative().Value()[2:]
 
   def ExecutionFailed(self, command:str, stderr:str):
     '''Triggers an exception with given cmdline and stderr.'''
@@ -372,7 +372,7 @@ class ExportablePackage(Hasher):
     with open('pkg_contents.json', 'r+') as f:
       package_contents = json.loads(f.read())
       exported_package = ExportedPackage(
-        self.package_target.GetPackageFile(), package_contents)
+        self.package_target.GetPackage().GetRelativePath(), package_contents)
       if self.is_binary_target:
         relative_binary = os.path.join(
           self.package_target.GetPackagePathDirOnly(),
@@ -417,7 +417,7 @@ class ExportablePackage(Hasher):
       self.UnloadPackageDirectory()
     self._extracted_dir = self.MakeTempDir()
     package_name = os.path.join(pkg_dir,
-      self.package_target.GetPackageFile())
+      self.package_target.GetPackage().GetRelativePath())
 
     extract = f'unzip {package_name} -d {self._extracted_dir}'
     r = self.RunCommand(f'test -e {self._extracted_dir}')
