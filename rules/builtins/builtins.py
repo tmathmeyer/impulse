@@ -63,6 +63,8 @@ def data(target, name, srcs):
 
 @buildrule
 def toolchain(target, name, srcs, links, **args):
+  raise 'Toolchain rule is broken'
+  '''
   target.SetTags('toolchain')
   for src in srcs:
     target.AddFile(os.path.join(target.GetPackageDirectory(), src))
@@ -72,3 +74,4 @@ def toolchain(target, name, srcs, links, **args):
     linktarget = os.path.join(impulse_paths.root(), linkname)
     os.system(f'ln -sf {linktarget} {linkname}')
     target.AddFile(linkname)
+  '''
