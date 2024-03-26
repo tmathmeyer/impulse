@@ -10,7 +10,6 @@ py_binary (
 py_library (
   name = "impulse_libs",
   srcs = [
-    "build_target.py",
     "impulse_paths.py",
     "recursive_loader.py",
   ],
