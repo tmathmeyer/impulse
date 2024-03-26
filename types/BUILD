@@ -1,10 +1,11 @@
 py_library(
   name = "types",
   srcs = [
-    "names.py",
+    "builtins.py",
     "paths.py",
     "parser_host.py",
     "parsed_target.py",
+    "references.py",
   ],
   deps = [
     ":typecheck",

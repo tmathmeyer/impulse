@@ -7,133 +7,18 @@ import typing
 
 from impulse import impulse_paths
 
-from impulse.core import debug
 from impulse.core import exceptions
-from impulse.loaders import buildmacro
-from impulse.types import typecheck
-from impulse.types import names
+from impulse.types import builtins
+from impulse.types import references
 from impulse.types import parsed_target
 from impulse.types import paths
+from impulse.types import typecheck
 
 
-INVALID_RULE_RECURSION_CANARY = object()
-
-
-def GetCallSite() -> tuple[str, int]:
-  caller = inspect.stack()[2]
-  return caller.filename, caller.lineno
-
-
-class EnvironmentLoader(object):
-  pass
-
-
-class BuiltinMethod(object):
-  def __init__(self):
-    self._loader = None
-
-  @typecheck.Assert
-  def Attach(self, loader:EnvironmentError) -> None:
-    self._loader = loader
-
-  @typecheck.Assert
-  def _GetBuildFileFromStack(self) -> names.File:
-    build_file = 'Fake'
-    build_file_index = 1
-    while not build_file.endswith('BUILD'):
-      build_file = inspect.stack()[build_file_index].filename
-      build_file_index += 1
-    return names.File(paths.AbsolutePath(build_file))
-
-
-class DeprecationWarning(BuiltinMethod):
-  def __init__(self, method:str):
-    super().__init__()
-    self._method = method
-
-  def __call__(self, *_, **__):
-    file, line = GetCallSite()
-    debug.DebugMsg(f'[{file}:{line}]: The {self._method} method is deprecated')
-
-
-class LoadFile(BuiltinMethod):
-  def __call__(self, *files):
-    for loading in files:
-      loadfile = names.File(paths.QualifiedPath(loading).AbsolutePath())
-      self._loader.LoadFile(loadfile)
-
-
-class Pattern(BuiltinMethod):
-  def __call__(self, pattern:str):
-    build_file = self._GetBuildFileFromStack()
-    build_directory = impulse_paths.get_qualified_build_file_dir(build_file)
-    build_directory = impulse_paths.expand_fully_qualified_path(build_directory)
-    pattern = os.path.join(build_directory, pattern)
-    try:
-      files = glob.glob(pattern)
-      files = [f[len(build_directory)+1:] for f in files]
-      return files
-    except Exception as e:
-      return []
-
-
-class Platform(BuiltinMethod):
-  def __init__(self, archive:parsed_target.TargetArchive):
-    self._archive = archive
-
-  def __call__(self, **kwargs):
-    assert 'name' in kwargs
-    name = kwargs['name']
-    reference_name = names.Target.Parse(
-      f':{name}', self._GetBuildFileFromStack().Directory())
-    return self._archive.AddPlatformTarget(parsed_target.PlatformTarget(
-      reference_name, **kwargs))
-
-
-class BuildRule(BuiltinMethod):
-  def __init__(self, archive:parsed_target.TargetArchive, cmdline:dict):
-    self.______thing = archive
-    self._archive = archive
-    self._cmdline = cmdline
-
-  def __call__(self, fn):
-    # Store the type of buildrule
-    buildrule_name = fn.__name__
-
-    #debug.DebugMsg(f'Registering build rule: {buildrule_name}')
-
-    # all params to a build rule must be keyword!
-    def replacement(DBBG=False, **kwargs):
-      # 'name' is a required argument!
-      assert 'name' in kwargs
-      name = kwargs['name']
-
-      # add any extra tags a user sers
-      extra_tags = kwargs.get('tags', [])
-
-      # This is the buildfile that the rule is called from
-      build_file = self._GetBuildFileFromStack()
-
-      target = names.Target.Parse(f':{name}', build_file.Directory())
-      return self._archive.AddBuildTarget(
-        parsed_target.BuildTarget(
-          target, fn, kwargs, self._cmdline, extra_tags))
-
-    return replacement
-
-
-class BuildMacro(BuiltinMethod):
-  def __init__(self, thing):
-    self.______thing = thing
-
-  def __call__(self, fn):
-    return buildmacro.Buildmacro(self.______thing, fn)
-
-
-class LazyEnvironmentLoader(EnvironmentLoader):
-  def __init__(self, stub_map:dict[str, list[str]], builtins:dict[str, BuiltinMethod]):
+class LazyEnvironmentLoader(builtins.EnvironmentLoader):
+  def __init__(self, stub_map:dict[str, list[str]], builtin_methods:dict[str, builtins.BuiltinMethod]):
     self._loaded_files = set()
-    self._environment = builtins
+    self._environment = builtin_methods
     for builtin in self._environment.values():
       builtin.Attach(self)
     for file, names in stub_map.items():
@@ -153,7 +38,7 @@ class LazyEnvironmentLoader(EnvironmentLoader):
     return self._environment[key]
 
   @typecheck.Assert
-  def LoadFile(self, file:names.File) -> None:
+  def LoadFile(self, file:references.File) -> None:
     if file in self._loaded_files:
       return
     self._loaded_files.add(file)
@@ -181,7 +66,7 @@ class LazyEnvironmentLoader(EnvironmentLoader):
 
 class StubLoader(object):
   def __init__(self, env:LazyEnvironmentLoader, name:str, filename:str):
-    self._file = names.File(paths.QualifiedPath(filename).AbsolutePath())
+    self._file = references.File(paths.QualifiedPath(filename).AbsolutePath())
     self._name = name
     self._env = env
 
@@ -197,7 +82,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   """Loads files based on load() and buildrule statements."""
   def __init__(self, platform=None, **carried_args):
     self._carried_args = carried_args
-    self._targets:dict[names.Target, parsed_target.BuildTarget] = {}
+    self._targets:dict[references.Target, parsed_target.BuildTarget] = {}
     self._meta_targets = set() # Set[str]
     self._loaded_files = set() # We don't want to load files multiple times
     self._platforms = {} # All the so-far-declared platforms
@@ -222,20 +107,20 @@ class RecursiveFileParser(parsed_target.TargetArchive):
         'raw_template', 'template', 'template_expand'],
     }
 
-    builtins = {
-      'langs': DeprecationWarning('langs'),
-      'load': LoadFile(),
-      'pattern': Pattern(),
-      'buildrule': BuildRule(self, dict(self._carried_args)),
-      'platform': Platform(self),
-      'buildmacro': BuildMacro(self),
+    builtin_methods = {
+      'langs': builtins.DeprecationWarning('langs'),
+      'load': builtins.LoadFile(),
+      'pattern': builtins.Pattern(),
+      'buildrule': builtins.BuildRule(self, dict(self._carried_args)),
+      'platform': builtins.Platform(self),
+      'buildmacro': builtins.BuildMacro(self),
     }
 
-    self._env = LazyEnvironmentLoader(stubs, builtins)
+    self._env = LazyEnvironmentLoader(stubs, builtin_methods)
 
-    platpath = names.Target.Parse('//rules/platform:x64-linux-gnu')
+    platpath = references.Target.Parse('//rules/platform:x64-linux-gnu')
     if platform and platform.value():
-      platpath = names.Target.Parse(platform.value())
+      platpath = references.Target.Parse(platform.value())
     self.ParsePlatform(platpath)
 
   def AddMetaTarget(self, target:None):
@@ -251,7 +136,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       self.ParseTarget(dependency)
     return target
 
-  def GetBuildTarget(self, name:names.Target) -> parsed_target.Target:
+  def GetBuildTarget(self, name:references.Target) -> parsed_target.Target:
     return self._targets[name]
 
   def GetDefaultPlatformTarget(self) -> parsed_target.Target:
@@ -260,22 +145,22 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   def SetDefaultPlatformTarget(self, platform:parsed_target.PlatformTarget):
     self._platform = platform
 
-  def GetPlatformTarget(self, name:names.Target) -> parsed_target.Target:
+  def GetPlatformTarget(self, name:references.Target) -> parsed_target.Target:
     return self._platforms[name]
 
   @typecheck.Assert
-  def ParseTarget(self, name:names.Target) -> None:
+  def ParseTarget(self, name:references.Target) -> None:
     #TODO: make LoadFile take an AbsolutePath
     self._env.LoadFile(name.GetBuildFile())
 
   @typecheck.Assert
-  def ParsePlatform(self, name:names.Target) -> None:
+  def ParsePlatform(self, name:references.Target) -> None:
     self.ParseTarget(name)
     assert name in self._platforms
     self._platform = self._platforms[name]
 
   @typecheck.Assert
-  def StageTarget(self, name:names.Target) -> None:
+  def StageTarget(self, name:references.Target) -> None:
     if name not in self._targets:
       raise exceptions.BuildTargetMissing(name)
     self._targets[name].Stage(self)
@@ -377,11 +262,8 @@ def generate_graph(build_target:impulse_paths.ParsedTarget,
   re = RecursiveFileParser(platform, **kwargs)
 
   btstr = build_target.GetFullyQualifiedRulePath()
-  trn = names.Target.Parse(btstr)
+  trn = references.Target.Parse(btstr)
   re.ParseTarget(trn)
   re.StageTarget(trn)
   targets = re.GetStagedTargets()._targets
-  print('DEPENDENCIES:')
-  for target in targets:
-    print('  ', target, len(target.dependencies))
   return targets

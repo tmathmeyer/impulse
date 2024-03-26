@@ -3,6 +3,7 @@
 all: copy_srcs
 	python3 -m impulse.impulse build //impulse:impulse --fakeroot $(shell pwd) --debug
 	@./GENERATED/BINARIES/impulse/impulse build //impulse:impulse --fakeroot $(shell pwd) --force --debug
+	@./GENERATED/BINARIES/impulse/impulse build //impulse:impulse --fakeroot $(shell pwd) --force
 	@rm -r impulse/
 
 typecheck: copy_srcs
