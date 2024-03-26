@@ -13,7 +13,7 @@ from impulse.core import threading
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
 from impulse.types import paths
-from impulse.types import names
+from impulse.types import references
 from impulse.types import typecheck
 from impulse.util import temp_dir
 
@@ -26,7 +26,7 @@ BINARIES_DIR = os.path.join(EXPORT_DIR, 'BINARIES')
 
 
 class Target(object):
-  def __init__(self, name:names.Target):
+  def __init__(self, name:references.Target):
     self._name = name
 
   def __repr__(self) -> str:
@@ -34,7 +34,7 @@ class Target(object):
 
 
 class PlatformTarget(Target):
-  def __init__(self, refname_name:names.Target, **kwargs):
+  def __init__(self, refname_name:references.Target, **kwargs):
     super().__init__(refname_name)
     #TODO: un-sketch this class
     self._values = kwargs
@@ -49,7 +49,7 @@ class PlatformTarget(Target):
 
 
 class StagedBuildTarget(Target):
-  def __init__(self, name:names.Target):
+  def __init__(self, name:references.Target):
     super().__init__(name)
 
 
@@ -80,7 +80,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
     '''Sets the default platform target'''
 
   @abc.abstractmethod
-  def GetPlatformTarget(self, name:names.Target) -> Target:
+  def GetPlatformTarget(self, name:references.Target) -> Target:
     '''Gets a platform target by name'''
 
   @abc.abstractmethod
@@ -88,13 +88,13 @@ class TargetArchive(metaclass=abc.ABCMeta):
     '''Gets the default platform target if set'''
 
   @abc.abstractmethod
-  def GetBuildTarget(self, name:names.Target) -> Target:
+  def GetBuildTarget(self, name:references.Target) -> Target:
     '''Gets a build target by name'''
 
 
 class BuildTarget(Target):
   __slots__ = ('_name', '_func', '_kwargs', '_scope', '_tags', '_deps', '_includes', '_staged')
-  def __init__(self, name:names.Target,
+  def __init__(self, name:references.Target,
                function:typing.Callable,
                kwargs:dict,
                scope:dict,
@@ -125,13 +125,13 @@ class BuildTarget(Target):
     return search
 
   @typecheck.Assert
-  def _ConvertToTargetRefName(self, item:str) -> names.Target|None:
+  def _ConvertToTargetRefName(self, item:str) -> references.Target|None:
     try:
-      return names.Target.Parse(item, self._name.GetDirectory())
+      return references.Target.Parse(item, self._name.GetDirectory())
     except exceptions.InvalidPathException:
       return None
 
-  def GetDependencies(self) -> list[names.Target]:
+  def GetDependencies(self) -> list[references.Target]:
     return list(self._deps)
 
   def AddIncludes(self, funcs:list[typing.Callable]) -> 'BuildTarget':

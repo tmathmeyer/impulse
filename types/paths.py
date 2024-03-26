@@ -99,3 +99,5 @@ class QualifiedPath(Path):
       return False
     return self._value == other._value
 
+  def RelativeLocation(self) -> str:
+    return self._value[2:]
