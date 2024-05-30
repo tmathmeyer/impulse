@@ -123,6 +123,11 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       platpath = references.Target.Parse(platform.value())
     self.ParsePlatform(platpath)
 
+  def LoadFile(self, file:str):
+    target = references.Target.Parse(file)
+    raise Exception(file)
+    return self._env.LoadFile(file)
+
   def AddMetaTarget(self, target:None):
     self._meta_targets.add(target)
 
