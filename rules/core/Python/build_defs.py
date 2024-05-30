@@ -279,7 +279,9 @@ def py_test(target, name, srcs, **kwargs):
 
   main_exec = 'from impulse.testing import testmain\ntestmain.main()\n'
   main_contents = ''
-  package = '.'.join(target.package_target.GetPackagePathDirOnly().split('/'))
+
+  relapath = target.package_target.GetDirectory().Relative().RelativeLocation()
+  package = '.'.join(relapath.split('/'))
 
   for src in srcs:
     main_contents += f'from {package} import {os.path.splitext(src)[0]}\n'
