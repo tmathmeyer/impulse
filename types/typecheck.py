@@ -9,10 +9,6 @@ import typing
 from impulse.core import debug
 
 
-def DEBUG(*args):
-  pass
-
-
 def _TypeErrorExpected(expected, actual, method, location):
   return TypeError(f'{method}[{location}]: expected: {expected}, was: `{actual}`')
 
@@ -96,7 +92,6 @@ def _CheckTypes(function, args:tuple, kwargs:dict):
         return ConstraintOperation.Determine(cons.Swap())
 
   def GenerateBindingsBranching(declared:types.UnionType, inferred:type|types.GenericAlias) -> dict[typing.TypeVar, set]:
-    DEBUG('---XX', declared, '----', inferred)
     bindings = None
     for subtype in declared.__args__:
       if subtype == inferred:
@@ -113,7 +108,6 @@ def _CheckTypes(function, args:tuple, kwargs:dict):
     raise TypeError(f'Cant convert {inferred} to {declared}')
 
   def GenerateBindings(declared:type|typing.TypeVar|types.GenericAlias, inferred:type|types.GenericAlias) -> dict[typing.TypeVar, set]:
-    DEBUG('---YY', declared, '----', inferred)
     if type(declared) == type:
       return {}
     if type(declared) == typing.TypeVar:
@@ -137,17 +131,12 @@ def _CheckTypes(function, args:tuple, kwargs:dict):
     generic_bindings = {}
     while constraints:
       first = constraints.pop(0)
-      DEBUG('')
-      DEBUG(first)
       constraint, x, y = ConstraintOperation.Determine(first)
-      DEBUG(constraint, x, y)
 
       if constraint == ConstraintOperation.NOTHING:
         continue
       elif constraint == ConstraintOperation.REPLACE:
         constraints = list(c.Replace(x) for c in constraints)
-        for c in constraints:
-          DEBUG('   ', c)
       elif constraint == ConstraintOperation.TYPECHECK:
         pass
       elif constraint == ConstraintOperation.BIND:
@@ -186,8 +175,6 @@ def _CheckTypes(function, args:tuple, kwargs:dict):
     return None
 
   def DoesTypeQualify(actual:typing.Any, expected:type|typing.TypeVar, bindings:dict):
-    DEBUG('\nQualify:')
-    DEBUG(actual, expected, bindings)
     if actual == None and expected == None:
       return True
 
@@ -195,25 +182,20 @@ def _CheckTypes(function, args:tuple, kwargs:dict):
       return True
 
     if type(expected) in (type, abc.ABCMeta):
-      DEBUG('isinstance')
       return isinstance(actual, expected)
 
     if type(expected) == typing.TypeVar:
-      DEBUG('type lookup')
       return DoesTypeQualify(actual, bindings[expected], bindings)
 
     if type(expected) == typing.GenericAlias:
-      DEBUG('generic')
       return DoesTypeQualify(actual, expected.__origin__, bindings)
 
     if type(expected) in (types.UnionType, typing._UnionGenericAlias):
-      DEBUG('union')
       for arg in expected.__args__:
         if DoesTypeQualify(actual, arg, bindings):
           return True
       return False
 
-    DEBUG(type(expected))
     return False
 
   def InferType(any):
@@ -261,15 +243,8 @@ def _CheckTypes(function, args:tuple, kwargs:dict):
       type_constraint_list.append(Constraint(Variable(name), InfType(InferType(value)),
                                             f'Parameter value for {name} `value`'))
 
-    DEBUG(f'\n\nConstraints ({function}):')
-    for x in type_constraint_list:
-      DEBUG(x)
-
-    DEBUG('\nCheck Constraints:')
     bindings = CheckConstraintList(type_constraint_list)
 
-    DEBUG('\nBindings:')
-    DEBUG(bindings)
     evaluated = function(*args, **kwargs)
     if function.__name__ not in ('__init__', '__new__'):
       if not DoesTypeQualify(evaluated, argspec.annotations['return'], bindings):
