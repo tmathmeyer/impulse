@@ -91,6 +91,10 @@ class TargetArchive(metaclass=abc.ABCMeta):
   def GetBuildTarget(self, name:references.Target) -> Target:
     '''Gets a build target by name'''
 
+  @abc.abstractmethod
+  def GetBuildTargetFromFile(self, file:references.File, name:str) -> typing.Callable:
+    '''Gets a build target from a given file'''
+
 
 class BuildTarget(Target):
   __slots__ = ('_name', '_func', '_kwargs', '_scope', '_tags', '_deps', '_includes', '_staged')

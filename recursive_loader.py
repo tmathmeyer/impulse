@@ -1,5 +1,4 @@
 
-import glob
 import inspect
 import os
 import sys
@@ -123,11 +122,6 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       platpath = references.Target.Parse(platform.value())
     self.ParsePlatform(platpath)
 
-  def LoadFile(self, file:str):
-    target = references.Target.Parse(file)
-    raise Exception(file)
-    return self._env.LoadFile(file)
-
   def AddMetaTarget(self, target:None):
     self._meta_targets.add(target)
 
@@ -152,6 +146,10 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
   def GetPlatformTarget(self, name:references.Target) -> parsed_target.Target:
     return self._platforms[name]
+
+  def GetBuildTargetFromFile(self, file:references.File, name:str) -> typing.Callable:
+    self._env.LoadFile(file)
+    return self._env.Get(name)
 
   @typecheck.Assert
   def ParseTarget(self, name:references.Target) -> None:

@@ -162,6 +162,10 @@ class Target(object):
                    self._target_dir.Relative())
 
   @typecheck.Assert
+  def GetName(self) -> TargetName:
+    return self._target_name
+
+  @typecheck.Assert
   def GetDirectory(self) -> Directory:
     return self._target_dir
 
