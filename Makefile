@@ -31,8 +31,6 @@ copy_srcs:
 	@touch impulse/util/__init__.py
 	@cp -r testing impulse/testing
 	@touch impulse/testing/__init__.py
-	@cp -r loaders impulse/loaders
-	@touch impulse/loaders/__init__.py
 	@cp -r lib impulse/lib
 	@touch impulse/lib/__init__.py
 	@cp -r types impulse/types
