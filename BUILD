@@ -21,7 +21,6 @@ py_library (
     "//impulse/core:threading",
     "//impulse/format:format",
     "//impulse/lib:lib",
-    "//impulse/loaders:loaders",
     "//impulse/pkg:packaging",
     "//impulse/rules:core_rules",
     "//impulse/util:bintools",

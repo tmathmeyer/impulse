@@ -185,4 +185,7 @@ class Target(object):
     if not directory:
       raise exceptions.InvalidPathException(
         'Unable to determine local path', content)
+    if path:
+      raise exceptions.InvalidPathException(
+        'Path component must be fully qualified', path)
     return Target(TargetName(name), directory)

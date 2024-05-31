@@ -4,7 +4,6 @@ import inspect
 import glob
 
 from impulse.core import debug
-from impulse.loaders import buildmacro
 from impulse.types import references
 from impulse.types import parsed_target
 from impulse.types import paths
