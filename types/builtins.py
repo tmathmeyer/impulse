@@ -122,6 +122,19 @@ class BuildMacro(BuiltinMethod):
   def __init__(self, archive:parsed_target.TargetArchive):
     self._archive = archive
 
+  def _GetMacroFile(self):
+    return 'fooey'
+
   def __call__(self, fn):
-    return buildmacro.Buildmacro(self._archive, fn)
+    def Replacement(name, **kwargs):
+      return fn(self, name, **kwargs)
+    return Replacement
+
+  def ImitateRule(self, rulefile:str, rulename:str, args:dict,
+                  kwargs:dict=None, tags:list=None):
+    args.update({'tags': tags or [], 'buildfile': self._GetMacroFile()})
+    args.update(kwargs or {})
+    load_file = references.File(paths.QualifiedPath(rulefile).AbsolutePath())
+    self._archive.GetBuildTargetFromFile(load_file, rulename)(**args)
+
 

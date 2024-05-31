@@ -4,13 +4,12 @@ import hashlib
 import json
 import os
 import random
-import shutil
 import subprocess
-import tempfile
 import time
 import typing
 import zipfile
 
+from impulse.types import references
 from impulse.core import exceptions
 from impulse.util import temp_dir
 from impulse.core import debug
@@ -129,7 +128,7 @@ class UtilHelper(object):
 class ExportablePackage(Hasher):
   """A wrapper class for building a package file."""
 
-  def __init__(self, package_target, ruletype: str,
+  def __init__(self, package_target:references.Target, ruletype: str,
                platform:impulse_paths.Platform,
                can_access_internal: bool=False,
                binaries_location: str=''):
@@ -375,10 +374,10 @@ class ExportablePackage(Hasher):
         self.package_target.GetPackage().GetRelativePath(), package_contents)
       if self.is_binary_target:
         relative_binary = os.path.join(
-          self.package_target.GetPackagePathDirOnly(),
-          self.package_target.target_name)
+          self.package_target.GetDirectory().Relative().Value()[2:],
+          self.package_target.GetName().Name())
         full_path_binary = os.path.join(bin_dir, relative_binary)
-        binary_location = os.path.join('bin', self.package_target.target_name)
+        binary_location = os.path.join('bin', self.package_target.GetName().Name())
         return None, {binary_location: full_path_binary}, exported_package
       else:
         return self._extracted_dir, {}, exported_package
