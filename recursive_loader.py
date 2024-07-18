@@ -104,6 +104,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
         'shell_script'],
       '//rules/core/Template/build_defs.py': [
         'raw_template', 'template', 'template_expand'],
+      '//rules/env/Docker/build_defs.py': ['container'],
     }
 
     builtin_methods = {
@@ -180,9 +181,6 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       if target._staged:
         result.AddAll(target._staged)
     return result
-
-
-
 
   def _stack_without_recursive_loader(self):
     return [s for s in inspect.stack()
