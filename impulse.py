@@ -188,7 +188,7 @@ def docker(
   norun:bool=False
 ):
   """Builds a docker container from the target."""
-  ruleinfo = build(target, debug, False, fakeroot)
+  ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
   if not ruleinfo.type == 'container':
     print('Only docker containers can be run')
     return
