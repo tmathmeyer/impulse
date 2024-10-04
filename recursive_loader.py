@@ -89,13 +89,15 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
     stubs = {
       '//rules/builtins/builtins.py': [
-        'depends_targets', 'using', 'data', 'toolchain'],
+        'depends_targets', 'using', 'data', 'toolchain', 'file_reference'],
       '//rules/core/C/build_defs.py': [
         'c_header', 'cpp_header', 'cc_compile', 'cc_combine', 'cc_package_binary', 'cc_object', 'cc_binary'],
       '//rules/core/Golang/build_defs.py': [
         'go_package', 'go_binary'],
       '//rules/core/JS/build_defs.py': [
-        'js_module'],
+        'js_bundle'],
+      '//rules/core/TS/build_defs.py': [
+        'ts_bundle', 'ts_library', 'ts_binary', 'ts_modules'],
       '//rules/core/Python/build_defs.py': [
         'py_library', 'py_binary', 'py_test'],
       '//rules/core/R/build_defs.py': [

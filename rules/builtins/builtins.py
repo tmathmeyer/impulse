@@ -62,6 +62,14 @@ def data(target, name, srcs):
 
 
 @buildrule
+def file_reference(target, name, file, content, **kwargs):
+  target.SetTags('data')
+  with open(file, 'w+') as f:
+    f.write(os.path.join(target.GetPackageDirectory(), content))
+  target.AddFile(file)
+
+
+@buildrule
 def toolchain(target, name, srcs, links, **args):
   raise 'Toolchain rule is broken'
   '''
