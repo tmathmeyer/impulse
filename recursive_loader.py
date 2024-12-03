@@ -47,7 +47,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       with open(abspath) as f:
         buildfile_content = f.read()
     except FileNotFoundError as e:
-      raise exceptions.FileImportException(e, file)
+      raise exceptions.FileLoadException('File does not exist', [abspath]) from None
 
     try:
       compiled = compile(buildfile_content, abspath, 'exec')
@@ -58,9 +58,18 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       filename = previous_frame.f_code.co_filename
       line_no = previous_frame.f_lineno
       missing_name = e.args[0].split('\'')[1]
-      raise exceptions.NoSuchRuleType(filename, line_no, missing_name)
+      raise exceptions.FileLoadException(
+        exceptions.NoSuchRuleType(filename, line_no, missing_name),
+        [abspath]) from None
+    except AttributeError as e:
+      _, _, traceback = sys.exc_info()
+      previous_frame = traceback.tb_next.tb_next.tb_next.tb_frame
+      filename = previous_frame.f_code.co_filename
+      raise exceptions.FileLoadException(str(e), [abspath, filename])
+    except exceptions.FileLoadException as e:
+      raise e.Chain(abspath) from None
     except Exception as e:
-      raise exceptions.FileImportException(e, file)
+      raise exceptions.FileLoadException(str(e), [abspath, str(type(e))]) from None
 
 
 class StubLoader(object):
@@ -139,7 +148,10 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     return target
 
   def GetBuildTarget(self, name:references.Target) -> parsed_target.Target:
-    return self._targets[name]
+    try:
+      return self._targets[name]
+    except KeyError as e:
+      raise exceptions.BuildTargetMissing(e.args[0]) from None
 
   def GetDefaultPlatformTarget(self) -> parsed_target.Target:
     return self._platform
@@ -150,8 +162,11 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   def GetPlatformTarget(self, name:references.Target) -> parsed_target.Target:
     return self._platforms[name]
 
+  def LoadBuildFile(self, file:references.File) -> None:
+    return self._env.LoadFile(file)
+
   def GetBuildTargetFromFile(self, file:references.File, name:str) -> typing.Callable:
-    self._env.LoadFile(file)
+    self.LoadBuildFile(file)
     return self._env.Get(name)
 
   @typecheck.Assert
@@ -170,11 +185,6 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     if name not in self._targets:
       raise exceptions.BuildTargetMissing(name)
     self._targets[name].Stage(self)
-
-  @typecheck.Assert
-  def StageAllTargets(self) -> None:
-    for target in self._targets.values():
-      target.Stage(self)
 
   @typecheck.Assert
   def GetStagedTargets(self) -> parsed_target.StagedBuildTargetSet:
@@ -241,11 +251,16 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       result |= c
     return result
 
-  def ConvertAllTestTargets(self):
+  def StageAllTestTargets(self):
     for target, parsed in self._targets.items():
-      if parsed._rule_type.endswith('_test'):
+      if parsed._name.GetName().Name().endswith('_test'):
         self.StageTarget(target)
         yield target
+
+  def StageAllTargets(self):
+    for target in self._targets.values():
+      target.Stage(self)
+      yield target
 
   def GetRulenameFromRawTarget(self, targetname) -> str:
     # This is the buildfile that the rule is called from
@@ -268,5 +283,4 @@ def generate_graph(build_target:impulse_paths.ParsedTarget,
   trn = references.Target.Parse(btstr)
   re.ParseTarget(trn)
   re.StageTarget(trn)
-  targets = re.GetStagedTargets()._targets
-  return targets
+  return re.GetStagedTargets()

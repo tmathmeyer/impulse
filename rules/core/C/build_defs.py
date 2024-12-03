@@ -178,7 +178,7 @@ def cc_object(macro_env, name, srcs, deps=None, includes=None, **kwargs):
       args = {
         'name': subtarget,
         'srcs': [ cc_file ],
-        'deps': includes,
+        'deps': includes + deps,
       })
     subtargets.append(f':{subtarget}')
 

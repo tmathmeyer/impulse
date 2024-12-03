@@ -11,10 +11,13 @@ from impulse.args import args
 from impulse.core import debug
 from impulse.core import exceptions
 from impulse.core import threading
+from impulse.format import format as fmt
 from impulse.lib import run as exec_run
 from impulse.util import temp_dir
 from impulse.util import tree_builder
-from impulse.format import format as fmt
+from impulse.types import parsed_target
+from impulse.types import paths
+from impulse.types import references
 
 command = args.ArgumentParser(complete=True)
 
@@ -28,10 +31,10 @@ def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
 
 
-def build_and_await(debug:bool, graph:set, N:int=6) -> None:
+def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet, N:int=6) -> None:
   """Starts a pool with N threads and waits for graph run completion."""
   pool = threading.DependentPool(N, debug=debug)
-  pool.Start(graph)
+  pool.Start(graph._targets)
   pool.join()
 
 
@@ -44,39 +47,29 @@ def fix_build_target(
   )
 
 
-def graph_for_directory(project=None, testonly=False):
+def GetStagedRuleInfo(target:parsed_target.StagedBuildTarget):
+  pt = impulse_paths.convert_to_build_target(str(target),
+                                             impulse_paths.relative_pwd(),
+                                             True)
+  return pt.GetRuleInfo()
+
+
+def graph_for_directory(project=None, testonly:bool=False) -> (
+    list[parsed_target.StagedBuildTarget], parsed_target.StagedBuildTargetSet):
   directory = os.getcwd()
   if project:
     directory = os.path.join(impulse_paths.root(), project)
 
   rfp = recursive_loader.RecursiveFileParser()
   for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
-    rfp._ParseFile(filename)
+    rfp.LoadBuildFile(references.File(paths.AbsolutePath(filename)))
 
   targets = []
   if testonly:
-    return list(rfp.ConvertAllTestTargets()
-                ), rfp.GetAllConvertedTargets(allow_meta=True)
+    targets = list(rfp.StageAllTestTargets())
   else:
-    rfp.ConvertAllTargets()
-    targets = rfp.GetAllConvertedTargets(allow_meta=True)
-    return targets, targets
-
-
-def check_exactly(count, *args):
-  for arg in args:
-    if arg:
-      count -= 1
-    if count < 0:
-      return False
-  return not count
-
-
-def get_target_from_graph(target, graph):
-  target = fix_build_target(target)
-  for node in graph:
-    if target.GetFullyQualifiedRulePath() == node.get_name():
-      return node
+    targets=list(rfp.StageAllTargets())
+  return targets, rfp.GetStagedTargets()
 
 
 @command
@@ -108,61 +101,18 @@ def build(
 
 
 @command
-def info(
-  target:impulse_paths.BuildTarget,
-  fakeroot:args.Directory=None,
-  debug:bool=False,
-  tree:bool=False,
-  deps:bool=False,
-  consumers:bool=False
-):
-  """Displays info about a target"""
-  setup(debug, fakeroot)
-  if check_exactly(tree, deps, consumers):
-    print('Must specify exactly _one_ of --tree, --deps, or --consumers')
-    return
-  parsed_target = fix_build_target(target)
-  if tree:
-    tree_builder.BuildTree(
-      recursive_loader.generate_graph(parsed_target, allow_meta=True)
-    ).Print()
-    return
-
-  graph = None
-  if deps:
-    graph = recursive_loader.generate_graph(parsed_target, allow_meta=True)
-  if consumers:
-    graph = set(graph_for_directory(None, False)[0])
-  selected = get_target_from_graph(target, graph)
-  print(selected.get_name())
-
-  if deps:
-    for dep in selected.dependencies:
-      print(f'  {dep.get_name()}')
-
-  if consumers:
-    for target in graph:
-      if selected in target.dependencies:
-        print(f'  {target.get_name()}')
-
-
-@command
 def targets(
   fakeroot:args.Directory=None,
+  testonly:bool=False,
   project:str=None,
   roots:bool=False,
   debug:bool=False,
 ):
-  """Lists targets."""
+  """Lists all buildable targets."""
   setup(debug, fakeroot)
-  targets = set(graph_for_directory(project, False)[0])
-  if roots:
-    for target in set(targets):
-      for dep in target.dependencies:
-        if dep in targets:
-          targets.remove(dep)
+  targets, _ = graph_for_directory(project, testonly)
   for target in targets:
-    print(target.get_name())
+    print(target)
 
 
 @command
@@ -171,7 +121,7 @@ def run(
   debug:bool=False,
   fakeroot:args.Directory=None
 ):
-  """Builds a testcase and executes it."""
+  """Builds a binary and executes it."""
   ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
   if not ruleinfo.type.endswith('_binary'):
     print('Only binary targets can be run')
@@ -182,7 +132,6 @@ def run(
 @command
 def docker(
   target:impulse_paths.BuildTarget,
-  platform:impulse_paths.BuildTarget=None,
   debug:bool=False,
   fakeroot:args.Directory=None,
   norun:bool=False
@@ -190,7 +139,7 @@ def docker(
   """Builds a docker container from the target."""
   ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
   if not ruleinfo.type == 'container':
-    print('Only docker containers can be run')
+    print(f'Only docker containers can be run: {ruleinfo.type}')
     return
   container = os.path.basename(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
@@ -211,83 +160,38 @@ def docker(
 def test(
   target:impulse_paths.BuildTarget,
   debug:bool=False,
-  notermcolor:bool=False,
   fakeroot:args.Directory=None,
-  filter:str=None
 ):
   """Builds a testcase and executes it."""
   ruleinfo = build(target, None, debug, False, fakeroot)
-  if not ruleinfo.type.endswith('_test'):
+  if not ruleinfo.output.endswith('_test'):
     print('Only test targets can be run')
     return
 
-  ntc = args.Forward("notermcolor")
-  filter = args.Forward("filter")
-  print(filter)
-  os.system(f'{ruleinfo.output} run {ntc} {filter}')
+  os.system(f'{ruleinfo.output} run')
 
 
 @command
 def testsuite(
   project:str=None,
   debug:bool=False,
-  notermcolor:bool=False,
   threads:int=6,
-  filter:str=None,
   fakeroot:args.Directory=None
 ):
   setup(debug, fakeroot)
-  targets, graph = graph_for_directory(project, True)
-  build_and_await(debug, graph, threads)
+  targets, buildgraph = graph_for_directory(project, True)
+  build_and_await(debug, buildgraph, threads)
 
-  ntc = args.Forward("notermcolor")
-  filter = args.Forward("filter")
-  for builder in targets:
-    print('Running', builder.GetRuleInfo().output)
-    os.system(f'{builder.GetRuleInfo().output} run {ntc} {filter}')
-
-
-@command
-def run_affected_tests(
-  files:str, notermcolor:bool=False, fakeroot:args.Directory=None
-):
-  changed_files = files.split(',')
-  unaffected, _ = graph_for_directory()
-  affected_targets = set()
-  changed = True
-  while changed:
-    changed = False
-    new_unaffected = set()
-    for target in unaffected:
-      target.__in_thread__ = True
-      required_files = target.GetRequiredFiles()
-      if any((f in required_files) for f in changed_files):
-        affected_targets.add(target)
-        changed = True
-      elif any((d in affected_targets) for d in target.dependencies):
-        affected_targets.add(target)
-        changed = True
-      else:
-        new_unaffected.add(target)
-    unaffected = new_unaffected
-  executables = []
-  for target in affected_targets:
-    if target._buildrule_name.endswith('_test'):
-      ruleinfo = build(
-        impulse_paths.BuildTarget(target.get_name()),
-        debug=False,
-        force=False,
-        fakeroot=fakeroot
-      )
-      executables.append(ruleinfo.output)
-  for e in executables:
-    code = exec_run.RunCommand(f'{e} run --notermcolor').returncode
-    if code:
-      return code
+  print(targets)
+  for staged_build_target in targets:
+    binary = GetStagedRuleInfo(staged_build_target).output
+    print(f'Running `{binary} run`')
+    os.system(f'{binary} run')
 
 
 @command
 def format(fakeroot:args.Directory=None):
+  '''Formats all buildfiles'''
   setup(False, fakeroot)
   directory = impulse_paths.root()
   files = {}

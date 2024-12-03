@@ -4,6 +4,21 @@ class ImpulseBaseException(Exception):
     super().__init__(*args, **kwargs)
 
 
+class ImpulseFileChainException(ImpulseBaseException):
+  @staticmethod
+  def Render(message:str, chain:list[str]) -> str:
+    indented = ''.join([('  '*i + chain[i]+'\n') for i in range(len(chain))])
+    return f'Error: {message}\nImported from:\n{indented}'
+
+  def __init__(self, message:str, chain:list[str]):
+    super().__init__(ImpulseFileChainException.Render(message, chain))
+    self._message = message
+    self._chain = chain
+
+  def Chain(self, file:str) -> 'ImpulseFileChainException':
+    return ImpulseFileChainException(self._message, [file]+self._chain)
+
+
 class FileErrorException(ImpulseBaseException):
   @staticmethod
   def Render(filename, line, position, highlight_len):
@@ -90,14 +105,13 @@ class BuildTargetCycle(Exception):
 
 class BuildTargetMissing(ImpulseBaseException):
   """Raised when a build target is missing."""
-  def __init__(self, ex6):
-    super().__init__(ex6)
+  def __init__(self, ex6:str):
+    super().__init__(f'Target not found: {ex6}')
 
 
-class FileImportException(Exception):
-  """Raised when a file can't be recursively imported."""
-  def __init__(self, ex, file):
-    super().__init__('Exception occured importing {}:\n{}'.format(file, ex))
+class FileLoadException(ImpulseFileChainException):
+  """Raised when a file can't be opened for importing."""
+  pass
 
 
 class BuildTargetMissingFrom(ImpulseBaseException):

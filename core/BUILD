@@ -28,5 +28,5 @@ py_library (
 
 py_library (
   name = "environment",
-  srcs = ["environment.py"],
+  srcs = [ "environment.py" ],
 )

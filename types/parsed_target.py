@@ -153,7 +153,11 @@ class BuildTarget(Target):
     try:
       return self._StageInternal(archive)
     except exceptions.BuildTargetCycle as e:
-      raise e.ChainException(self)
+      raise e.ChainException(self) from None
+    except exceptions.BuildTargetMissing as e:
+      raise exceptions.ImpulseFileChainException(str(e), [str(self._name)])
+    except exceptions.ImpulseFileChainException as e:
+      raise e.Chain(str(self._name))
 
   @typecheck.Assert
   def _StageInternal(self, archive:TargetArchive) -> StagedBuildTargetSet:
