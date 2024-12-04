@@ -209,11 +209,11 @@ class TestIsolator():
 class TestCase(object):
   @classmethod
   def RunAll(cls, notermcolor, export_as='print'):
-    cls.RunTests(notermcolor, (lambda x: True), export_as)
+    return cls.RunTests(notermcolor, (lambda x: True), export_as)
 
   @classmethod
   def RunFilter(cls, notermcolor, filter, export_as='print'):
-    cls.RunTests(notermcolor, cls._Matches(filter), export_as)
+    return cls.RunTests(notermcolor, cls._Matches(filter), export_as)
 
   @classmethod
   def ListTests(cls):
@@ -304,6 +304,10 @@ class TestCase(object):
       for f in out['crashes']:
         cls.PrintCrashed(f)
 
+    if f_len or c_len:
+      return 1
+    return 0
+
   @classmethod
   def PrintFailure(cls, failure:FailedAssertError, max_len:int):
     failure.print(max_len)
@@ -393,3 +397,7 @@ def MockAllModuleMethods(module):
       setattr(module, name, MockMethod(name))
     if type(entry) == MockMethod:
       setattr(module, name, MockMethod(name))
+
+
+def Skip(fn):
+  return lambda *args, **kwargs: {}

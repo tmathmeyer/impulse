@@ -3,6 +3,7 @@
 import json
 import glob
 import os
+import sys
 import typing
 
 from impulse import impulse_paths
@@ -167,8 +168,7 @@ def test(
   if not ruleinfo.output.endswith('_test'):
     print('Only test targets can be run')
     return
-
-  os.system(f'{ruleinfo.output} run')
+  sys.exit(os.WEXITSTATUS(os.system(f'{ruleinfo.output} run')))
 
 
 @command
@@ -182,11 +182,14 @@ def testsuite(
   targets, buildgraph = graph_for_directory(project, True)
   build_and_await(debug, buildgraph, threads)
 
-  print(targets)
   for staged_build_target in targets:
     binary = GetStagedRuleInfo(staged_build_target).output
     print(f'Running `{binary} run`')
-    os.system(f'{binary} run')
+    errcode = os.WEXITSTATUS(os.system(f'{binary} run'))
+    if errcode != 0:
+      sys.exit(errcode)
+
+  import sys
 
 
 @command
