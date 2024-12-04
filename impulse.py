@@ -189,8 +189,6 @@ def testsuite(
     if errcode != 0:
       sys.exit(errcode)
 
-  import sys
-
 
 @command
 def format(fakeroot:args.Directory=None):
