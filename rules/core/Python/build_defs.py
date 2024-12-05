@@ -1,3 +1,9 @@
+from impulse.types.stubs import buildrule
+from impulse.types.stubs import depends_targets
+from impulse.types.stubs import using
+from impulse.types.stubs import os
+from impulse.types.stubs import Any
+
 
 def py_make_binary(target, package_name, package_file, binary_location):
   def _get_exe(minversion):

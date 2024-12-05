@@ -1,3 +1,6 @@
+from impulse.types.stubs import buildrule
+from impulse.types.stubs import os
+
 
 def increase_stack_arg_decorator(replacement):
   # This converts 'replacement' into a decorator that takes args
@@ -36,19 +39,6 @@ def depends_targets(fn, *targets):
 
 @increase_stack_arg_decorator
 def using(fn, *includes):
-  ''' A buildrule decorator which declares that the buildrule requires linkage
-      to a set of helper functions declared elsewhere in the file. It must be
-      applied to the buildrule function syntactically before the @buildrule
-      decorator. Example:
-
-      def helper_method(...):
-        ...
-
-      @using(helper_method)
-      @buildrule
-      def py_binary(...):
-        ...
-  '''
   def replacement(*args, **kwargs):
     return fn(*args, **kwargs).AddIncludes(includes)
   return replacement

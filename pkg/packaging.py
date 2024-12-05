@@ -251,6 +251,12 @@ class ExportablePackage(Hasher):
     '''Adds a file to the output package.'''
     self.included_files.append(filename)
 
+  def AddDirectory(self, directory:str):
+    '''Adds all files in a directory'''
+    for [dirname, _, files] in os.walk(directory):
+      for file in files:
+        self.AddFile(os.path.join(dirname, file))
+
   def AddDependency(self, dependency):
     '''Add a dependency on another target.'''
     if dependency not in self.depends_on_targets:
@@ -306,7 +312,8 @@ class ExportablePackage(Hasher):
     filename = self.GetPackageName()
     cmd = cmd.format(filename, ' '.join(self.included_files))
     EnsureDirectory(os.path.dirname(filename))
-    os.system(cmd)
+    subprocess.check_output(['zip', '--symlinks', filename, 'pkg_contents.json',
+                             *self.included_files])
     os.system('rm pkg_contents.json')
     return ExportedPackage(filename, self.__dict__, self._export_binary)
 

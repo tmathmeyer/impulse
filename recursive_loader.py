@@ -2,6 +2,7 @@
 import inspect
 import os
 import sys
+import types
 import typing
 
 from impulse import impulse_paths
@@ -23,6 +24,8 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     for file, names in stub_map.items():
       for name in names:
         self._environment[name] = StubLoader(self, name, file)
+    self._environment['__builtins__'] = dict(__builtins__)
+    self._environment['__builtins__']['__import__'] = self.ImportInjector
 
   @typecheck.Assert
   def IsStubOrUndefined(self, key:str) -> bool:
@@ -35,6 +38,36 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
   @typecheck.Assert
   def Get(self, key:str) -> typing.Any:
     return self._environment[key]
+
+  @typecheck.Assert
+  def ImportInjector(self, name:str, locals:dict=None, globals:dict=None, fromlist:list[str]=None, level:int=None) -> None:
+    # declare allowed imports along with special cases used when importing from them
+    allowed_import_targets = {
+      # Stubs are just documented function stubs for the decorators used in declaring buildrules
+      'impulse.types.stubs': {
+        'os': lambda target: __import__(target),
+        'Any': lambda _: None,
+      },
+
+      # Interfaces are essentially just classes which can be used for type annotations in buildrules
+      'impulse.types.interfaces': {
+        'Package': lambda _: None
+      }
+    }
+
+    if name not in allowed_import_targets:
+      raise Exception(f'buildrule definitions may only import from {list(allowed_import_targets.keys())}, not {name}')
+
+    synthetic_module = types.ModuleType(name)
+    special_cases = allowed_import_targets[name]
+    for target in fromlist:
+      if target in special_cases:
+        synthetic_module.__dict__[target] = special_cases[target](target)
+      elif target in self._environment:
+        synthetic_module.__dict__[target] = self._environment.get(target)
+      else:
+        raise Exception(f'`{target}` could not be imported from `{name}`')
+    return synthetic_module
 
   @typecheck.Assert
   def LoadFile(self, file:references.File) -> None:
@@ -69,7 +102,12 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     except exceptions.FileLoadException as e:
       raise e.Chain(abspath) from None
     except Exception as e:
-      raise exceptions.FileLoadException(str(e), [abspath, str(type(e))]) from None
+      _, _, traceback = sys.exc_info()
+      previous_frame = traceback.tb_next.tb_frame
+      filename = previous_frame.f_code.co_filename
+      line_no = previous_frame.f_lineno
+      message = f'{filename}:{line_no} :: {e}'
+      raise exceptions.FileLoadException(message, [abspath, str(type(e))]) from None
 
 
 class StubLoader(object):
@@ -115,6 +153,8 @@ class RecursiveFileParser(parsed_target.TargetArchive):
         'shell_script'],
       '//rules/core/Template/build_defs.py': [
         'raw_template', 'template', 'template_expand'],
+      '//rules/core/Tooling/build_defs.py': [
+        'npm_tool'],
       '//rules/env/Docker/build_defs.py': ['container'],
     }
 
