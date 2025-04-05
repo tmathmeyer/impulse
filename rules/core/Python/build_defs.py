@@ -10,8 +10,9 @@ def py_make_binary(target, package_name, package_file, binary_location):
     if not minversion:
       return 'python3'
     import sys
-    if minversion[1] >= sys.version_info.minor:
-      return f'python3.{minversion[1]}'
+    if minversion[1] < sys.version_info.minor:
+      return f'python3.{sys.version_info.minor}'
+    target.FatalError(f'Requires Minimum version: {minversion}, system version is {sys.version_info}')
 
   binary_file = os.path.join(binary_location, package_name)
   minversion = target.GetPropagatedData('minversion')
