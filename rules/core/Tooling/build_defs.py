@@ -7,6 +7,9 @@ from impulse.types.interfaces import Package
 @depends_targets("//impulse/util:bintools")
 @buildrule
 def npm_tool(target:Package, name, packages, **kwargs):
+  for data in kwargs.get('data', []):
+    data = os.path.join(target.GetPackageDirectory(), data)
+    target.AddFile(data)
   for package in packages:
     target.Execute(f'npm install --save-dev {package}')
   target.AddDirectory('node_modules')

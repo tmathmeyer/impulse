@@ -4,6 +4,7 @@ def build_container(target, name, main_executable, **kwargs):
   target.SetTags('container')
   for binary in kwargs.get('binaries', []):
     target.AddFile(binary)
+  os.system('tree')
   target.Execute(f'cp bin/{main_executable} {main_executable}')
   target.AddFile(main_executable)
   for dockerfile in target.Dependencies(tags=Any('dockerfile')):

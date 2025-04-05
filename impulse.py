@@ -117,6 +117,25 @@ def targets(
 
 
 @command
+def sitehost(
+  target:impulse_paths.BuildTarget,
+  debug:bool=False,
+  force:bool=False,
+  fakeroot:args.Directory=None
+):
+  ruleinfo = build(target, debug=debug, force=force, fakeroot=fakeroot)
+  print(ruleinfo.type, ruleinfo.name, ruleinfo.output)
+  if ruleinfo.type != 'website':
+    print('Only website targets can be run')
+    return
+  with temp_dir.ScopedTempDirectory(delete_non_empty=True):
+    os.system(f'unzip {ruleinfo.output}')
+    os.system('tree')
+    os.system('python3 -m http.server 8000')
+
+
+
+@command
 def run(
   target:impulse_paths.BuildTarget,
   debug:bool=False,
