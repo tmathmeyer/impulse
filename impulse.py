@@ -164,7 +164,7 @@ def docker(
   container = os.path.basename(ruleinfo.output)
   with temp_dir.ScopedTempDirectory(delete_non_empty=True):
     os.system(f'unzip {ruleinfo.output}')
-    os.system(f'docker build -t {container} .')
+    os.system(f'docker build -t {container[:-4]} .')
     if norun:
       return
     with open('pkg_contents.json', 'r') as f:
