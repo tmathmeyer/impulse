@@ -1,4 +1,4 @@
-FROM python:3{{pyversion}}-alpine
+FROM python:3{pyversion}-alpine
 
 {{args}}
 LABEL {.}
