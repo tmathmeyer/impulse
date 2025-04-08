@@ -5,7 +5,10 @@ py_library (
 
 py_library (
   name = "exceptions",
-  srcs = [ "exceptions.py" ],
+  srcs = [
+    "exceptions.py",
+    "errors.py",
+  ],
 )
 
 py_library (

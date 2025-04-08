@@ -1,4 +1,7 @@
 
+import traceback
+
+
 class ImpulseBaseException(Exception):
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
@@ -147,3 +150,34 @@ class MacroException(Exception):
 class PlatformKeyAbsentError(ImpulseBaseException):
   def __init__(self, platname, platkey):
     super().__init__(f'platform {platname} missing property {platkey}')
+
+
+
+
+
+
+class UncheckedException(Exception):
+  @staticmethod
+  def Render(impl, kwargs):
+    return '\n'.join(traceback.format_stack()) + '\n\n' + impl.__class__.__name__ + ': ' + str(kwargs)
+
+  def __init__(self, **kwargs):
+    super().__init__(UncheckedException.Render(self, kwargs))
+    for k,v in kwargs.items():
+      setattr(self, k, v)
+
+
+class FileNotFoundException(UncheckedException):
+  pass
+
+
+class BuildFileNotFoundException(UncheckedException):
+  pass
+
+
+class BuildFileMissingTarget(UncheckedException):
+  pass
+
+
+class TargetCannotBeMapped(UncheckedException):
+  pass

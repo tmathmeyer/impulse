@@ -7,6 +7,7 @@ import typing
 
 from impulse import impulse_paths
 
+from impulse.core import errors
 from impulse.core import exceptions
 from impulse.types import builtins
 from impulse.types import references
@@ -80,7 +81,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       with open(abspath) as f:
         buildfile_content = f.read()
     except FileNotFoundError as e:
-      raise exceptions.FileLoadException('File does not exist', [abspath]) from None
+      raise exceptions.FileNotFoundException(filepath=abspath) from None
 
     try:
       compiled = compile(buildfile_content, abspath, 'exec')
@@ -91,9 +92,8 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       filename = previous_frame.f_code.co_filename
       line_no = previous_frame.f_lineno
       missing_name = e.args[0].split('\'')[1]
-      raise exceptions.FileLoadException(
-        exceptions.NoSuchRuleType(filename, line_no, missing_name),
-        [abspath]) from None
+      raise errors.FileHighlightError(f'Invalid symbol: `{missing_name}`',
+                                      filename, missing_name, line_no, line_no)
     except AttributeError as e:
       _, _, traceback = sys.exc_info()
       previous_frame = traceback.tb_next.tb_next.tb_next.tb_frame
@@ -101,13 +101,6 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       raise exceptions.FileLoadException(str(e), [abspath, filename])
     except exceptions.FileLoadException as e:
       raise e.Chain(abspath) from None
-    except Exception as e:
-      _, _, traceback = sys.exc_info()
-      previous_frame = traceback.tb_next.tb_frame
-      filename = previous_frame.f_code.co_filename
-      line_no = previous_frame.f_lineno
-      message = f'{filename}:{line_no} :: {e}'
-      raise exceptions.FileLoadException(message, [abspath, str(type(e))]) from None
 
 
 class StubLoader(object):
@@ -206,13 +199,21 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     return self._env.LoadFile(file)
 
   def GetBuildTargetFromFile(self, file:references.File, name:str) -> typing.Callable:
-    self.LoadBuildFile(file)
-    return self._env.Get(name)
+    try:
+      self.LoadBuildFile(file)
+    except exceptions.FileNotFoundException as e:
+      raise exceptions.BuildFileNotFoundException(buildfile=e.filepath) from None
+    try:
+      return self._env.Get(name)
+    except:
+      raise exceptions.BuildFileMissingTarget(buildfile=file.Absolute(), target=name)
 
   @typecheck.Assert
   def ParseTarget(self, name:references.Target) -> None:
-    #TODO: make LoadFile take an AbsolutePath
-    self._env.LoadFile(name.GetBuildFile())
+    try:
+      self._env.LoadFile(name.GetBuildFile())
+    except exceptions.FileNotFoundException as e:
+      raise exceptions.TargetCannotBeMapped(target=name, location=e.filepath) from None
 
   @typecheck.Assert
   def ParsePlatform(self, name:references.Target) -> None:

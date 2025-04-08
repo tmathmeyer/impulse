@@ -3,11 +3,20 @@ import abc
 import inspect
 import glob
 
+from impulse.core import errors
+from impulse.core import exceptions
 from impulse.core import debug
 from impulse.types import references
 from impulse.types import parsed_target
 from impulse.types import paths
 from impulse.types import typecheck
+
+
+def StackScour(filename):
+  for frame in inspect.stack():
+    if frame.filename.endswith(filename):
+      return frame
+  return None
 
 
 class EnvironmentLoader(metaclass=abc.ABCMeta):
@@ -98,9 +107,12 @@ class BuildRule(BuiltinMethod):
     debug.DebugMsg(f'Registering build rule: {buildrule_name}')
 
     # all params to a build rule must be keyword!
-    def replacement(DBBG=False, **kwargs):
+    def replacement(DBBG=False, *args, **kwargs):
       # 'name' is a required argument!
-      assert 'name' in kwargs
+      if 'name' not in kwargs:
+        callframe = inspect.stack()[kwargs['__stack__']+1]
+        raise errors.InvalidSyntax('`name` attribute is required for all targets',
+                                   buildrule_name, callframe)
       name = kwargs['name']
 
       # add any extra tags a user sers
@@ -110,9 +122,16 @@ class BuildRule(BuiltinMethod):
       build_file = self._GetBuildFileFromStack()
 
       target = references.Target.Parse(f':{name}', build_file.Directory())
-      return self._archive.AddBuildTarget(
-        parsed_target.BuildTarget(
-          target, fn, kwargs, self._cmdline, extra_tags))
+      try:
+        return self._archive.AddBuildTarget(
+          parsed_target.BuildTarget(
+            target, fn, kwargs, self._cmdline, extra_tags))
+      except exceptions.TargetCannotBeMapped as tcbm:
+        callframe = inspect.stack()[kwargs['__stack__']+1]
+        raise errors.InvalidDependency(targetname=tcbm.target,
+                                       targetfile=tcbm.location,
+                                       sourcefile=callframe.filename,
+                                       sourcerange=callframe.positions) from None
 
     return replacement
 

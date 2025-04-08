@@ -10,6 +10,7 @@ import typing
 import zipfile
 
 from impulse.types import references
+from impulse.core import errors
 from impulse.core import exceptions
 from impulse.util import temp_dir
 from impulse.core import debug
@@ -101,12 +102,12 @@ class ExportedPackage(object):
       try:
         r = self.RunCommand(command)
         if r.returncode:
-          raise exceptions.FatalException(f'command "{command}" failed.')
+          raise errors.FatalError(f'command "{command}" failed.')
       except:
-        raise exceptions.FatalException(f'command "{command}" failed.')
+        raise errors.FatalError(f'command "{command}" failed.')
 
   def FatalError(self, msg:str):
-    raise exceptions.FatalException(msg)
+    raise errors.FatalError(msg)
 
   def __str__(self):
     return '{}@{}'.format(str(self.package_target), self.build_timestamp)
@@ -300,11 +301,11 @@ class ExportablePackage(Hasher):
   def Export(self) -> ExportedPackage:
     r = self.RunCommand('pwd')
     if r.returncode:
-      raise exceptions.FatalException(f'{r.returncode} => {r.stderr}')
+      raise errors.FatalError(f'{r.returncode} => {r.stderr}')
 
     r = self.RunCommand('touch pkg_contents.json')
     if r.returncode:
-      raise exceptions.FatalException('Cant create new pkg_contents.json')
+      raise errors.FatalError('Cant create new pkg_contents.json')
 
     with open('pkg_contents.json', 'w+') as f:
       f.write(self._GetJson())
@@ -400,7 +401,7 @@ class ExportablePackage(Hasher):
         exists = False
     r = self.RunCommand(f'mkdir -p /tmp/{dirname}')
     if r.returncode:
-      raise exceptions.FatalException(f'MKDIR FAILED -> {r.stdout}')
+      raise errors.FatalError(f'MKDIR FAILED -> {r.stdout}')
     return f'/tmp/{dirname}'
 
   def UseTempDir(self):
@@ -428,10 +429,10 @@ class ExportablePackage(Hasher):
     extract = f'unzip {package_name} -d {self._extracted_dir}'
     r = self.RunCommand(f'test -e {self._extracted_dir}')
     if r.returncode:
-      raise exceptions.FatalException(f'{self._extracted_dir} does not exist')
+      raise errors.FatalError(f'{self._extracted_dir} does not exist')
     r = self.RunCommand(extract)
     if r.returncode:
-      raise exceptions.FatalException(f'{extract} ===> {r.stderr}')
+      raise errors.FatalError(f'{extract} ===> {r.stderr}')
 
     with temp_dir.ScopedTempDirectory(self._extracted_dir):
       try:
@@ -477,12 +478,12 @@ class ExportablePackage(Hasher):
       try:
         r = self.RunCommand(command)
         if r.returncode:
-          raise exceptions.FatalException(
+          raise errors.FatalError(
             f'command "{command}" failed:\n{r.stdout}\n{r.stderr}')
       except Exception as e:
-        if type(e) == exceptions.FatalException:
+        if type(e) == errors.FatalError:
           raise
-        raise exceptions.FatalException(f'command "{command}" failed.')
+        raise errors.FatalError(f'command "{command}" failed.')
 
   def SetEnvVar(self, var, value):
     '''Sets an environment variable for execution.'''

@@ -10,12 +10,11 @@ from impulse import impulse_paths
 from impulse import recursive_loader
 from impulse.args import args
 from impulse.core import debug
+from impulse.core import errors
 from impulse.core import exceptions
 from impulse.core import threading
 from impulse.format import format as fmt
-from impulse.lib import run as exec_run
 from impulse.util import temp_dir
-from impulse.util import tree_builder
 from impulse.types import parsed_target
 from impulse.types import paths
 from impulse.types import references
@@ -248,9 +247,11 @@ def init():
 def main():
   try:
     command.eval()
-  except exceptions.ImpulseBaseException as e:
+    return 0
+  except errors.RenderableError as e:
     print(str(e))
+    return 1
 
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())
