@@ -81,7 +81,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       with open(abspath) as f:
         buildfile_content = f.read()
     except FileNotFoundError as e:
-      raise exceptions.FileNotFoundException(filepath=abspath) from None
+      raise exceptions.FileNotFoundException(filepath=abspath, relpath=file) from None
 
     try:
       compiled = compile(buildfile_content, abspath, 'exec')

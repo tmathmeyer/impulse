@@ -61,8 +61,15 @@ class LoadFile(BuiltinMethod):
   @typecheck.Assert
   def __call__(self, *files:list[str]) -> None:
     for loading in files:
-      loadfile = references.File(paths.QualifiedPath(loading).AbsolutePath())
-      self._loader.LoadFile(loadfile)
+      try:
+        loadfile = references.File(paths.QualifiedPath(loading).AbsolutePath())
+        self._loader.LoadFile(loadfile)
+      except exceptions.FileNotFoundException as fnfe:
+        callframe = StackScour('BUILD')
+        raise errors.FileNotFoundError(loading,
+                                       callframe.filename,
+                                       callframe.positions) from None
+
 
 
 class Pattern(BuiltinMethod):
@@ -110,7 +117,7 @@ class BuildRule(BuiltinMethod):
     def replacement(DBBG=False, *args, **kwargs):
       # 'name' is a required argument!
       if 'name' not in kwargs:
-        callframe = inspect.stack()[kwargs['__stack__']+1]
+        callframe = StackScour('BUILD')
         raise errors.InvalidSyntax('`name` attribute is required for all targets',
                                    buildrule_name, callframe)
       name = kwargs['name']
@@ -127,7 +134,7 @@ class BuildRule(BuiltinMethod):
           parsed_target.BuildTarget(
             target, fn, kwargs, self._cmdline, extra_tags))
       except exceptions.TargetCannotBeMapped as tcbm:
-        callframe = inspect.stack()[kwargs['__stack__']+1]
+        callframe = StackScour('BUILD')
         raise errors.InvalidDependency(targetname=tcbm.target,
                                        targetfile=tcbm.location,
                                        sourcefile=callframe.filename,

@@ -44,3 +44,10 @@ class InvalidSyntax(FileHighlightError):
   def __init__(self, message, search, frame):
     super().__init__(
       message, frame.filename, search, frame.positions.lineno, frame.positions.end_lineno)
+
+
+class FileNotFoundError(FileHighlightError):
+  def __init__(self, missing, source, sourcerange):
+    super().__init__(
+      f'File not found: {missing}',
+      source, missing, sourcerange.lineno, sourcerange.end_lineno)

@@ -86,7 +86,7 @@ class RuleSpec(object):
     self.type = callspec[1].get('called_as')[0]
     self.name = callspec[1].get('name')
     output_type = 'BINARIES'
-    if not self.type.endswith('binary'):
+    if not (self.type.endswith('binary') or self.type.endswith('test')):
       output_type = 'PACKAGES'
       self.name += '.zip'
     self.output = os.path.join(
