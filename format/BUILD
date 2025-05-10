@@ -1,9 +1,7 @@
 py_library (
   name = "readers",
   srcs = [ "readers.py" ],
-  deps = [
-    "//impulse/core:interface",
-  ],
+  deps = [ "//impulse/core:interface" ],
 )
 
 py_library (

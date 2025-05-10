@@ -285,7 +285,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
   def StageAllTestTargets(self):
     for target, parsed in self._targets.items():
-      if parsed._name.GetName().Name().endswith('_test'):
+      if parsed._rule_name.endswith('_test'):
         self.StageTarget(target)
         yield target
 

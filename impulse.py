@@ -104,7 +104,6 @@ def targets(
   fakeroot:args.Directory=None,
   testonly:bool=False,
   project:str=None,
-  roots:bool=False,
   debug:bool=False,
 ):
   """Lists all buildable targets."""
@@ -130,7 +129,6 @@ def sitehost(
     os.system(f'unzip {ruleinfo.output}')
     os.system('tree')
     os.system('python3 -m http.server 8000')
-
 
 
 @command

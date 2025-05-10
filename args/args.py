@@ -142,7 +142,12 @@ class ArgumentParser(object):
     for arg, info in inspect.signature(func).parameters.items():
       if hasattr(args, arg):
         _args[arg] = getattr(args, arg)
-      if issubclass(info.annotation, ArgComplete) and _args[arg] == None:
+      annotation = info.annotation
+      if type(info.annotation) == types.UnionType:
+        assert len(info.annotation.__args__) == 2
+        assert info.annotation.__args__[1] == type(None)
+        annotation = info.annotation.__args__[0]
+      if issubclass(annotation, ArgComplete) and _args[arg] == None:
         _args[arg] = DefaultArgComplete(None)
     func(**_args)
 
