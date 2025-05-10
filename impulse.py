@@ -74,10 +74,10 @@ def graph_for_directory(project=None, testonly:bool=False) -> (
 @command
 def build(
   target:impulse_paths.BuildTarget,
-  platform:impulse_paths.BuildTarget=None,
+  platform:impulse_paths.BuildTarget|None=None,
   debug:bool=False,
   force:bool=False,
-  fakeroot:args.Directory=None,
+  fakeroot:args.Directory|None=None,
   threads:int=6,
   hackermode:bool=False
 ):
@@ -101,9 +101,9 @@ def build(
 
 @command
 def targets(
-  fakeroot:args.Directory=None,
+  fakeroot:args.Directory|None=None,
   testonly:bool=False,
-  project:str=None,
+  project:str|None=None,
   debug:bool=False,
 ):
   """Lists all buildable targets."""
@@ -118,7 +118,7 @@ def sitehost(
   target:impulse_paths.BuildTarget,
   debug:bool=False,
   force:bool=False,
-  fakeroot:args.Directory=None
+  fakeroot:args.Directory|None=None
 ):
   ruleinfo = build(target, debug=debug, force=force, fakeroot=fakeroot)
   print(ruleinfo.type, ruleinfo.name, ruleinfo.output)
@@ -135,7 +135,7 @@ def sitehost(
 def run(
   target:impulse_paths.BuildTarget,
   debug:bool=False,
-  fakeroot:args.Directory=None
+  fakeroot:args.Directory|None=None
 ):
   """Builds a binary and executes it."""
   ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
@@ -149,7 +149,7 @@ def run(
 def docker(
   target:impulse_paths.BuildTarget,
   debug:bool=False,
-  fakeroot:args.Directory=None,
+  fakeroot:args.Directory|None=None,
   norun:bool=False
 ):
   """Builds a docker container from the target."""
@@ -176,7 +176,7 @@ def docker(
 def test(
   target:impulse_paths.BuildTarget,
   debug:bool=False,
-  fakeroot:args.Directory=None,
+  fakeroot:args.Directory|None=None,
 ):
   """Builds a testcase and executes it."""
   ruleinfo = build(target, None, debug, False, fakeroot)
@@ -188,10 +188,10 @@ def test(
 
 @command
 def testsuite(
-  project:str=None,
+  project:str|None=None,
   debug:bool=False,
   threads:int=6,
-  fakeroot:args.Directory=None
+  fakeroot:args.Directory|None=None
 ):
   setup(debug, fakeroot)
   targets, buildgraph = graph_for_directory(project, True)
@@ -206,7 +206,7 @@ def testsuite(
 
 
 @command
-def format(fakeroot:args.Directory=None):
+def format(fakeroot:args.Directory|None=None):
   '''Formats all buildfiles'''
   setup(False, fakeroot)
   directory = impulse_paths.root()

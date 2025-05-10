@@ -168,7 +168,7 @@ class UncheckedException(Exception):
 
 
 class FileNotFoundException(UncheckedException):
-  pass
+  filepath:str
 
 
 class BuildFileNotFoundException(UncheckedException):

@@ -24,7 +24,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     for file, names in stub_map.items():
       for name in names:
         self._environment[name] = StubLoader(self, name, file)
-    self._environment['__builtins__'] = dict(__builtins__)
+    self._environment['__builtins__'] = dict(__builtins__) # type: ignore[unresolved-reference]
     self._environment['__builtins__']['__import__'] = self.ImportInjector
 
   def IsStubOrUndefined(self, key:str) -> bool:
@@ -37,7 +37,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
   def Get(self, key:str) -> typing.Any:
     return self._environment[key]
 
-  def ImportInjector(self, name:str, locals:dict=None, globals:dict=None, fromlist:list[str]=None, level:int=None) -> None:
+  def ImportInjector(self, name:str, locals:dict|None=None, globals:dict|None=None, fromlist:list[str]|None=None, level:int|None=None) -> types.ModuleType:
     # declare allowed imports along with special cases used when importing from them
     allowed_import_targets = {
       # Stubs are just documented function stubs for the decorators used in declaring buildrules
@@ -57,7 +57,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
 
     synthetic_module = types.ModuleType(name)
     special_cases = allowed_import_targets[name]
-    for target in fromlist:
+    for target in (fromlist or []):
       if target in special_cases:
         synthetic_module.__dict__[target] = special_cases[target](target)
       elif target in self._environment:
@@ -216,7 +216,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
   def StageTarget(self, name:references.Target) -> None:
     if name not in self._targets:
-      raise exceptions.BuildTargetMissing(name)
+      raise exceptions.BuildTargetMissing(str(name))
     self._targets[name].Stage(self)
 
   def GetStagedTargets(self) -> parsed_target.StagedBuildTargetSet:
@@ -265,8 +265,10 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   def GetMacroInvokerFile(self):
     return self._get_macro_invoker_file()
 
-  def GetAllConvertedTargets(self, allow_meta=None):
-    allow_meta = allow_meta or []
+  def GetAllConvertedTargets(self, allow_meta:list[str]|bool=False):
+    allowed_meta:list = []
+    if type(allow_meta) is list:
+      allowed_meta = allow_meta
     def converted_targets():
       for target in self._targets.values():
         if target._converted:
@@ -274,7 +276,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
             yield target._converted
           elif allow_meta is True:
             yield target._converted
-          elif target._build_rule in allow_meta:
+          elif target._build_rule in allowed_meta:
             yield target._converted
           else:
             print(f'target: {target._build_rule} not in: {allow_meta}')
@@ -294,7 +296,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       target.Stage(self)
       yield target
 
-  def GetRulenameFromRawTarget(self, targetname) -> str:
+  def GetRulenameFromRawTarget(self, targetname) -> str|None:
     # This is the buildfile that the rule is called from
     build_file = self._get_buildfile_from_stack()
     build_path = impulse_paths.get_qualified_build_file_dir(build_file)
@@ -305,10 +307,8 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
 
 def generate_graph(build_target:impulse_paths.ParsedTarget,
-                   allow_meta:bool=False,
                    platform=None,
                    **kwargs):
-  allow_meta = allow_meta or [build_target]
   re = RecursiveFileParser(platform, **kwargs)
 
   btstr = build_target.GetFullyQualifiedRulePath()

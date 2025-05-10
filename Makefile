@@ -9,6 +9,8 @@ all: copy_srcs
 typecheck: copy_srcs
 	@cd impulse
 	@ty check .
+	rm -rf impulse/
+	rm -rf GENERATED/
 
 copy_srcs:
 	@rm -rf impulse/
