@@ -183,8 +183,8 @@ def test(
 ):
   """Builds a testcase and executes it."""
   ruleinfo = build(target, None, debug, False, fakeroot)
-  if not ruleinfo.output.endswith('_test'):
-    print('Only test targets can be run')
+  if not ruleinfo.type.endswith('_test'):
+    print(f'Only test targets can be run {ruleinfo.type}')
     return
   sys.exit(os.WEXITSTATUS(os.system(f'{ruleinfo.output} run')))
 
