@@ -3,7 +3,6 @@ py_library (
   srcs = [ "readers.py" ],
   deps = [
     "//impulse/core:interface",
-    "//impulse/util:typecheck",
   ],
 )
 

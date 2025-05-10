@@ -119,7 +119,7 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
 
   def _change_file(self, path: str, operation, failure=ACCESS_ERR):
     writable_node, ro_nodes = self._find_shadow_nodes(path)
-    if ro_nodes: # no RW version of the file could be found - 
+    if ro_nodes: # no RW version of the file could be found -
                  # we need to copy it. The operation will be called
                  # in the next block.
       shutil.copyfile(ro_nodes[0], writable_node)
@@ -164,7 +164,7 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
     with open(rw, 'r+') as f:
       f.truncate(length)
 
-  
+
   # Delete methods - important to mark these files as deleted!
   def rmdir(self, path):
     path, RO_nodes = self._find_shadow_nodes(path)
@@ -259,7 +259,7 @@ class OverlayFilesystemOperations(fuse.Operations):  # type: ignore
   def create(self, path, mode, fi=None):
     rw_file, ro_files = self._find_shadow_nodes(path)
     if ro_files:
-      raise "Can't create a file that already exists (i think?)"
+      raise RuntimeError("Can't create a file that already exists (i think?)")
     if not os.path.exists(os.path.dirname(rw_file)):
       os.makedirs(os.path.dirname(rw_file))
     return self.open(path, os.O_RDWR | os.O_CREAT, mode)

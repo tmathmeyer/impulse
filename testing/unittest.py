@@ -19,7 +19,7 @@ class EarlyExitPassedError(Exception):
 class FailedAssertError(Exception):
   def __init__(self, filename, casename, lineno, assertname, A, B):
     super().__init__()
-    testbase = __file__[:-27]
+    testbase = (__file__ or '')[:-27]
     if filename.startswith(testbase):
       filename = filename[len(testbase):]
     self._file_location = '{}:{}'.format(filename, lineno)
@@ -58,9 +58,10 @@ class GenericCrashHandler(object):
 
 def call_with_stack(method):
   def replacement(self, *args, **kwargs):
-    return method(self, inspect.currentframe().f_back, *args, **kwargs)
-
-  replacement._wrapped = method
+    frame = inspect.currentframe()
+    assert frame is not None
+    return method(self, frame.f_back, *args, **kwargs)
+  setattr(replacement, '_wrapped', method)
   return replacement
 
 
@@ -96,18 +97,20 @@ def ExpectFailed(fn):
 
 @contextmanager
 def ExpectException(tester, errtype):
+  frame = inspect.currentframe()
+  assert frame is not None
+  frame = frame.f_back
+  assert frame is not None
+  frame = frame.f_back
   try:
     yield tester
   except FailedAssertError as e:
     raise e
   except Exception as e:
-    tester.assertEqual._wrapped(
-      tester,
-      inspect.currentframe().f_back.f_back, type(e), errtype
-    )
+    tester.assertEqual._wrapped(tester, frame, type(e), errtype)
   else:
     tester.assertEqual._wrapped(
-      tester, inspect.currentframe().f_back.f_back, errtype, 'Nothing Raised'
+      tester, frame, errtype, 'Nothing Raised'
     )
 
 

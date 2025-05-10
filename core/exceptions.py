@@ -180,4 +180,5 @@ class BuildFileMissingTarget(UncheckedException):
 
 
 class TargetCannotBeMapped(UncheckedException):
-  pass
+  target:str
+  location:str

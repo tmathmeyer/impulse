@@ -68,7 +68,7 @@ class ExportedPackage(object):
   """Read-only package wrapper."""
   def __init__(self,
                filename: str,
-               json: dict=None,
+               json: dict|None=None,
                export_binary=None):
     self.filename = filename
     if json:
@@ -122,7 +122,6 @@ class ExportedPackage(object):
 class UtilHelper(object):
   def __init__(self, buildqueue_ref):
     self.temp_dir = temp_dir
-    self.recursive_loader = __import__('impulse').recursive_loader
     self.build_queue = buildqueue_ref
 
 
@@ -130,7 +129,7 @@ class ExportablePackage(Hasher):
   """A wrapper class for building a package file."""
 
   def __init__(self, package_target:references.Target, ruletype: str,
-               platform:impulse_paths.Platform,
+               platform:typing.Any, # TODO: fix type
                can_access_internal: bool=False,
                binaries_location: str=''):
     self._extracted_dir = None

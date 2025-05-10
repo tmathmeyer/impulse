@@ -1,5 +1,3 @@
-langs("Template")
-
 raw_template (
   name = "metadata-template",
   srcs = [ "systemd.metadata.template" ],

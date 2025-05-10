@@ -21,7 +21,7 @@ class RuleArchive(metaclass=abc.ABCMeta):
     '''Saves a meta target'''
 
   @abc.abstractmethod
-  def AddParsedTarget(self, name:parsed_target.TargetReferenceName):
+  def AddParsedTarget(self, name:None):
     '''Saves a parsed target'''
 
 

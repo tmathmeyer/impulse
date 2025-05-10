@@ -3,6 +3,7 @@ import abc
 import argparse
 import inspect
 import os
+import types
 import typing
 import shlex
 import subprocess
@@ -39,7 +40,7 @@ class Directory(ArgComplete):
         yield d
 
   @classmethod
-  def _get_directories(cls, stub):
+  def _get_directories(cls, stub:str) -> typing.Generator[str, None, None]:
     shell = '/bin/sh'
     if not os.path.exists(shell):
       return
@@ -49,10 +50,12 @@ class Directory(ArgComplete):
     cmd = f'compgen -o bashdefault -o default -o nospace -F _cd {stub}'
     stdout =  subprocess.Popen(cmd, shell=True,
       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    for line in stdout.stdout.readlines():
-      f = line.decode().replace('\n', '').replace('//', '/')
-      if os.path.isdir(f):
-        yield f
+    stream = stdout.stdout
+    if stream is not None:
+      for line in stream.readlines():
+        f = line.decode().replace('\n', '').replace('//', '/')
+        if os.path.isdir(f):
+          yield f
 
 
 class File(ArgComplete):
@@ -69,12 +72,14 @@ class File(ArgComplete):
       return
 
     cmd = f'compgen -o bashdefault -o default -o nospace -F _ls {stub}'
-    stdout =  subprocess.Popen(cmd, shell=True,
+    stdout = subprocess.Popen(cmd, shell=True,
       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    for line in stdout.stdout.readlines():
-      f = line.decode().replace('\n', '').replace('//', '/')
-      if os.path.exists(f):
-        yield f
+    stream = stdout.stdout
+    if stream is not None:
+      for line in stream.readlines():
+        f = line.decode().replace('\n', '').replace('//', '/')
+        if os.path.exists(f):
+          yield f
 
 
 class ArgumentParser(object):
@@ -87,7 +92,6 @@ class ArgumentParser(object):
   def __call__(self, func):
     methodname = func.__name__
     methodhelp = func.__doc__ or methodname
-    typespec = func.__annotations__
 
     self._methods[methodname] = {
       'func': func,
@@ -107,6 +111,11 @@ class ArgumentParser(object):
         self._invalid_syntax(func, arg, 'type annotation')
         return
 
+      if type(argtype) == types.UnionType:
+        assert len(argtype.__args__) == 2
+        assert argtype.__args__[1] == type(None)
+        argtype = argtype.__args__[0]
+
       action = 'store'
       if argtype == bool:
         action = 'store_true'
@@ -121,7 +130,11 @@ class ArgumentParser(object):
         task.add_argument('--'+arg, default=default, action=action)
       else:
         self._methods[methodname]['args']['--'+arg] = argtype
-        task.add_argument('--'+arg, type=argtype, default=default)
+        try:
+          task.add_argument('--'+arg, type=argtype, default=default)
+        except:
+          print(argtype)
+          raise
     return func
 
   def _exec_func(self, func, args):
@@ -204,8 +217,8 @@ class ArgumentParser(object):
     if '_LOCAL_COMP_LINE' not in os.environ:
       return
 
-    COMP_LINE = os.environ.get('_LOCAL_COMP_LINE')
-    binary, *args = shlex.split(COMP_LINE)
+    COMP_LINE = os.environ.get('_LOCAL_COMP_LINE') or ''
+    _, *args = shlex.split(COMP_LINE)
     needs_new_token = COMP_LINE.endswith(' ')
 
     # So far just the binary has been typed
@@ -245,10 +258,11 @@ class ArgumentParser(object):
 
 
 def _GetForwardingWrapperFrame():
-  previous = None
+  previous:typing.Any|None = None
   for entry in inspect.stack():
     if entry.frame.f_code.co_name == '_exec_func':
       module = inspect.getmodule(previous)
+      assert previous is not None
       return previous, getattr(module, previous.f_code.co_name)
     previous = entry.frame
 

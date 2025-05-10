@@ -23,11 +23,9 @@ py_library (
     "//impulse/lib:lib",
     "//impulse/pkg:packaging",
     "//impulse/rules:core_rules",
-    "//impulse/types:typecheck",
     "//impulse/types:types",
     "//impulse/util:bintools",
     "//impulse/util:temp_dir",
     "//impulse/util:tree_builder",
-    "//impulse/util:typecheck",
   ],
 )

@@ -26,7 +26,6 @@ py_library (
 py_library (
   name = "interface",
   srcs = [ "interface.py" ],
-  deps = [ "//impulse/util:typecheck" ],
 )
 
 py_library (

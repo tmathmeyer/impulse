@@ -9,10 +9,9 @@ from impulse.core import debug
 from impulse.types import references
 from impulse.types import parsed_target
 from impulse.types import paths
-from impulse.types import typecheck
 
 
-def StackScour(filename):
+def StackScour(filename:str) -> inspect.FrameInfo|None:
   for frame in inspect.stack():
     if frame.filename.endswith(filename):
       return frame
@@ -21,7 +20,7 @@ def StackScour(filename):
 
 class EnvironmentLoader(metaclass=abc.ABCMeta):
   @abc.abstractmethod
-  def LoadFile(self, file:references.File):
+  def LoadFile(self, file:references.File) -> None:
     '''Loads a file into the environment'''
 
 
@@ -29,11 +28,9 @@ class BuiltinMethod(object):
   def __init__(self):
     self._loader:EnvironmentLoader = None
 
-  @typecheck.Assert
   def Attach(self, loader:EnvironmentError) -> None:
     self._loader = loader
 
-  @typecheck.Assert
   def _GetBuildFileFromStack(self) -> references.File:
     # Walks the stack to find the BUILD file where the builtin method was called
     build_file = 'Fake'
@@ -45,12 +42,10 @@ class BuiltinMethod(object):
 
 
 class DeprecationWarning(BuiltinMethod):
-  @typecheck.Assert
   def __init__(self, method:str):
     super().__init__()
     self._method = method
 
-  @typecheck.Assert
   def __call__(self, *_, **__) -> None:
     callsite = inspect.stack()[1]
     debug.DebugMsg(f'[{callsite.filename}:{callsite.lineno}]: '
@@ -58,41 +53,39 @@ class DeprecationWarning(BuiltinMethod):
 
 
 class LoadFile(BuiltinMethod):
-  @typecheck.Assert
   def __call__(self, *files:list[str]) -> None:
     for loading in files:
       try:
-        loadfile = references.File(paths.QualifiedPath(loading).AbsolutePath())
+        loadfile = references.File(paths.QualifiedPath(loading).AbsPath())
         self._loader.LoadFile(loadfile)
       except exceptions.FileNotFoundException as fnfe:
         callframe = StackScour('BUILD')
+        if callframe is None:
+          raise errors.FatalError('No BUILD file found in stack trace')
         raise errors.FileNotFoundError(loading,
                                        callframe.filename,
                                        callframe.positions) from None
 
 
-
 class Pattern(BuiltinMethod):
-  @typecheck.Assert
-  def __call__(self, pattern:str):
+  def __call__(self, pattern:str) -> list[references.File]:
     build_file:references.File = self._GetBuildFileFromStack()
-    pattern:references.File = build_file.Directory().File(references.Filename(pattern))
+    pattern:references.File = build_file.Directory().GetFile(references.Filename(pattern))
     regex = pattern.Absolute().Value()
     try:
       files = []
       for file in glob.glob(regex):
-        files.append(references.File(file).Absolute().QualifiedPath().RelativeLocation())
+        absolute_path = paths.AbsolutePath(file)
+        files.append(absolute_path.QualPath().RelativeLocation())
       return files
     except:
       return []
 
 
 class Platform(BuiltinMethod):
-  @typecheck.Assert
   def __init__(self, archive:parsed_target.TargetArchive):
     self._archive = archive
 
-  @typecheck.Assert
   def __call__(self, **kwargs):
     assert 'name' in kwargs
     name = kwargs['name']
@@ -135,11 +128,12 @@ class BuildRule(BuiltinMethod):
             target, fn, kwargs, self._cmdline, extra_tags))
       except exceptions.TargetCannotBeMapped as tcbm:
         callframe = StackScour('BUILD')
+        if callframe is None:
+          raise errors.FatalError('Could not find BUILD file on stack')
         raise errors.InvalidDependency(targetname=tcbm.target,
                                        targetfile=tcbm.location,
                                        sourcefile=callframe.filename,
                                        sourcerange=callframe.positions) from None
-
     return replacement
 
 
@@ -156,10 +150,10 @@ class BuildMacro(BuiltinMethod):
     return Replacement
 
   def ImitateRule(self, rulefile:str, rulename:str, args:dict,
-                  kwargs:dict=None, tags:list=None):
+                  kwargs:dict|None=None, tags:list|None=None):
     args.update({'tags': tags or [], 'buildfile': self._GetMacroFile()})
     args.update(kwargs or {})
-    load_file = references.File(paths.QualifiedPath(rulefile).AbsolutePath())
+    load_file = references.File(paths.QualifiedPath(rulefile).AbsPath())
     self._archive.GetBuildTargetFromFile(load_file, rulename)(**args)
 
 

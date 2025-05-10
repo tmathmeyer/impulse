@@ -16,7 +16,7 @@ class Messages(object):
 class UpdateGraphResponseData(object):
   def __init__(self):
     self.added_graph = set()
-    self.rerun_more_deps = None
+    self.rerun_more_deps = []
 
   def InjectMoreGraph(self, graph):
     self.added_graph |= graph
@@ -93,7 +93,7 @@ class JobResponse(object):
 
   def __init__(self, level:str,
                      job_id:int,
-                     job:GraphNode,
+                     job:GraphNode|None,
                      message:str='',
                      result=None):
     self._level = level
@@ -283,7 +283,7 @@ class DependentPool(ThreadPool):
     self._in_flight |= self._pending_add
     self._pending_add = set()
 
-  def _cycle_graph(self, remove_node:GraphNode=None):
+  def _cycle_graph(self, remove_node:GraphNode|None=None):
     newgraph:Set[GraphNode] = set()
     for node in self._input:
       if remove_node:

@@ -11,7 +11,6 @@ from impulse import recursive_loader
 from impulse.args import args
 from impulse.core import debug
 from impulse.core import errors
-from impulse.core import exceptions
 from impulse.core import threading
 from impulse.format import format as fmt
 from impulse.util import temp_dir

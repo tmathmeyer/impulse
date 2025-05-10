@@ -1,11 +1,9 @@
 
 from impulse.core import exceptions
 from impulse.core import interface
-from impulse.util import typecheck
 
 
 class LocalEnvironParser(dict):
-  @typecheck.Ensure
   def __init__(self, reader:'FileReader'):
     self._reader = reader
     self._data = {}
@@ -45,7 +43,7 @@ class FileReader():
 
 @interface.IFace
 class BuildFileReaderImpl(FileReader):
-  
+
   def call_langs(self, *langs):
     pass
 

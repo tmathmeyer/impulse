@@ -14,7 +14,6 @@ from impulse.pkg import overlayfs
 from impulse.pkg import packaging
 from impulse.types import paths
 from impulse.types import references
-from impulse.types import typecheck
 from impulse.util import temp_dir
 
 
@@ -24,8 +23,14 @@ PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')
 BINARIES_DIR = os.path.join(EXPORT_DIR, 'BINARIES')
 
 
+class BuildableTargetInterface():
+  __code__:typing.Any
+  __name__:str
+
 
 class Target(object):
+  _name:references.Target
+
   def __init__(self, name:references.Target):
     self._name = name
 
@@ -88,7 +93,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
     '''Gets the default platform target if set'''
 
   @abc.abstractmethod
-  def GetBuildTarget(self, name:references.Target) -> Target:
+  def GetBuildTarget(self, name:references.Target) -> 'BuildTarget':
     '''Gets a build target by name'''
 
   @abc.abstractmethod
@@ -99,7 +104,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
 class BuildTarget(Target):
   __slots__ = ('_name', '_func', '_kwargs', '_scope', '_tags', '_deps', '_includes', '_staged')
   def __init__(self, name:references.Target,
-               function:typing.Callable,
+               function:BuildableTargetInterface,
                kwargs:dict,
                scope:dict,
                tags:list[str]):
@@ -116,7 +121,6 @@ class BuildTarget(Target):
   def GetName(self) -> str:
     return str(self._name)
 
-  @typecheck.Assert
   def _PrecomputeDependencies(self, search:typing.Any) -> typing.Any:
     if type(search) == dict:
       return {k:self._PrecomputeDependencies(v) for k,v in search.items()}
@@ -128,7 +132,6 @@ class BuildTarget(Target):
         return converted
     return search
 
-  @typecheck.Assert
   def _ConvertToTargetRefName(self, item:str) -> references.Target|None:
     try:
       return references.Target.Parse(item, self._name.GetDirectory())
@@ -138,12 +141,11 @@ class BuildTarget(Target):
   def GetDependencies(self) -> list[references.Target]:
     return list(self._deps)
 
-  def AddIncludes(self, funcs:list[typing.Callable]) -> 'BuildTarget':
+  def AddIncludes(self, funcs:list[BuildableTargetInterface]) -> 'BuildTarget':
     for func in funcs:
       self._includes[func.__name__] = (marshal.dumps(func.__code__))
     return self
 
-  @typecheck.Assert
   def Stage(self, archive:TargetArchive) -> StagedBuildTargetSet:
     if self._staged is RULE_STAGING_RECURSIVE_CANARY:
       raise exceptions.BuildTargetCycle.Cycle(self)
@@ -159,7 +161,6 @@ class BuildTarget(Target):
     except exceptions.ImpulseFileChainException as e:
       raise e.Chain(str(self._name))
 
-  @typecheck.Assert
   def _StageInternal(self, archive:TargetArchive) -> StagedBuildTargetSet:
     dependencies = StagedBuildTargetSet()
     for dependency in self._deps:
@@ -193,14 +194,19 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
 
     self._force_build = force
     self._buildrule_name = target._rule_name
+
+    package_target:references.Target = target._name
     self._package = packaging.ExportablePackage(
-      target._name, target._rule_name, archive.GetDefaultPlatformTarget(), internal)
+      package_target=package_target,
+      platform=archive.GetDefaultPlatformTarget(),
+      ruletype=target._rule_name,
+      can_access_internal=internal)
 
   def __eq__(self, other:typing.Any) -> bool:
     return (other.__class__ == self.__class__ and
             other._name == self._name)
 
-  def __hash__(self) -> str:
+  def __hash__(self) -> int:
     return hash(self._name)
 
   def __repr__(self) -> str:
@@ -209,23 +215,19 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
   def LoadToTemp(self, package_dir:str, binary_dir:str) -> None:
     return self._package.LoadToTemp(package_dir, binary_dir)
 
-  @typecheck.Assert
   def UnloadPackageDirectory(self) -> None:
     return self._package.UnloadPackageDirectory()
 
-  @typecheck.Assert
-  def get_name(self) -> None:
+  def get_name(self) -> str:
     return str(self._name)
 
-  @typecheck.Assert
   def data(self) -> packaging.ExportablePackage:
     return self._package
 
-  @typecheck.Assert
   def _GetFilesIncludedInBuildDirectory(self, root:paths.AbsolutePath) -> dict:
     self.check_thread()
     result = {}
-    relative = root.QualifiedPath().Value()[2:]
+    relative = root.QualPath().Value()[2:]
     for entry in self._marshalled_kwargs.get('srcs', []):
       filename = os.path.join(root.Value(), entry)
       if not os.path.exists(filename):
@@ -238,7 +240,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
       result[os.path.join(relative, entry)] = filename
     return result
 
-  @typecheck.Assert
   def _NeedsBuild(self, package_dir:str, src_dir:str) -> bool:
     self.check_thread()
     self._package, needs_building, _ = self._package.NeedsBuild(
@@ -249,7 +250,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
       return True
     return needs_building
 
-  @typecheck.Assert
   def _RunBuildRule(self) -> typing.Any:
     self.check_thread()
     buildrule, rule, buildfile = self._CompileBuildRule()
@@ -266,7 +266,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
       buildrule_type = str(self._buildrule_name)
       raise exceptions.BuildDefsRaisesException(target_name, buildrule_type, e)
 
-  @typecheck.Assert
   def _CompileBuildRule(self) -> tuple[types.FunctionType, str, str]:
     self.check_thread()
     try:
@@ -278,7 +277,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     except Exception as e:
       raise exceptions.BuildRuleCompilationError(e)
 
-  @typecheck.Assert
   def _GetExecEnv(self) -> dict:
     self.check_thread()
     environment = globals()
@@ -342,7 +340,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
               if not export_binary:
                 raise Exception('{} must return a binary exporter!'.format(
                   self._buildrule_name))
-              bindir = os.path.join(binaries_directory, build_root.QualifiedPath().Value()[2:])
+              bindir = os.path.join(binaries_directory, build_root.QualPath().Value()[2:])
               packaging.EnsureDirectory(bindir)
               export_binary(self._package, self._name._target_name.Name(),
                             package_export_path, bindir)

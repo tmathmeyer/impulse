@@ -1,18 +1,18 @@
 
 from impulse.testing import unittest
 from impulse.args import args
-from impulse.util import temp_dir
-import os
+import typing
 
 
-def ReturnDirectoryResults(stub=None):
+def ReturnDirectoryResults(stub:str|None=None) -> typing.Generator[str, None, None]:
   for option in ('example', 'rasin', 'rapid', 'foobar'):
     if stub and option.startswith(stub):
       yield option
 
 
 def DontRelyOnCompgen():
-  args.Directory._get_directories = ReturnDirectoryResults
+  # Shadowing intentionally.
+  args.Directory._get_directories:typing.Callable[[str], typing.Generator[str, None, None]] = ReturnDirectoryResults
 
 
 class TestDirectoryCompletion(unittest.TestCase):
@@ -169,7 +169,7 @@ class TestArgumentParserComplete(unittest.TestCase):
   def test_completion_directory_flag(self):
     ap = args.ArgumentParser()
     @ap
-    def example(foo:args.Directory=None):
+    def example(foo:args.Directory|None=None):
       pass
     ap._print_completion_for_testing(['example', '--'], self.assertCalledWithArgs(
       ['--foo']))

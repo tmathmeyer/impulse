@@ -13,7 +13,6 @@ from impulse.types import builtins
 from impulse.types import references
 from impulse.types import parsed_target
 from impulse.types import paths
-from impulse.types import typecheck
 
 
 class LazyEnvironmentLoader(builtins.EnvironmentLoader):
@@ -28,7 +27,6 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     self._environment['__builtins__'] = dict(__builtins__)
     self._environment['__builtins__']['__import__'] = self.ImportInjector
 
-  @typecheck.Assert
   def IsStubOrUndefined(self, key:str) -> bool:
     if key not in self._environment:
       return True
@@ -36,11 +34,9 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       return True
     return False
 
-  @typecheck.Assert
   def Get(self, key:str) -> typing.Any:
     return self._environment[key]
 
-  @typecheck.Assert
   def ImportInjector(self, name:str, locals:dict=None, globals:dict=None, fromlist:list[str]=None, level:int=None) -> None:
     # declare allowed imports along with special cases used when importing from them
     allowed_import_targets = {
@@ -70,7 +66,6 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
         raise Exception(f'`{target}` could not be imported from `{name}`')
     return synthetic_module
 
-  @typecheck.Assert
   def LoadFile(self, file:references.File) -> None:
     if file in self._loaded_files:
       return
@@ -105,7 +100,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
 
 class StubLoader(object):
   def __init__(self, env:LazyEnvironmentLoader, name:str, filename:str):
-    self._file = references.File(paths.QualifiedPath(filename).AbsolutePath())
+    self._file = references.File(paths.QualifiedPath(filename).AbsPath())
     self._name = name
     self._env = env
 
@@ -208,26 +203,22 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     except:
       raise exceptions.BuildFileMissingTarget(buildfile=file.Absolute(), target=name)
 
-  @typecheck.Assert
   def ParseTarget(self, name:references.Target) -> None:
     try:
       self._env.LoadFile(name.GetBuildFile())
     except exceptions.FileNotFoundException as e:
       raise exceptions.TargetCannotBeMapped(target=name, location=e.filepath) from None
 
-  @typecheck.Assert
   def ParsePlatform(self, name:references.Target) -> None:
     self.ParseTarget(name)
     assert name in self._platforms
     self._platform = self._platforms[name]
 
-  @typecheck.Assert
   def StageTarget(self, name:references.Target) -> None:
     if name not in self._targets:
       raise exceptions.BuildTargetMissing(name)
     self._targets[name].Stage(self)
 
-  @typecheck.Assert
   def GetStagedTargets(self) -> parsed_target.StagedBuildTargetSet:
     result = parsed_target.StagedBuildTargetSet()
     for _, target in self._targets.items():

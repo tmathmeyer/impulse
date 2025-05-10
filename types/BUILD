@@ -8,12 +8,6 @@ py_library (
     "references.py",
   ],
   deps = [
-    ":typecheck",
     "//impulse/core:environment",
   ],
-)
-
-py_library (
-  name = "typecheck",
-  srcs = [ "typecheck.py" ],
 )

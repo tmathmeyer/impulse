@@ -7,8 +7,8 @@ all: copy_srcs
 	@rm -r impulse/
 
 typecheck: copy_srcs
-	@find impulse/ | grep .*[a-z]\.py | xargs mypy
-	@rm -r impulse/
+	@cd impulse
+	@ty check .
 
 copy_srcs:
 	@rm -rf impulse/
