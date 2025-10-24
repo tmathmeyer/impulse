@@ -154,7 +154,6 @@ def _python_package_fresh_venv(target, packages):
     import sys
     version = f'{sys.version_info.major}.{sys.version_info.minor}'
     packages = f'.venv/lib/python{version}/site-packages'
-    os.system(f'ls -lash {packages}')
     for library in os.listdir(packages):
       if library == '__pycache__':
         continue
@@ -221,7 +220,8 @@ def py_binary(target, name, **kwargs):
 
 
 @depends_targets("//impulse/testing:unittest")
-@using(_add_files, _write_file, py_make_binary, _version_check)
+@using(_add_files, _write_file, py_make_binary, _get_recursive_pips,
+       _version_check, _python_package_fresh_venv)
 @buildrule
 def py_test(target, name, srcs, **kwargs):
   target.SetTags('exe', 'test')
@@ -232,6 +232,12 @@ def py_test(target, name, srcs, **kwargs):
   while directory:
     _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
     directory = os.path.dirname(directory)
+
+  python_packages = _get_recursive_pips(target, kwargs)
+
+  for pip in python_packages:
+    target.PropagateData('python_packages', pip)
+  _python_package_fresh_venv(target, python_packages)
 
   # Track the sources
   _add_files(target, srcs)
