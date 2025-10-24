@@ -4,7 +4,7 @@ def _compile(target, compiler, name, include, srcs, objs, flags, std, log=False)
   else:
     command = f'{compiler} -o {name} {include} {srcs} {objs} {flags}'
   if log:
-    print(command);
+    print(command)
   try:
     target.Execute(command)
     if not os.path.exists(name):

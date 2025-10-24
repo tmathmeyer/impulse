@@ -60,10 +60,10 @@ def _get_tools_paths(target, targets):
 
 
 def _get_recursive_pips(target, kwargs):
-  my_pips = set(kwargs.get('pips', []))
+  my_python_packages = set(kwargs.get('python_packages', []))
   for dep in target.Dependencies(tags=Any('py_library', 'py_binary')):
-    my_pips.update(set(dep.GetPropagatedData('pips')))
-  return list(my_pips)
+    my_python_packages.update(set(dep.GetPropagatedData('python_packages')))
+  return list(my_python_packages)
 
 
 def _version_check(target, kwargs):
@@ -135,7 +135,7 @@ def py_library(target, name, srcs, **kwargs):
   target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
   for pip in _get_recursive_pips(target, kwargs):
-    target.PropagateData('pips', pip)
+    target.PropagateData('python_packages', pip)
 
   _version_check(target, kwargs)
 
@@ -146,79 +146,36 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
 
-def _get_pip_metadata(pips):
-  import sysconfig
-  import re
-  lib_path = sysconfig.get_path('platlib', sysconfig.get_default_scheme())
-  py_version = lib_path.split('/')[3][6:]
-  packages = []
-
-  def GetOtherNameCombinations(pip):
-    dash = pip.replace('_', '-')
-    under = pip.replace('-', '_')
-    return [
-      under[0].upper() + under[1:],
-      under[0].lower() + under[1:],
-      dash[0].upper() + dash[1:],
-      dash[0].lower() + dash[1:],
-    ]
-
-  def GetPipEgg(pip, req, retry=True):
-    verz = r'\d+(.\d+)+'
-    egg_fmt = rf'-py{py_version}.egg'
-    dist_fmt = rf'\.dist'
-    dir_fmt = rf'{pip}-{verz}(({egg_fmt})|({dist_fmt}))-info'
-    for file in os.listdir(lib_path):
-      if re.match(dir_fmt, file):
-        return f'{lib_path}/{file}'
-    if retry:
-      for name in GetOtherNameCombinations(pip):
-        try:
-          return GetPipEgg(name, req, False)
-        except:
-          pass
-    raise ValueError(
-      f'Cant find {pip} installation, required by {req} (checked {lib_path})')
-
-  def ParseRequirementLine(line):
-    match = re.match(r'([a-zA-Z0-9-_]+).*', line.strip())
-    return match.groups()[0]
-
-  pips = [(p,'root') for p in pips]
-  parsed_pips = []
-
-  while pips:
-    pip, req = pips[0]
-    if pip in parsed_pips:
-      continue
-    parsed_pips.append(pip)
-    pips = pips[1:]
-    egg_info = GetPipEgg(pip, req)
-    if os.path.exists(f'{egg_info}/requires.txt'):
-      with open(f'{egg_info}/requires.txt', 'r') as f:
-        for line in f.readlines():
-          if not line.strip():
-            break;
-          pips.append((ParseRequirementLine(line), pip))
-    if os.path.exists(f'{egg_info}/top_level.txt'):
-      with open(f'{egg_info}/top_level.txt', 'r') as f:
-        packages.append(f.read().split('\n')[0].strip())
-    elif os.path.exists(f'{lib_path}/{pip}'):
-      packages.append(pip)
-
-  result = []
-  for p in packages:
-    lib = f'{lib_path}/{p}'
-    if os.path.exists(lib):
-      result.append((p, lib))
-    elif os.path.exists(f'{lib}.py'):
-      result.append((p, f'{lib}.py'))
-  return result
+def _python_package_fresh_venv(target, packages):
+  if os.path.exists('/usr/bin/uv'):
+    target.Execute('uv venv -q')
+    for package in packages:
+      target.Execute(f'uv pip install {package} -q')
+    import sys
+    version = f'{sys.version_info.major}.{sys.version_info.minor}'
+    packages = f'.venv/lib/python{version}/site-packages'
+    os.system(f'ls -lash {packages}')
+    for library in os.listdir(packages):
+      if library == '__pycache__':
+        continue
+      if library.endswith('.dist-info'):
+        continue
+      if library.endswith('.py'):
+        target.AddFile(library)
+      target.Execute(f'cp -r {packages}/{library} {library}')
+      for dn, _, files in os.walk(library):
+        init_file = os.path.join(dn, '__init__.py')
+        if not os.path.exists(init_file):
+          target.Execute(f'touch {init_file}')
+          target.AddFile(init_file)
+        if '__pycache__' not in dn:
+          for file in files:
+            target.AddFile(os.path.join(dn, file))
 
 
 @depends_targets("//impulse/util:bintools")
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary,
-       _get_pip_metadata, _get_recursive_pips, _version_check)
+       _get_recursive_pips, _version_check, _python_package_fresh_venv)
 @buildrule
 def py_binary(target, name, **kwargs):
   target.SetTags('exe')
@@ -248,20 +205,15 @@ def py_binary(target, name, **kwargs):
     if len(srcs) == 1:
       mainfile = srcs[0].rstrip('py').rstrip('.')
 
-  for pip in _get_recursive_pips(target, kwargs):
-    target.PropagateData('pips', pip)
+  python_packages = _get_recursive_pips(target, kwargs)
+
+  for pip in python_packages:
+    target.PropagateData('python_packages', pip)
+  _python_package_fresh_venv(target, python_packages)
 
   # Create the __main__ file
   main_contents = f'from {package} import {mainfile}\n{mainfile}.main()\n'
   _write_file(target, '__main__.py', main_contents)
-  for pkgname, pkgpath in _get_pip_metadata(_get_recursive_pips(target, kwargs)):
-    os.system(f'cp -r {pkgpath} {pkgname}')
-    for dn, _, files in os.walk(pkgname):
-      for file in files:
-        sourcefile = f'{dn}/{file}'
-        if '__pycache__' not in sourcefile:
-          target.AddFile(sourcefile)
-
   _version_check(target, kwargs)
 
   # Converter from pkg to binary

@@ -3,7 +3,7 @@ import multiprocessing
 import queue
 import signal
 import traceback
-from typing import Set, Dict, TypeVar, Generic
+from typing import Set, TypeVar, Generic
 
 from impulse.core import job_printer
 

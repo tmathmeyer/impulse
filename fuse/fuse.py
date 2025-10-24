@@ -27,7 +27,6 @@ from ctypes.util import find_library
 from platform import machine, system
 from signal import signal, SIGINT, SIG_DFL
 from stat import S_IFDIR
-from traceback import print_exc
 from functools import partial
 
 try:

@@ -2,6 +2,7 @@
 import sys
 from impulse.core import debug
 
+
 class JobPrinter(object):
   def __init__(self, jobcount, pool_count):
     self._jobs = ['IDLE' for _ in range(pool_count)]
