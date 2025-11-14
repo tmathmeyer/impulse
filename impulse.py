@@ -242,7 +242,7 @@ def init():
 
 
 def main():
-  if os.environ.get("UNSHARED") != "1" and os.geteuid() != 0:
+  if False and os.environ.get("UNSHARED") != "1" and os.geteuid() != 0:
     subproc = [sys.executable, *sys.argv]
     print(subproc)
     os.environ["UNSHARED"] = "1"
@@ -257,7 +257,7 @@ def main():
 
 
 if __name__ == '__main__':
-  if os.environ.get("UNSHARED") != "1" and os.geteuid() != 0:
+  if False and os.environ.get("UNSHARED") != "1" and os.geteuid() != 0:
     # Special behavior for running as a script!
     subproc = [sys.executable, '-m', 'impulse.impulse', *sys.argv[1:]]
     os.environ["UNSHARED"] = "1"
