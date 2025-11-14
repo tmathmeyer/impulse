@@ -15,7 +15,7 @@ jobs:
       - name: Install Podman + fuse-overlayfs
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman slirp4netns uidmap fuse-overlayfs libfuse2t64
+          sudo apt-get install -y podman slirp4netns uidmap fuse-overlayfs
 
       # Configure Podman to use fuse-overlayfs instead of kernel overlay
       - name: Configure Podman
@@ -39,6 +39,6 @@ jobs:
             ubuntu:24.04 \
             bash -lc "
               apt-get update &&
-              apt-get install -y make python3 &&
+              apt-get install -y make python3 fuse &&
               make
             "
