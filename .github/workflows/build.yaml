@@ -11,14 +11,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install podman + fuse-overlayfs for rootless overlay support
-      - name: Install Podman + fuse-overlayfs
+      - name: Install Podman and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman slirp4netns uidmap fuse-overlayfs
+          sudo apt-get install -y \
+            podman \
+            slirp4netns \
+            uidmap \
+            fuse3 \
+            fuse-overlayfs \
+            libfuse-dev \
+            python3 python3-pip make
 
-      # Configure Podman to use fuse-overlayfs instead of kernel overlay
-      - name: Configure Podman
+      - name: Configure Podman storage backend
         run: |
           mkdir -p ~/.config/containers
           cat <<EOF > ~/.config/containers/storage.conf
@@ -30,8 +35,13 @@ jobs:
           mount_program = "/usr/bin/fuse-overlayfs"
           EOF
 
-      # Run your build in a container, exactly like before (make -C impulse)
-      - name: build impulse inside Podman using fuse-overlayfs
+      - name: Verify Podman + fuse-overlayfs
+        run: |
+          podman --version
+          which fuse-overlayfs
+          fuse-overlayfs --help
+
+      - name: Build impulse inside Podman using fuse-overlayfs
         run: |
           podman run --rm \
             -v "$PWD":/src:Z \
