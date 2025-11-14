@@ -15,7 +15,7 @@ jobs:
       - name: Install Podman + fuse-overlayfs
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman slirp4netns uidmap fuse-overlayfs
+          sudo apt-get install -y podman slirp4netns uidmap fuse-overlayfs fuse libfuse2t64
 
       # Configure Podman to use fuse-overlayfs instead of kernel overlay
       - name: Configure Podman
