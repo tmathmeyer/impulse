@@ -26,7 +26,7 @@ def FuseCTX(ro, files):
       os.system(f'cp {real} {destination}')
     yield mountpoint
   finally:
-    os.system(f'umount {mountpoint}')
+    os.system(f'fusermount -u {mountpoint}')
     os.system(f'rm -rf {workdir}')
     os.system(f'rm -rf {mountpoint}')
     os.system(f'rm -rf {scratch}')
