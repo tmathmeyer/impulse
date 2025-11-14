@@ -1,7 +1,7 @@
 # bootstrap makefile for building impulse
 
 all: copy_srcs
-	python3 -m impulse.impulse build //impulse:impulse --fakeroot $(shell pwd) --debug
+	python3 -m impulse.impulse build //impulse:impulse --fakeroot $(shell pwd) --debug --threads 1
 	@./GENERATED/BINARIES/impulse/impulse build //impulse:impulse --fakeroot $(shell pwd) --force --debug
 	@./GENERATED/BINARIES/impulse/impulse build //impulse:impulse --fakeroot $(shell pwd) --force
 	@rm -r impulse/
@@ -27,8 +27,6 @@ copy_srcs:
 	@touch impulse/format/__init__.py
 	@cp -r pkg impulse/pkg
 	@touch impulse/pkg/__init__.py
-	@cp -r fuse impulse/fuse
-	@touch impulse/fuse/__init__.py
 	@cp -r util impulse/util
 	@touch impulse/util/__init__.py
 	@cp -r testing impulse/testing

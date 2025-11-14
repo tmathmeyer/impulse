@@ -316,15 +316,11 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     if not self._NeedsBuild(package_directory, ro_directory):
       return
 
-    rw_directory = tempfile.mkdtemp()
-    working_directory = tempfile.mkdtemp()
-
     package_export_path = os.path.join(package_directory, self._name.GetPackage().GetRelativePath())
 
     try:
       export_binary = None
-      with overlayfs.FuseCTX(working_directory, rw_directory, forced_files,
-                             *loaded_dep_dirs):
+      with overlayfs.FuseCTX(loaded_dep_dirs, forced_files) as working_directory:
         with temp_dir.ScopedTempDirectory(working_directory):
           # Set these as the hashed input files
           self._package.SetInputFiles(included_files.keys())
@@ -349,8 +345,6 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     except exceptions.BuildTargetNoBuildNecessary:
       pass
     finally:
-      shutil.rmtree(working_directory)
-      shutil.rmtree(rw_directory)
       for d in self.dependencies:
         d.UnloadPackageDirectory()
 

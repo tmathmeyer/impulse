@@ -33,7 +33,8 @@ def _add_files(target, srcs):
   for src in srcs:
     added_file = os.path.join(target.GetPackageDirectory(), src)
     if not os.path.exists(added_file):
-      target.ExecutionFailed(f'CHECKFILE {added_file}', 'file does not exist')
+      pwd = os.getcwd()
+      target.ExecutionFailed(f'CHECKFILE {added_file}', f'file does not exist in {pwd}')
     target.AddFile(added_file)
   for deplib in target.Dependencies(tags=Any('py_library')):
     for f in deplib.IncludedFiles():

@@ -3,8 +3,8 @@ import abc
 import hashlib
 import json
 import os
-import random
 import subprocess
+import tempfile
 import time
 import typing
 import zipfile
@@ -272,7 +272,7 @@ class ExportablePackage(Hasher):
 
   def ExecutionFailed(self, command:str, stderr:str):
     '''Triggers an exception with given cmdline and stderr.'''
-    raise exceptions.BuildDefsRaisesException(self.package_target._target_name.Value(),
+    raise exceptions.BuildDefsRaisesException(self.package_target._target_name,
       self.package_ruletype, command + "\n\n" + stderr)
 
   def ExecutionNotRequired(self):
@@ -390,18 +390,7 @@ class ExportablePackage(Hasher):
         return self._extracted_dir, {}, exported_package
 
   def MakeTempDir(self) -> str:
-    '''Makes a temporary directory. Please clean up after yourself.'''
-    exists = True
-    chrs = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-    dirname = ''
-    while exists:
-      dirname = '__impulse__' + ''.join(random.choice(chrs) for i in range(10))
-      if not os.path.exists(f'/tmp/{dirname}'):
-        exists = False
-    r = self.RunCommand(f'mkdir -p /tmp/{dirname}')
-    if r.returncode:
-      raise errors.FatalError(f'MKDIR FAILED -> {r.stdout}')
-    return f'/tmp/{dirname}'
+    return tempfile.mkdtemp()
 
   def UseTempDir(self):
     '''Context manage for a temporary directory that auto cleans up.'''

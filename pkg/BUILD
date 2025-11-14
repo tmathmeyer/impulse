@@ -6,7 +6,6 @@ py_library (
   ],
   deps = [
     "//impulse/core:exceptions",
-    "//impulse/fuse:fuse",
     "//impulse/util:temp_dir",
   ],
 )
