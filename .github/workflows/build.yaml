@@ -1,0 +1,44 @@
+name: build impulse
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install podman + fuse-overlayfs for rootless overlay support
+      - name: Install Podman + fuse-overlayfs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman slirp4netns uidmap fuse-overlayfs
+
+      # Configure Podman to use fuse-overlayfs instead of kernel overlay
+      - name: Configure Podman
+        run: |
+          mkdir -p ~/.config/containers
+          cat <<EOF > ~/.config/containers/storage.conf
+          [storage]
+          driver = "overlay"
+          runroot = "/tmp/podman-run"
+          graphroot = "/tmp/podman"
+          [storage.options]
+          mount_program = "/usr/bin/fuse-overlayfs"
+          EOF
+
+      # Run your build in a container, exactly like before (make -C impulse)
+      - name: build impulse inside Podman using fuse-overlayfs
+        run: |
+          podman run --rm \
+            -v "$PWD":/src:Z \
+            -w /src \
+            ubuntu:24.04 \
+            bash -lc "
+              apt-get update &&
+              apt-get install -y make python3 &&
+              make
+            "
