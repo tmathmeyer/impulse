@@ -15,9 +15,11 @@ def FuseCTX(ro, files):
   lower_dirs = ':'.join([lower_basedir, *ro])
 
   options = f'lowerdir={lower_dirs},upperdir={scratch},workdir={workdir},userxattr'
-  unshare_cmd = ['mount', '-t', 'overlay', 'overlay', '-o', options, mountpoint]
+  #mount_cmd = ['mount', '-t', 'overlay', 'overlay', '-o', options, mountpoint]
+  fuse_cmd = ['fuse-overlayfs', '-o', options, mountpoint]
+
   try:
-    subprocess.run(unshare_cmd)
+    subprocess.run(fuse_cmd)
     for file, real in files.items():
       destination = os.path.join(mountpoint, file)
       os.system(f'mkdir -p {os.path.dirname(destination)}')
