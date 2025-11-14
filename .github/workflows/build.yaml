@@ -42,13 +42,4 @@ jobs:
           fuse-overlayfs --help
 
       - name: Build impulse inside Podman using fuse-overlayfs
-        run: |
-          podman run --rm \
-            -v "$PWD":/src:Z \
-            -w /src \
-            ubuntu:24.04 \
-            bash -lc "
-              apt-get update &&
-              apt-get install -y make python3 &&
-              make
-            "
+        run: make
