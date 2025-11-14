@@ -39,6 +39,6 @@ jobs:
             ubuntu:24.04 \
             bash -lc "
               apt-get update &&
-              apt-get install -y make python3 fuse &&
+              apt-get install -y make python3 fuse fuse-overlayfs &&
               make
             "
