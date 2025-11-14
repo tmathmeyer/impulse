@@ -242,25 +242,13 @@ def init():
 
 
 def main():
-  if False and os.environ.get("UNSHARED") != "1" and os.geteuid() != 0:
-    subproc = [sys.executable, *sys.argv]
-    print(subproc)
-    os.environ["UNSHARED"] = "1"
-    os.execvp('unshare', ['unshare', '--map-root-user', '-rm', '--propagation', 'unchanged', '--', *subproc])
-  else:
-    try:
-      command.eval()
-      return 0
-    except errors.RenderableError as e:
-      print(str(e))
-      return 1
+  try:
+    command.eval()
+    return 0
+  except errors.RenderableError as e:
+    print(str(e))
+    return 1
 
 
 if __name__ == '__main__':
-  if False and os.environ.get("UNSHARED") != "1" and os.geteuid() != 0:
-    # Special behavior for running as a script!
-    subproc = [sys.executable, '-m', 'impulse.impulse', *sys.argv[1:]]
-    os.environ["UNSHARED"] = "1"
-    os.execvp('unshare', ['unshare', '--map-root-user', '-rm', '--propagation', 'unchanged', '--', *subproc])
-  else:
-    sys.exit(main())
+  sys.exit(main())
