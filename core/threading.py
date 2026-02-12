@@ -1,45 +1,52 @@
+from __future__ import annotations
 import abc
 import multiprocessing
 import queue
 import signal
 import traceback
-from typing import Set, TypeVar, Generic
+from typing import Set, TypeVar, Generic, Any
 
 from impulse.core import job_printer
 
 
 class Messages(object):
+  """Shared message constants for threading."""
   EMPTY_RESPONSE = 'Internal: Empty Response'
   TIMEOUT = 'Job Waiter Timed Out'
 
 
 class UpdateGraphResponseData(object):
-  def __init__(self):
-    self.added_graph = set()
-    self.rerun_more_deps = []
+  """Data returned by a job to update the dependency graph dynamically."""
+  def __init__(self) -> None:
+    self.added_graph: set[GraphNode] = set()
+    self.rerun_more_deps: list[GraphNode] = []
 
-  def InjectMoreGraph(self, graph):
+  def InjectMoreGraph(self, graph: set[GraphNode]) -> None:
+    """Adds more nodes to the build graph."""
     self.added_graph |= graph
 
-  def RerunWithDependency(self, nodes):
-    self.added_graph |= (nodes)
+  def RerunWithDependency(self, nodes: list[GraphNode]) -> None:
+    """Specifies that the current job should be rerun after these nodes are completed."""
+    self.added_graph |= set(nodes)
     self.rerun_more_deps = nodes
+
 
 T = TypeVar('T')
 class GraphNode(Generic[T]):
+  """Base class for a node in the dependency graph."""
   def __init__(self,
-               dependencies:Set['GraphNode'],
-               has_internal_access:bool):
-    # A set(DependentJob)
+               dependencies: Set[GraphNode],
+               has_internal_access: bool):
     self.dependencies = dependencies
     self.remaining_dependencies = set(dependencies)
     self._has_internal_access = has_internal_access
     self.__in_thread__ = False
 
-  def check_thread(self):
+  def check_thread(self) -> None:
+    """Asserts that the code is running within a worker thread."""
     assert self.__in_thread__
 
-  def __call__(self, debug=False):
+  def __call__(self, debug: bool = False) -> Any:
     self.__in_thread__ = True
     if self._has_internal_access:
       access = UpdateGraphResponseData()
@@ -49,23 +56,26 @@ class GraphNode(Generic[T]):
       return self.run_job(debug)
 
   @abc.abstractmethod
-  def run_job(self, debug, internal_access=None):
+  def run_job(self, debug: bool, internal_access: UpdateGraphResponseData | None = None) -> Any:
+    """Executes the actual work of the job."""
     pass
 
   @abc.abstractmethod
-  def __eq__(self, other):
+  def __eq__(self, other: object) -> bool:
     pass
 
   @abc.abstractmethod
-  def __hash__(self):
+  def __hash__(self) -> int:
     pass
 
   @abc.abstractmethod
-  def get_name(self):
+  def get_name(self) -> str:
+    """Returns the name of the job."""
     pass
 
   @abc.abstractmethod
   def data(self) -> T:
+    """Returns the data associated with the job."""
     pass
 
 
@@ -85,17 +95,18 @@ class NullNode(GraphNode):
 
 
 class JobResponse(object):
+  """Response sent from a worker thread to the main pool."""
   class LEVEL(object):
     FATAL = '__L_FATAL__'
     WARNING = '__L_WARNING__'
     YELLOW = '__L_YELLOW__'
     GREEN = '__L_GREEN__'
 
-  def __init__(self, level:str,
-                     job_id:int,
-                     job:GraphNode|None,
-                     message:str='',
-                     result=None):
+  def __init__(self, level: str,
+                     job_id: int,
+                     job: GraphNode | None,
+                     message: str = '',
+                     result: Any = None):
     self._level = level
     self._msg = message
     self._result = result
@@ -103,18 +114,24 @@ class JobResponse(object):
     self._id = job_id
 
   def level(self) -> str:
+    """Returns the level of the response."""
     return self._level
 
   def message(self) -> str:
+    """Returns the message of the response."""
     return self._msg
 
-  def result(self):
+  def result(self) -> Any:
+    """Returns the result of the job."""
     return self._result
 
   def job(self) -> GraphNode:
+    """Returns the job associated with the response."""
+    assert self._job is not None
     return self._job
 
   def id(self) -> int:
+    """Returns the ID of the worker thread."""
     return self._id
 
 
@@ -142,10 +159,18 @@ class ThreadWatchdog(multiprocessing.Process):
     if self._debug:
       signal.signal(signal.SIGUSR1, handle_pdb)
 
-  def _Fail(self, exc:Exception):
+  def _Fail(self, exc: Exception):
+    """Handles job failure by sending a fatal response."""
+    msg = str(exc)
+    # If it's a BuildDefsRaisesException, it might contain a RenderableError or another Exception
+    from impulse.core import exceptions
+    if isinstance(exc, exceptions.BuildDefsRaisesException):
+        # The underlying exception might be a FileErrorException which is renderable
+        pass
+
     self._job_response_queue.put(JobResponse(
         JobResponse.LEVEL.FATAL, self._id, NullNode(),
-        message=str(exc)))
+        message=msg))
     if not self._debug:
       return
     traceback.print_exc()

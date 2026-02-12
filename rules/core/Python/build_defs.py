@@ -1,11 +1,13 @@
+from __future__ import annotations
 from impulse.types.stubs import buildrule
 from impulse.types.stubs import depends_targets
 from impulse.types.stubs import using
 from impulse.types.stubs import os
 from impulse.types.stubs import Any
+from impulse.types.interfaces import Package
 
 
-def py_make_binary(target, package_name, package_file, binary_location):
+def py_make_binary(target: Package, package_name: str, package_file: str, binary_location: str):
   def _get_exe(minversion):
     if not minversion:
       return 'python3'
@@ -29,7 +31,7 @@ def py_make_binary(target, package_name, package_file, binary_location):
     f'chmod +x {binary_file}')
 
 
-def _add_files(target, srcs):
+def _add_files(target: Package, srcs: list[str]):
   for src in srcs:
     added_file = os.path.join(target.GetPackageDirectory(), src)
     if not os.path.exists(added_file):
@@ -48,7 +50,7 @@ def _add_files(target, srcs):
         d = os.path.dirname(d)
 
 
-def _write_file(target, name, contents):
+def _write_file(target: Package, name: str, contents: str):
   if not os.path.exists(name):
     with open(name, 'w+') as f:
       f.write(contents)
@@ -132,7 +134,7 @@ def _version_check(target, kwargs):
 
 @using(_add_files, _write_file, _get_recursive_pips, _version_check)
 @buildrule
-def py_library(target, name, srcs, **kwargs):
+def py_library(target: Package, name: str, srcs: list[str], **kwargs: Any):
   target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
   for pip in _get_recursive_pips(target, kwargs):
@@ -177,7 +179,7 @@ def _python_package_fresh_venv(target, packages):
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary,
        _get_recursive_pips, _version_check, _python_package_fresh_venv)
 @buildrule
-def py_binary(target, name, **kwargs):
+def py_binary(target: Package, name: str, **kwargs: Any):
   target.SetTags('exe')
   srcs = kwargs.get('srcs', [])
 
@@ -224,7 +226,7 @@ def py_binary(target, name, **kwargs):
 @using(_add_files, _write_file, py_make_binary, _get_recursive_pips,
        _version_check, _python_package_fresh_venv)
 @buildrule
-def py_test(target, name, srcs, **kwargs):
+def py_test(target: Package, name: str, srcs: list[str], **kwargs: Any):
   target.SetTags('exe', 'test')
   _add_files(target, srcs + kwargs.get('data', []))
   # Create the init files

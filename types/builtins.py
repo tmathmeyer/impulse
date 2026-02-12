@@ -1,7 +1,8 @@
-
+from __future__ import annotations
 import abc
 import inspect
 import glob
+import typing
 
 from impulse.core import errors
 from impulse.core import exceptions
@@ -11,7 +12,7 @@ from impulse.types import parsed_target
 from impulse.types import paths
 
 
-def StackScour(filename:str) -> inspect.FrameInfo|None:
+def StackScour(filename: str) -> inspect.FrameInfo | None:
   for frame in inspect.stack():
     if frame.filename.endswith(filename):
       return frame
@@ -28,7 +29,7 @@ class BuiltinMethod(object):
   def __init__(self):
     self._loader:EnvironmentLoader = None
 
-  def Attach(self, loader:EnvironmentError) -> None:
+  def Attach(self, loader: EnvironmentLoader) -> None:
     self._loader = loader
 
   def _GetBuildFileFromStack(self) -> references.File:
@@ -155,5 +156,3 @@ class BuildMacro(BuiltinMethod):
     args.update(kwargs or {})
     load_file = references.File(paths.QualifiedPath(rulefile).AbsPath())
     self._archive.GetBuildTargetFromFile(load_file, rulename)(**args)
-
-
