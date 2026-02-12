@@ -17,7 +17,7 @@ class Filename(object):
   def __hash__(self) -> int:
     return hash(self._name)
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, Filename):
       return False
     return self._name == other._name
@@ -44,7 +44,7 @@ class Directory(object):
   def __hash__(self) -> int:
     return hash(self._path)
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, Directory):
       return False
     return self._path == other._path
@@ -74,7 +74,7 @@ class File(object):
   def __hash__(self) -> int:
     return hash(self._path)
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, File):
       return False
     return self._path == other._path
@@ -92,7 +92,7 @@ class TargetName(object):
   def __hash__(self) -> int:
     return hash(self._name)
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, TargetName):
       return False
     return self._name == other._name
@@ -107,7 +107,7 @@ class Package(object):
   def __hash__(self) -> int:
     return hash(self._name)
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, Package):
       return False
     return self._name == other._name and self._path == other._path
@@ -133,7 +133,7 @@ class Target(object):
   def __hash__(self) -> int:
     return hash(repr(self))
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, Target):
       return False
     return repr(self) == repr(other)

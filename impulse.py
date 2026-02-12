@@ -25,13 +25,13 @@ def setup(enable_debug:bool, fakeroot:args.Directory|None) -> None:
   """Sets up debug and path info."""
   if enable_debug:
     debug.EnableDebug()
-  fakeroot = typing.cast(args.Directory, fakeroot)
+  fakeroot=typing.cast(args.Directory, fakeroot)
   if fakeroot and fakeroot.value():
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
 
 
 def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet,
-                     N:int=6) -> None:
+                     N:int = 6) -> None:
   """Starts a pool with N threads and waits for graph run completion."""
   pool = threading.DependentPool(N, debug=debug)
   pool.Start(graph._targets)
@@ -77,11 +77,11 @@ def graph_for_directory(project=None, testonly:bool=False) -> (
 def build(
   target:impulse_paths.BuildTarget,
   platform:impulse_paths.BuildTarget|None = None,
-  debug:bool=False,
-  force:bool=False,
-  fakeroot:args.Directory|None=None,
-  threads:int=6,
-  hackermode:bool=False
+  debug:bool = False,
+  force:bool = False,
+  fakeroot:args.Directory|None = None,
+  threads:int = 6,
+  hackermode:bool = False
 ):
   """Builds the given target."""
   if hackermode:
@@ -95,7 +95,7 @@ def build(
   build_and_await(
     debug,
     recursive_loader.generate_graph(
-      p_target, platform=platform, force_build=force, allow_meta=True
+      p_target, platform = platform, force_build=force, allow_meta=True
     ), threads
   )
   return p_target.GetRuleInfo()
@@ -103,10 +103,10 @@ def build(
 
 @command
 def targets(
-  fakeroot:args.Directory|None=None,
-  testonly:bool=False,
-  project:str|None=None,
-  debug:bool=False,
+  fakeroot:args.Directory|None = None,
+  testonly:bool = False,
+  project:str|None = None,
+  debug:bool = False,
 ):
   """Lists all buildable targets."""
   setup(debug, fakeroot)
@@ -118,9 +118,9 @@ def targets(
 @command
 def sitehost(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  force:bool=False,
-  fakeroot:args.Directory|None=None
+  debug:bool = False,
+  force:bool = False,
+  fakeroot:args.Directory|None = None
 ):
   ruleinfo = build(target, debug=debug, force=force, fakeroot=fakeroot)
   print(ruleinfo.type, ruleinfo.name, ruleinfo.output)
@@ -136,8 +136,8 @@ def sitehost(
 @command
 def run(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None
+  debug:bool = False,
+  fakeroot:args.Directory|None = None
 ):
   """Builds a binary and executes it."""
   ruleinfo = build(target=target, debug=debug, force=False,
@@ -151,9 +151,9 @@ def run(
 @command
 def docker(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None,
-  norun:bool=False
+  debug:bool = False,
+  fakeroot:args.Directory|None = None,
+  norun:bool = False
 ):
   """Builds a docker container from the target."""
   ruleinfo = build(target=target, debug=debug, force=False,
@@ -179,8 +179,8 @@ def docker(
 @command
 def test(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None,
+  debug:bool = False,
+  fakeroot:args.Directory|None = None,
 ):
   """Builds a testcase and executes it."""
   ruleinfo = build(target, None, debug, False, fakeroot)
@@ -192,10 +192,10 @@ def test(
 
 @command
 def testsuite(
-  project:str|None=None,
-  debug:bool=False,
-  threads:int=6,
-  fakeroot:args.Directory|None=None
+  project:str|None = None,
+  debug:bool = False,
+  threads:int = 6,
+  fakeroot:args.Directory|None = None
 ):
   setup(debug, fakeroot)
   targets, buildgraph = graph_for_directory(project, True)

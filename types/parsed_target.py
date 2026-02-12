@@ -1,3 +1,4 @@
+
 import abc
 import marshal
 import os
@@ -41,12 +42,12 @@ class Target(object):
 
 class PlatformTarget(Target):
   """Represents a target platform and its properties."""
-  def __init__(self, refname_name:references.Target, **kwargs:typing.Any):
+  def __init__(self, refname_name:references.Target, **kwargs:object):
     super().__init__(refname_name)
     # TODO:un-sketch this class
     self._values = kwargs
 
-  def __getattr__(self, attr:str) -> typing.Any:
+  def __getattr__(self, attr:str) -> object:
     if attr.startswith('__'):
       raise AttributeError(attr)
     if attr not in self._values:
@@ -131,14 +132,14 @@ class BuildTarget(Target):
     """Returns the fully qualified name of the target."""
     return str(self._name)
 
-  def _PrecomputeDependencies(self, search:typing.Any) -> typing.Any:
+  def _PrecomputeDependencies(self, search:object) -> object:
     """Recursively finds target references in the rule arguments."""
     if isinstance(search, dict):
       return {k:self._PrecomputeDependencies(v) for k, v in search.items()}
     if isinstance(search, list):
       return [self._PrecomputeDependencies(i) for i in search]
     if isinstance(search, str):
-      if converted := self._ConvertToTargetRefName(search):
+      if converted : = self._ConvertToTargetRefName(search):
         self._deps.append(converted)
         return converted
     return search
@@ -193,10 +194,10 @@ class BuildTarget(Target):
 class Any(object):
   """Helper class to check if a value matches any of the provided objects."""
   __slots__ = ('_objects', )
-  def __init__(self, *objs:typing.Any):
+  def __init__(self, *objs:object):
     self._objects = objs
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     for each in self._objects:
       if each == other:return True
     return False
@@ -223,13 +224,13 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
 
     package_target:references.Target = target._name
     self._package = packaging.ExportablePackage(
-      package_target=package_target,
-      platform=archive.GetDefaultPlatformTarget(),
-      ruletype=target._rule_name,
-      can_access_internal=internal)
+      package_target = package_target,
+      platform = archive.GetDefaultPlatformTarget(),
+      ruletype = target._rule_name,
+      can_access_internal = internal)
 
-  def __eq__(self, other:typing.Any) -> bool:
-    return (other.__class__ == self.__class__ and
+  def __eq__(self, other:object) -> bool:
+    return (other.__class__==self.__class__ and
             other._name == self._name)
 
   def __hash__(self) -> int:
@@ -287,7 +288,7 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
       return True
     return needs_building
 
-  def _RunBuildRule(self) -> tuple[typing.Any, str, str]:
+  def _RunBuildRule(self) -> tuple[object, str, str]:
     """Executes the build rule function."""
     self.check_thread()
     buildrule, rule, buildfile = self._CompileBuildRule()
@@ -337,7 +338,7 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     except Exception as e:
       raise exceptions.BuildRuleCompilationError(e)
 
-  def _GetExecEnv(self) -> dict[str, typing.Any]:
+  def _GetExecEnv(self) -> dict[str, object]:
     """Creates the execution environment for the build rule."""
     self.check_thread()
     env = globals().copy()
@@ -346,8 +347,8 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     return env
 
   def run_job(self, debug:bool,
-              internal_access:'threading.UpdateGraphResponseData'|None=None
-              ) -> typing.Any:
+              internal_access:'threading.UpdateGraphResponseData'|None = None
+              ) -> object:
     """Runs the build job for this target."""
     # Set internal access on the package
     if internal_access:

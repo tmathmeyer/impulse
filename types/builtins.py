@@ -135,9 +135,9 @@ class BuildRule(BuiltinMethod):
         if callframe is None:
           raise errors.FatalError('Could not find BUILD file on stack')
         raise errors.InvalidDependency(targetname=tcbm.target,
-                                       targetfile=tcbm.location,
-                                       sourcefile=callframe.filename,
-                                       sourcerange=callframe.positions) \
+                                       targetfile = tcbm.location,
+                                       sourcefile = callframe.filename,
+                                       sourcerange = callframe.positions) \
                                        from None
     return replacement
 
@@ -156,8 +156,8 @@ class BuildMacro(BuiltinMethod):
     return Replacement
 
   def ImitateRule(self, rulefile:str, rulename:str, args:dict,
-                  kwargs:dict|None=None, tags:list|None=None):
-    args.update({'tags':tags or [], 'buildfile':self._GetMacroFile()})
+                  kwargs:dict|None = None, tags:list|None = None):
+    args.update({'tags': tags or [], 'buildfile': self._GetMacroFile()})
     args.update(kwargs or {})
     load_file = references.File(paths.QualifiedPath(rulefile).AbsPath())
     self._archive.GetBuildTargetFromFile(load_file, rulename)(**args)

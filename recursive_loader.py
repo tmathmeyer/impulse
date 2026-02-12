@@ -26,7 +26,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     for file, names in stub_map.items():
       for name in names:
         self._environment[name] = StubLoader(self, name, file)
-    # type: ignore[unresolved-reference]
+    # type:ignore[unresolved-reference]
     self._environment['__builtins__'] = dict(__builtins__)
     self._environment['__builtins__']['__import__'] = self.ImportInjector
 
@@ -38,27 +38,27 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       return True
     return False
 
-  def Get(self, key:str) -> typing.Any:
+  def Get(self, key:str) -> object:
     """Gets a value from the environment."""
     return self._environment[key]
 
   def ImportInjector(self, name:str, locals:dict|None=None,
-                     globals:dict|None=None, fromlist:list[str]|None=None,
-                     level:int|None=None) -> types.ModuleType:
+                     globals:dict|None = None, fromlist:list[str]|None = None,
+                     level:int|None = None) -> types.ModuleType:
     """Injects synthetic modules for build rule definitions."""
     # declare allowed imports along with special cases used when importing from them
     allowed_import_targets = {
       # Stubs are just documented function stubs for the decorators
       # used in declaring buildrules
       'impulse.types.stubs': {
-        'os': lambda target: __import__(target),
-        'Any': lambda _: None,
+        'os': lambda target:__import__(target),
+        'Any': lambda _:None,
       },
 
       # Interfaces are essentially just classes which can be used
       # for type annotations in buildrules
       'impulse.types.interfaces': {
-        'Package': lambda _: None
+        'Package': lambda _:None
       }
     }
 
@@ -91,7 +91,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
         buildfile_content = f.read()
     except FileNotFoundError:
       raise exceptions.FileNotFoundException(filepath=abspath,
-                                              relpath=file) from None
+                                              relpath = file) from None
 
     try:
       compiled = compile(buildfile_content, abspath, 'exec')
@@ -99,7 +99,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     except NameError as e:
       _, _, traceback = sys.exc_info()
       assert traceback is not None
-      previous_frame = traceback.tb_next.tb_frame # type: ignore
+      previous_frame = traceback.tb_next.tb_frame # type:ignore
       filename = previous_frame.f_code.co_filename
       line_no = previous_frame.f_lineno
       missing_name = e.args[0].split('\'')[1]
@@ -109,7 +109,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     except AttributeError as e:
       _, _, traceback = sys.exc_info()
       assert traceback is not None
-      previous_frame = traceback.tb_next.tb_next.tb_next.tb_frame # type: ignore
+      previous_frame = traceback.tb_next.tb_next.tb_next.tb_frame # type:ignore
       filename = previous_frame.f_code.co_filename
       raise exceptions.FileLoadException(str(e), [abspath, filename])
     except exceptions.FileLoadException as e:
@@ -127,7 +127,7 @@ class StubLoader(object):
     self._env.LoadFile(self._file)
     if self._env.IsStubOrUndefined(self._name):
       raise exceptions.FatalException(
-        f'Invalid stub mapping for {self._name} => {self._file}')
+        f'Invalid stub mapping for {self._name} = > {self._file}')
     return self._env.Get(self._name)(*args, **kwargs)
 
 
@@ -140,7 +140,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     self._meta_targets:set[str] = set()
     self._loaded_files:set[references.File] = set()
     self._platforms:dict[references.Target, parsed_target.PlatformTarget] = {}
-    self._platform:parsed_target.PlatformTarget|None=None
+    self._platform:parsed_target.PlatformTarget|None = None
 
     stubs = {
       '//rules/builtins/builtins.py': [
@@ -238,12 +238,12 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       self.LoadBuildFile(file)
     except exceptions.FileNotFoundException as e:
       raise exceptions.BuildFileNotFoundException(
-        buildfile=e.filepath) from None
+        buildfile = e.filepath) from None
     try:
       return self._env.Get(name)
     except Exception:
       raise exceptions.BuildFileMissingTarget(
-        buildfile=file.Absolute(), target=name)
+        buildfile = file.Absolute(), target = name)
 
   def ParseTarget(self, name:references.Target) -> None:
     """Parses a target."""
@@ -251,7 +251,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       self._env.LoadFile(name.GetBuildFile())
     except exceptions.FileNotFoundException as e:
       raise exceptions.TargetCannotBeMapped(
-        target=name, location=e.filepath) from None
+        target = name, location = e.filepath) from None
 
   def ParsePlatform(self, name:references.Target) -> None:
     """Parses a platform target."""
@@ -362,7 +362,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
 
 def generate_graph(build_target:impulse_paths.ParsedTarget,
-                   platform:parsed_target.PlatformTarget|None=None,
+                   platform:parsed_target.PlatformTarget|None = None,
                    **kwargs) -> parsed_target.StagedBuildTargetSet:
   """Generates a build graph for the given target."""
   re = RecursiveFileParser(platform, **kwargs)

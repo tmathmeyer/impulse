@@ -67,7 +67,7 @@ class ExportedPackage(object):
   """Read-only package wrapper."""
   def __init__(self,
                filename:str,
-               json_data:dict|None=None,
+               json_data:dict|None = None,
                export_binary = None):
     self.filename = filename
     if json_data:
@@ -128,8 +128,8 @@ class ExportablePackage(Hasher):
   """A wrapper class for building a package file."""
 
   def __init__(self, package_target:references.Target, ruletype:str,
-               platform:typing.Any,
-               can_access_internal:bool=False,
+               platform:object,
+               can_access_internal:bool = False,
                binaries_location:str = ''):
     self._extracted_dir = None
 
@@ -187,7 +187,7 @@ class ExportablePackage(Hasher):
         copydict[k] = [[d.package_target, d.build_timestamp] for d in v]
       if k == 'input_files':
         copydict[k] = sorted(list(e.dict() for e in v),
-                             key=lambda x:x['file'])
+                             key = lambda x:x['file'])
       if k == 'build_file':
         copydict[k] = v.dict()
       if k == 'rule_file':
@@ -300,7 +300,7 @@ class ExportablePackage(Hasher):
   def Export(self) -> ExportedPackage:
     r = self.RunCommand('pwd')
     if r.returncode:
-      raise errors.FatalError(f'{r.returncode} => {r.stderr}')
+      raise errors.FatalError(f'{r.returncode}=> {r.stderr}')
 
     r = self.RunCommand('touch pkg_contents.json')
     if r.returncode:
@@ -422,7 +422,7 @@ class ExportablePackage(Hasher):
       raise errors.FatalError(f'{self._extracted_dir} does not exist')
     r = self.RunCommand(extract)
     if r.returncode:
-      raise errors.FatalError(f'{extract} ===> {r.stderr}')
+      raise errors.FatalError(f'{extract}===> {r.stderr}')
 
     with temp_dir.ScopedTempDirectory(self._extracted_dir):
       try:

@@ -1,5 +1,5 @@
+"""Interfaces for the impulse build system."""
 from impulse.core.interface import IFace
-import typing
 
 FileName = str
 PackageName = str
@@ -102,7 +102,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def SetEnvVar(self, var:EnvironmentVarName, value:EnvironmentVarValue):
+  def SetEnvVar(self, var:EnvironmentVarName, value:EnvironmentVarValue) -> None:
     """
     Sets an environment variable for execution.
 
@@ -121,7 +121,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def UnsetEnvVar(self, var:EnvironmentVarName):
+  def UnsetEnvVar(self, var:EnvironmentVarName) -> None:
     """
     Unsets an environment variable for execution.
 

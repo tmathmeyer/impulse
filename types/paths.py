@@ -1,3 +1,4 @@
+
 import abc
 import os
 import typing
@@ -64,7 +65,7 @@ class AbsolutePath(Path):
   def __hash__(self) -> int:
     return hash(self._rawpath)
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, AbsolutePath):
       return False
     return self._rawpath == other._rawpath
@@ -100,7 +101,7 @@ class QualifiedPath(Path):
   def __hash__(self) -> int:
     return hash(self._value)
 
-  def __eq__(self, other:typing.Any) -> bool:
+  def __eq__(self, other:object) -> bool:
     if not isinstance(other, QualifiedPath):
       return False
     return self._value == other._value
