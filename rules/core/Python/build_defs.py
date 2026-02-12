@@ -149,11 +149,11 @@ def py_library(target, name, srcs, **kwargs):
 
 def _python_package_fresh_venv(target, packages):
   if os.path.exists('/usr/bin/uv'):
-    target.Execute('uv venv -q')
-    for package in packages:
-      target.Execute(f'uv pip install {package} -q')
     import sys
     version = f'{sys.version_info.major}.{sys.version_info.minor}'
+    target.Execute(f'uv venv -q --python {version}')
+    for package in packages:
+      target.Execute(f'uv pip install {package} -q')
     packages = f'.venv/lib/python{version}/site-packages'
     for library in os.listdir(packages):
       if library == '__pycache__':

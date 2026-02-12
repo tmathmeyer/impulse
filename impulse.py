@@ -2,6 +2,7 @@
 
 import json
 import glob
+import multiprocessing
 import os
 import sys
 import typing
@@ -19,6 +20,10 @@ from impulse.types import paths
 from impulse.types import references
 
 command = args.ArgumentParser(complete=True)
+
+# Python 3.14 changes the default to 'forkserver' on Linux.
+# Set to 'fork' for backward compatibility.
+multiprocessing.set_start_method('fork')
 
 
 def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
