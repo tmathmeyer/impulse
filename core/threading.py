@@ -17,15 +17,15 @@ class Messages(object):
 
 class UpdateGraphResponseData(object):
   """Data returned by a job to update the dependency graph dynamically."""
-  def __init__(self) -> None:
-    self.added_graph: set[GraphNode] = set()
-    self.rerun_more_deps: list[GraphNode] = []
+  def __init__(self) ->None:
+    self.added_graph:set[GraphNode] = set()
+    self.rerun_more_deps:list[GraphNode] = []
 
-  def InjectMoreGraph(self, graph: set[GraphNode]) -> None:
+  def InjectMoreGraph(self, graph:set[GraphNode]) ->None:
     """Adds more nodes to the build graph."""
     self.added_graph |= graph
 
-  def RerunWithDependency(self, nodes: list[GraphNode]) -> None:
+  def RerunWithDependency(self, nodes:list[GraphNode]) ->None:
     """Specifies that the current job should be rerun after these nodes are completed."""
     self.added_graph |= set(nodes)
     self.rerun_more_deps = nodes
@@ -35,18 +35,18 @@ T = TypeVar('T')
 class GraphNode(Generic[T]):
   """Base class for a node in the dependency graph."""
   def __init__(self,
-               dependencies: Set[GraphNode],
-               has_internal_access: bool):
+               dependencies:Set[GraphNode],
+               has_internal_access:bool):
     self.dependencies = dependencies
     self.remaining_dependencies = set(dependencies)
     self._has_internal_access = has_internal_access
     self.__in_thread__ = False
 
-  def check_thread(self) -> None:
+  def check_thread(self) ->None:
     """Asserts that the code is running within a worker thread."""
     assert self.__in_thread__
 
-  def __call__(self, debug: bool = False) -> Any:
+  def __call__(self, debug:bool = False) ->Any:
     self.__in_thread__ = True
     if self._has_internal_access:
       access = UpdateGraphResponseData()
@@ -56,25 +56,25 @@ class GraphNode(Generic[T]):
       return self.run_job(debug)
 
   @abc.abstractmethod
-  def run_job(self, debug: bool, internal_access: UpdateGraphResponseData | None = None) -> Any:
+  def run_job(self, debug:bool, internal_access:UpdateGraphResponseData|None = None) ->Any:
     """Executes the actual work of the job."""
     pass
 
   @abc.abstractmethod
-  def __eq__(self, other: object) -> bool:
+  def __eq__(self, other:object) ->bool:
     pass
 
   @abc.abstractmethod
-  def __hash__(self) -> int:
+  def __hash__(self) ->int:
     pass
 
   @abc.abstractmethod
-  def get_name(self) -> str:
+  def get_name(self) ->str:
     """Returns the name of the job."""
     pass
 
   @abc.abstractmethod
-  def data(self) -> T:
+  def data(self) ->T:
     """Returns the data associated with the job."""
     pass
 
@@ -102,35 +102,35 @@ class JobResponse(object):
     YELLOW = '__L_YELLOW__'
     GREEN = '__L_GREEN__'
 
-  def __init__(self, level: str,
-                     job_id: int,
-                     job: GraphNode | None,
-                     message: str = '',
-                     result: Any = None):
+  def __init__(self, level:str,
+                     job_id:int,
+                     job:GraphNode|None,
+                     message:str = '',
+                     result:Any = None):
     self._level = level
     self._msg = message
     self._result = result
     self._job = job
     self._id = job_id
 
-  def level(self) -> str:
+  def level(self) ->str:
     """Returns the level of the response."""
     return self._level
 
-  def message(self) -> str:
+  def message(self) ->str:
     """Returns the message of the response."""
     return self._msg
 
-  def result(self) -> Any:
+  def result(self) ->Any:
     """Returns the result of the job."""
     return self._result
 
-  def job(self) -> GraphNode:
+  def job(self) ->GraphNode:
     """Returns the job associated with the response."""
     assert self._job is not None
     return self._job
 
-  def id(self) -> int:
+  def id(self) ->int:
     """Returns the ID of the worker thread."""
     return self._id
 
@@ -159,7 +159,7 @@ class ThreadWatchdog(multiprocessing.Process):
     if self._debug:
       signal.signal(signal.SIGUSR1, handle_pdb)
 
-  def _Fail(self, exc: Exception):
+  def _Fail(self, exc:Exception):
     """Handles job failure by sending a fatal response."""
     msg = str(exc)
     # If it's a BuildDefsRaisesException, it might contain a RenderableError or another Exception
@@ -170,7 +170,7 @@ class ThreadWatchdog(multiprocessing.Process):
 
     self._job_response_queue.put(JobResponse(
         JobResponse.LEVEL.FATAL, self._id, NullNode(),
-        message=msg))
+        message = msg))
     if not self._debug:
       return
     traceback.print_exc()
@@ -179,11 +179,11 @@ class ThreadWatchdog(multiprocessing.Process):
     while True:
       job = ThreadWatchdog.POISON
       try:
-        job = self._job_input_queue.get(timeout=5)
-      except:
+        job = self._job_input_queue.get(timeout = 5)
+      except Exception:
         self._job_response_queue.put(JobResponse(
           JobResponse.LEVEL.WARNING, self._id, None,
-          message=Messages.TIMEOUT))
+          message = Messages.TIMEOUT))
         continue
 
       if job == ThreadWatchdog.POISON:
@@ -192,7 +192,7 @@ class ThreadWatchdog(multiprocessing.Process):
         return
 
       self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.YELLOW, self._id, job, message=str(job)))
+        JobResponse.LEVEL.YELLOW, self._id, job, message = str(job)))
 
       try:
         job_result = job()
@@ -203,7 +203,7 @@ class ThreadWatchdog(multiprocessing.Process):
 
       self._job_response_queue.put(JobResponse(
         JobResponse.LEVEL.GREEN, self._id, job,
-        result=job_result))
+        result = job_result))
       self._job_input_queue.task_done()
 
 class ThreadPool(multiprocessing.Process):
@@ -234,7 +234,7 @@ class ThreadPool(multiprocessing.Process):
   def _message_pump(self):
     pass
 
-  def Start(self, data, threaded=True):
+  def Start(self, data, threaded = True):
     self._input = data
     self._create_watchdogs()
     if threaded:
@@ -276,22 +276,22 @@ class ThreadPool(multiprocessing.Process):
       response = self._job_response_queue.get()
       if not response:
         self._kill_watchdogs()
-        self._printer.finished(err=Messages.EMPTY_RESPONSE)
+        self._printer.finished(err = Messages.EMPTY_RESPONSE)
         return
 
       if response.level() == JobResponse.LEVEL.FATAL:
         self._kill_watchdogs()
-        self._printer.finished(err=response.message())
+        self._printer.finished(err = response.message())
         return
 
       if not self._on_reply(response):
         self._kill_watchdogs()
-        self._printer.finished(err=self._error_message)
+        self._printer.finished(err = self._error_message)
         return
 
 
 class DependentPool(ThreadPool):
-  def __init__(self, poolcount:int, debug:bool=False):
+  def __init__(self, poolcount:int, debug:bool = False):
     super().__init__(poolcount, debug)
     self._pending_add = set()
     self._in_flight = set()
@@ -308,7 +308,7 @@ class DependentPool(ThreadPool):
     self._in_flight |= self._pending_add
     self._pending_add = set()
 
-  def _cycle_graph(self, remove_node:GraphNode|None=None):
+  def _cycle_graph(self, remove_node:GraphNode|None = None):
     newgraph:Set[GraphNode] = set()
     for node in self._input:
       if remove_node:
@@ -344,7 +344,7 @@ class DependentPool(ThreadPool):
 
   def _update_graph(self,
                     node_from:GraphNode,
-                    results:UpdateGraphResponseData) -> bool:
+                    results:UpdateGraphResponseData) ->bool:
     results.added_graph -= self._completed
     self._input |= results.added_graph
     self._printer.add_job_count(len(results.added_graph))
@@ -393,7 +393,7 @@ class DependentPool(ThreadPool):
 
 
 class StreamingPool(ThreadPool):
-  def __init__(self, poolcount:int, debug:bool=False):
+  def __init__(self, poolcount:int, debug:bool = False):
     super().__init__(poolcount, debug)
     self._finished = False
     self._replies = []
@@ -436,6 +436,3 @@ class StreamingPool(ThreadPool):
 
   def Replies(self):
     return self._replies
-
-
-

@@ -7,14 +7,15 @@ from impulse.types.stubs import Any
 from impulse.types.interfaces import Package
 
 
-def py_make_binary(target: Package, package_name: str, package_file: str, binary_location: str):
+def py_make_binary(target:Package, package_name:str, package_file:str, binary_location:str):
   def _get_exe(minversion):
     if not minversion:
       return 'python3'
     import sys
     if minversion[1] <= sys.version_info.minor:
       return f'python3.{sys.version_info.minor}'
-    target.FatalError(f'Requires Minimum version: {minversion}, system version is {sys.version_info}')
+    msg = f'Requires Minimum version: {minversion}, system version is {sys.version_info}'
+    target.FatalError(msg)
 
   binary_file = os.path.join(binary_location, package_name)
   minversion = target.GetPropagatedData('minversion')
@@ -31,17 +32,17 @@ def py_make_binary(target: Package, package_name: str, package_file: str, binary
     f'chmod +x {binary_file}')
 
 
-def _add_files(target: Package, srcs: list[str]):
+def _add_files(target:Package, srcs:list[str]):
   for src in srcs:
     added_file = os.path.join(target.GetPackageDirectory(), src)
     if not os.path.exists(added_file):
       pwd = os.getcwd()
       target.ExecutionFailed(f'CHECKFILE {added_file}', f'file does not exist in {pwd}')
     target.AddFile(added_file)
-  for deplib in target.Dependencies(tags=Any('py_library')):
+  for deplib in target.Dependencies(tags = Any('py_library')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
-  for deplib in target.Dependencies(tags=Any('data')):
+  for deplib in target.Dependencies(tags = Any('data')):
     for f in deplib.IncludedFiles():
       target.AddFile(f)
       d = os.path.dirname(f)
@@ -50,7 +51,7 @@ def _add_files(target: Package, srcs: list[str]):
         d = os.path.dirname(d)
 
 
-def _write_file(target: Package, name: str, contents: str):
+def _write_file(target:Package, name:str, contents:str):
   if not os.path.exists(name):
     with open(name, 'w+') as f:
       f.write(contents)
@@ -64,7 +65,7 @@ def _get_tools_paths(target, targets):
 
 def _get_recursive_pips(target, kwargs):
   my_python_packages = set(kwargs.get('python_packages', []))
-  for dep in target.Dependencies(tags=Any('py_library', 'py_binary')):
+  for dep in target.Dependencies(tags = Any('py_library', 'py_binary')):
     my_python_packages.update(set(dep.GetPropagatedData('python_packages')))
   return list(my_python_packages)
 
@@ -114,7 +115,7 @@ def _version_check(target, kwargs):
 
   minversion = _parse_version(kwargs.get('minversion', None))
   maxversion = _parse_version(kwargs.get('maxversion', None))
-  for deplib in target.Dependencies(package_ruletype='py_library'):
+  for deplib in target.Dependencies(package_ruletype = 'py_library'):
     minversion = _version_max(minversion, deplib.GetPropagatedData('minversion'))
     maxversion = _version_min(maxversion, deplib.GetPropagatedData('maxversion'))
 
@@ -134,7 +135,7 @@ def _version_check(target, kwargs):
 
 @using(_add_files, _write_file, _get_recursive_pips, _version_check)
 @buildrule
-def py_library(target: Package, name: str, srcs: list[str], **kwargs: Any):
+def py_library(target:Package, name:str, srcs:list[str], **kwargs:Any):
   target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
   for pip in _get_recursive_pips(target, kwargs):
@@ -179,7 +180,7 @@ def _python_package_fresh_venv(target, packages):
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary,
        _get_recursive_pips, _version_check, _python_package_fresh_venv)
 @buildrule
-def py_binary(target: Package, name: str, **kwargs: Any):
+def py_binary(target:Package, name:str, **kwargs:Any):
   target.SetTags('exe')
   srcs = kwargs.get('srcs', [])
 
@@ -226,7 +227,7 @@ def py_binary(target: Package, name: str, **kwargs: Any):
 @using(_add_files, _write_file, py_make_binary, _get_recursive_pips,
        _version_check, _python_package_fresh_venv)
 @buildrule
-def py_test(target: Package, name: str, srcs: list[str], **kwargs: Any):
+def py_test(target:Package, name:str, srcs:list[str], **kwargs:Any):
   target.SetTags('exe', 'test')
   _add_files(target, srcs + kwargs.get('data', []))
   # Create the init files

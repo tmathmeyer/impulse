@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 from impulse.core.interface import IFace
 
@@ -18,7 +17,7 @@ class Package():
   input and output files.
   """
 
-  def AddFile(self, filename: FileName) -> None:
+  def AddFile(self, filename:FileName) ->None:
     """
     Adds a file to the output package.
 
@@ -27,7 +26,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def AddDirectory(self, directory: FileName) -> None:
+  def AddDirectory(self, directory:FileName) ->None:
     """
     Adds all files in a directory to the output package.
 
@@ -36,7 +35,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def GetPackageName(self) -> PackageName:
+  def GetPackageName(self) ->PackageName:
     """
     Gets the name of the package.
 
@@ -45,7 +44,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def GetPackageDirectory(self) -> DirectoryName:
+  def GetPackageDirectory(self) ->DirectoryName:
     """
     Gets the package source directory.
 
@@ -54,7 +53,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def ExecutionFailed(self, command: CommandLineString, stderr: str):
+  def ExecutionFailed(self, command:CommandLineString, stderr:str):
     """
     Triggers an exception with given cmdline and stderr.
 
@@ -73,7 +72,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def Dependencies(self, **filters) -> list[Package]:
+  def Dependencies(self, **filters) ->list[Package]:
     """
     Gets all Packages which this Package depends on.
 
@@ -85,7 +84,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def SetTags(self, *tags: Tag) -> None:
+  def SetTags(self, *tags:Tag) ->None:
     """
     Adds tags to this target.
 
@@ -94,7 +93,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def Execute(self, *cmds: CommandLineString) -> None:
+  def Execute(self, *cmds:CommandLineString) ->None:
     """
     Executes |cmds| in order.
 
@@ -103,7 +102,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def SetEnvVar(self, var: EnvironmentVarName, value: EnvironmentVarValue):
+  def SetEnvVar(self, var:EnvironmentVarName, value:EnvironmentVarValue):
     """
     Sets an environment variable for execution.
 
@@ -113,7 +112,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def IsDebug(self) -> bool:
+  def IsDebug(self) ->bool:
     """
     Is this target being built in debug mode?
 
@@ -122,7 +121,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def UnsetEnvVar(self, var: EnvironmentVarName):
+  def UnsetEnvVar(self, var:EnvironmentVarName):
     """
     Unsets an environment variable for execution.
 
@@ -131,7 +130,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def IncludedFiles(self) -> list[FileName]:
+  def IncludedFiles(self) ->list[FileName]:
     """
     Gets a list of all files included in this package.
 
@@ -140,7 +139,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def Semaphor(self) -> None:
+  def Semaphor(self) ->None:
     """
     Returns a semaphor context object which allows only one instance of
     this type of build rule to be run at a single time. This will slow down
