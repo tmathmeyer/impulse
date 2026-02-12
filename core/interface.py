@@ -63,7 +63,7 @@ class _InterfaceMeta(type):
 
 
 class _InterfaceParent(metaclass=_InterfaceMeta):
-  """Parent class to get a metaclass into the |type()| call."""
+  """Parent class to get a metaclass into the|type()| call."""
   _InterfaceParentSentinal = True
 
 

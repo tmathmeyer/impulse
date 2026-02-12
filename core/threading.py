@@ -4,7 +4,6 @@ import queue
 import signal
 import traceback
 import typing
-from typing import TypeVar, Generic, Any
 
 from impulse.core import job_printer
 from impulse.core import exceptions
@@ -19,14 +18,14 @@ class Messages(object):
 class UpdateGraphResponseData(object):
   """Data returned by a job to update the dependency graph dynamically."""
   def __init__(self) -> None:
-    self.added_graph:set['GraphNode'] = set()
-    self.rerun_more_deps:list['GraphNode'] = []
+    self.added_graph:set[GraphNode[typing.Any]] = set()
+    self.rerun_more_deps:list[GraphNode[typing.Any]] = []
 
-  def InjectMoreGraph(self, graph:set['GraphNode']) -> None:
+  def InjectMoreGraph(self, graph:set[GraphNode[typing.Any]]) -> None:
     """Adds more nodes to the build graph."""
     self.added_graph |= graph
 
-  def RerunWithDependency(self, nodes:list['GraphNode']) -> None:
+  def RerunWithDependency(self, nodes:list[GraphNode[typing.Any]]) -> None:
     """
     Specifies that the current job should be rerun after these nodes
     completed.
@@ -35,13 +34,13 @@ class UpdateGraphResponseData(object):
     self.rerun_more_deps = nodes
 
 
-T = TypeVar('T')
+T = typing.TypeVar('T')
 
 
-class GraphNode(Generic[T]):
+class GraphNode(typing.Generic[T]):
   """Base class for a node in the dependency graph."""
   def __init__(self,
-               dependencies:set['GraphNode'],
+               dependencies:set[GraphNode[typing.Any]],
                has_internal_access:bool):
     self.dependencies = dependencies
     self.remaining_dependencies = set(dependencies)
@@ -52,7 +51,7 @@ class GraphNode(Generic[T]):
     """Asserts that the code is running within a worker thread."""
     assert self.__in_thread__
 
-  def __call__(self, debug:bool = False) -> Any:
+  def __call__(self, debug:bool=False) -> typing.Any:
     self.__in_thread__ = True
     if self._has_internal_access:
       access = UpdateGraphResponseData()
@@ -63,7 +62,7 @@ class GraphNode(Generic[T]):
 
   @abc.abstractmethod
   def run_job(self, debug:bool,
-              internal_access:UpdateGraphResponseData|None = None) -> Any:
+              internal_access:UpdateGraphResponseData|None = None) -> typing.Any:
     """Executes the actual work of the job."""
     pass
 
@@ -116,7 +115,7 @@ class JobResponse(object):
 
   def __init__(self, level:str,
                      job_id:int,
-                     job:GraphNode|None,
+                     job:GraphNode[typing.Any]|None,
                      message:str = '',
                      result:UpdateGraphResponseData|typing.Callable|None = None
                      ):
@@ -138,7 +137,7 @@ class JobResponse(object):
     """Returns the result of the job."""
     return self._result
 
-  def job(self) -> GraphNode:
+  def job(self) -> GraphNode[typing.Any]:
     """Returns the job associated with the response."""
     assert self._job is not None
     return self._job
@@ -154,7 +153,7 @@ def handle_pdb(sig, frame):
 
 
 class ThreadWatchdog(multiprocessing.Process):
-  POISON = NullNode()
+  POISON:GraphNode[typing.Any] = NullNode()
   __slots__ = ['_id', '_debug', '_job_input_queue', '_job_response_queue']
 
   def __init__(self,
@@ -164,7 +163,7 @@ class ThreadWatchdog(multiprocessing.Process):
                job_response_queue:multiprocessing.Queue):
     multiprocessing.Process.__init__(self)
     self._id = watchdog_id
-    self._debug = debug_mode
+    self._debug=debug_mode
     self._job_input_queue = job_input_queue
     self._job_response_queue = job_response_queue
     self.name = f'Watchdog#{self._id}'
@@ -185,7 +184,7 @@ class ThreadWatchdog(multiprocessing.Process):
     while True:
       job = ThreadWatchdog.POISON
       try:
-        job = self._job_input_queue.get(timeout = 5)
+        job = self._job_input_queue.get(timeout=5)
       except Exception:
         self._job_response_queue.put(JobResponse(
           JobResponse.LEVEL.WARNING, self._id, None,
@@ -214,12 +213,12 @@ class ThreadWatchdog(multiprocessing.Process):
 
 
 class ThreadPool(multiprocessing.Process):
-  def __init__(self, poolcount:int, debug:bool = False):
+  def __init__(self, poolcount:int, debug:bool=False):
     super().__init__()
-    self._debug = debug
+    self._debug=debug
     self._job_response_queue:queue.Queue[JobResponse] = (
       multiprocessing.Queue())
-    self._job_input_queue:queue.Queue[GraphNode] = (
+    self._job_input_queue:queue.Queue[GraphNode[typing.Any]] = (
       multiprocessing.JoinableQueue())
     self._pool_count:int = poolcount
     self._printer = job_printer.JobPrinter(0, poolcount)
@@ -300,7 +299,7 @@ class ThreadPool(multiprocessing.Process):
 
 
 class DependentPool(ThreadPool):
-  def __init__(self, poolcount:int, debug:bool = False):
+  def __init__(self, poolcount:int, debug:bool=False):
     super().__init__(poolcount, debug)
     self._pending_add = set()
     self._in_flight = set()
@@ -317,8 +316,8 @@ class DependentPool(ThreadPool):
     self._in_flight |= self._pending_add
     self._pending_add = set()
 
-  def _cycle_graph(self, remove_node:GraphNode|None = None):
-    newgraph:set[GraphNode] = set()
+  def _cycle_graph(self, remove_node:GraphNode[typing.Any]|None = None):
+    newgraph:set[GraphNode[typing.Any]] = set()
     for node in self._input:
       if remove_node:
         node.remaining_dependencies.discard(remove_node)
@@ -352,7 +351,7 @@ class DependentPool(ThreadPool):
       self._cycle_graph()
 
   def _update_graph(self,
-                    node_from:GraphNode,
+                    node_from:GraphNode[typing.Any],
                     results:UpdateGraphResponseData) -> bool:
     results.added_graph -= self._completed
     self._input |= results.added_graph
@@ -402,7 +401,7 @@ class DependentPool(ThreadPool):
 
 
 class StreamingPool(ThreadPool):
-  def __init__(self, poolcount:int, debug:bool = False):
+  def __init__(self, poolcount:int, debug:bool=False):
     super().__init__(poolcount, debug)
     self._finished = False
     self._replies = []

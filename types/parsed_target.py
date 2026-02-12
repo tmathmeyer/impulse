@@ -43,7 +43,7 @@ class PlatformTarget(Target):
   """Represents a target platform and its properties."""
   def __init__(self, refname_name:references.Target, **kwargs:typing.Any):
     super().__init__(refname_name)
-    # TODO: un-sketch this class
+    # TODO:un-sketch this class
     self._values = kwargs
 
   def __getattr__(self, attr:str) -> typing.Any:
@@ -64,7 +64,7 @@ class StagedBuildTarget(Target):
 class StagedBuildTargetSet(object):
   """A set of StagedBuildTarget objects."""
   __slots__ = ('_targets',)
-  def __init__(self, targets:set[StagedBuildTarget]|None = None):
+  def __init__(self, targets:set[StagedBuildTarget]|None=None):
     self._targets:set[StagedBuildTarget] = set(targets or set())
 
   def AddAll(self, targets:'StagedBuildTargetSet') -> None:
@@ -198,7 +198,7 @@ class Any(object):
 
   def __eq__(self, other:typing.Any) -> bool:
     for each in self._objects:
-      if each == other: return True
+      if each == other:return True
     return False
 
 
@@ -346,7 +346,7 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     return env
 
   def run_job(self, debug:bool,
-              internal_access:'threading.UpdateGraphResponseData'|None = None
+              internal_access:'threading.UpdateGraphResponseData'|None=None
               ) -> typing.Any:
     """Runs the build job for this target."""
     # Set internal access on the package

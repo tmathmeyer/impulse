@@ -156,7 +156,7 @@ class Target(object):
     return self._target_dir
 
   @staticmethod
-  def Parse(content:str, directory:Directory|None = None) -> 'Target':
+  def Parse(content:str, directory:Directory|None=None) -> 'Target':
     split = content.split(':')
     if len(split) != 2:
       msg = ('Target must either a local path (:target) or '

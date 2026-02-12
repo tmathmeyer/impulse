@@ -1,3 +1,4 @@
+
 import abc
 import argparse
 import inspect
@@ -8,7 +9,7 @@ import shlex
 import subprocess
 import sys
 
-class ArgComplete(metaclass = abc.ABCMeta):
+class ArgComplete(metaclass=abc.ABCMeta):
   def __init__(self, wrapped:str|None):
     self.wrapped = wrapped
 
@@ -30,7 +31,7 @@ class DefaultArgComplete(ArgComplete):
 class Directory(ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
-    dirs = list(cls._get_directories(stub = stub))
+    dirs = list(cls._get_directories(stub=stub))
     if len(dirs) == 1:
       yield dirs[0]
       yield dirs[0] + '/'
@@ -47,8 +48,8 @@ class Directory(ArgComplete):
       return
 
     cmd = f'compgen -o bashdefault -o default -o nospace -F _cd {stub}'
-    stdout = subprocess.Popen(cmd, shell = True,
-      stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    stdout =  subprocess.Popen(cmd, shell=True,
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stream = stdout.stdout
     if stream is not None:
       for line in stream.readlines():
@@ -60,7 +61,7 @@ class Directory(ArgComplete):
 class File(ArgComplete):
   @classmethod
   def get_completion_list(cls, stub):
-    yield from cls._get_directories(stub = stub)
+    yield from cls._get_directories(stub=stub)
 
   @classmethod
   def _get_directories(cls, stub):
@@ -71,8 +72,8 @@ class File(ArgComplete):
       return
 
     cmd = f'compgen -o bashdefault -o default -o nospace -F _ls {stub}'
-    stdout = subprocess.Popen(cmd, shell = True,
-      stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    stdout = subprocess.Popen(cmd, shell=True,
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stream = stdout.stdout
     if stream is not None:
       for line in stream.readlines():
@@ -82,9 +83,9 @@ class File(ArgComplete):
 
 
 class ArgumentParser(object):
-  def __init__(self, complete = True):
+  def __init__(self, complete=True):
     self._parser = argparse.ArgumentParser()
-    self._subparser = self._parser.add_subparsers(title = 'tasks')
+    self._subparser = self._parser.add_subparsers(title='tasks')
     self._methods = {}
     self._complete = complete
 
@@ -93,13 +94,13 @@ class ArgumentParser(object):
     methodhelp = func.__doc__ or methodname
 
     self._methods[methodname] = {
-      'func':func,
-      'args':{}
+      'func': func,
+      'args': {}
     }
     task = self._subparser.add_parser(
-      methodname, help = methodhelp.splitlines()[0])
+      methodname, help=methodhelp.splitlines()[0])
 
-    task.set_defaults(task = methodname)
+    task.set_defaults(task=methodname)
     methodargs = inspect.getfullargspec(func)[0]
 
     for arg, info in inspect.signature(func).parameters.items():
@@ -123,15 +124,15 @@ class ArgumentParser(object):
 
       if default == inspect.Parameter.empty:
         self._methods[methodname]['args'][arg] = argtype
-        task.add_argument(arg, type = argtype, action = action)
+        task.add_argument(arg, type=argtype, action=action)
       elif argtype == bool:
         self._methods[methodname]['args']['--'+arg] = None
-        task.add_argument('--'+arg, default = default, action = action)
+        task.add_argument('--'+arg, default=default, action=action)
       else:
         self._methods[methodname]['args']['--'+arg] = argtype
         try:
-          task.add_argument('--'+arg, type = argtype, default = default)
-        except Exception:
+          task.add_argument('--'+arg, type=argtype, default=default)
+        except:
           print(argtype)
           raise
     return func
@@ -217,7 +218,7 @@ class ArgumentParser(object):
     os.environ['_LOCAL_COMP_LINE'] = 'bin ' + ' '.join(args)
     return self._print_completion(tst)
 
-  def _print_completion(self, operation = print):
+  def _print_completion(self, operation=print):
     if '_LOCAL_COMP_LINE' not in os.environ:
       return
 

@@ -21,10 +21,10 @@ NOT_THE_SAME = object()
 
 def EnsureDirectory(directory):
   if not os.path.exists(directory):
-    os.makedirs(directory, exist_ok = True)
+    os.makedirs(directory, exist_ok=True)
 
 
-class Hasher(metaclass = abc.ABCMeta):
+class Hasher(metaclass=abc.ABCMeta):
   @abc.abstractmethod
   def GetHash(self, filename:str) -> str:
     raise NotImplementedError()
@@ -67,7 +67,7 @@ class ExportedPackage(object):
   """Read-only package wrapper."""
   def __init__(self,
                filename:str,
-               json_data:dict|None = None,
+               json_data:dict|None=None,
                export_binary = None):
     self.filename = filename
     if json_data:
@@ -91,10 +91,10 @@ class ExportedPackage(object):
 
   def RunCommand(self, command):
     return subprocess.run(command,
-                          encoding = 'utf-8',
-                          shell = True,
-                          stderr = subprocess.PIPE,
-                          stdout = subprocess.PIPE)
+                          encoding='utf-8',
+                          shell=True,
+                          stderr=subprocess.PIPE,
+                          stdout=subprocess.PIPE)
 
   def Execute(self, *cmds):
     for command in cmds:
@@ -129,7 +129,7 @@ class ExportablePackage(Hasher):
 
   def __init__(self, package_target:references.Target, ruletype:str,
                platform:typing.Any,
-               can_access_internal:bool = False,
+               can_access_internal:bool=False,
                binaries_location:str = ''):
     self._extracted_dir = None
 
@@ -187,7 +187,7 @@ class ExportablePackage(Hasher):
         copydict[k] = [[d.package_target, d.build_timestamp] for d in v]
       if k == 'input_files':
         copydict[k] = sorted(list(e.dict() for e in v),
-                             key = lambda x:x['file'])
+                             key=lambda x:x['file'])
       if k == 'build_file':
         copydict[k] = v.dict()
       if k == 'rule_file':
@@ -201,7 +201,7 @@ class ExportablePackage(Hasher):
       if k not in copydict:
         copydict[k] = v
 
-    return json.dumps(copydict, indent = 2)
+    return json.dumps(copydict, indent=2)
 
   def Help(self):
     for potential in dir(self):
@@ -292,10 +292,10 @@ class ExportablePackage(Hasher):
   def RunCommand(self, command):
     '''Executes a command.'''
     return subprocess.run(command,
-                          encoding = 'utf-8',
-                          shell = True,
-                          stderr = subprocess.PIPE,
-                          stdout = subprocess.PIPE)
+                          encoding='utf-8',
+                          shell=True,
+                          stderr=subprocess.PIPE,
+                          stdout=subprocess.PIPE)
 
   def Export(self) -> ExportedPackage:
     r = self.RunCommand('pwd')
@@ -462,7 +462,7 @@ class ExportablePackage(Hasher):
     self.tags.update(set(tags))
 
   def Execute(self, *cmds):
-    '''Executes |cmds| in order.'''
+    '''Executes|cmds| in order.'''
     for command in cmds:
       command = f'{self._exec_env_str} {command}'
       try:

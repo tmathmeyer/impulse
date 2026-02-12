@@ -1,3 +1,4 @@
+
 import inspect
 import os
 import sys
@@ -15,26 +16,22 @@ from impulse.types import paths
 
 
 class LazyEnvironmentLoader(builtins.EnvironmentLoader):
-  """
-  Loads files into a shared environment lazily.
-  Handles buildrule stubs and restricted imports.
-  """
+  """Loads the environment for a build file."""
   def __init__(self, stub_map:dict[str, list[str]],
                builtin_methods:dict[str, builtins.BuiltinMethod]):
-    self._loaded_files:set[references.File] = set()
-    self._environment:dict[str, typing.Any] = builtin_methods
+    self._loaded_files = set()
+    self._environment = builtin_methods
     for builtin in self._environment.values():
-      if isinstance(builtin, builtins.BuiltinMethod):
-        builtin.Attach(self)
+      builtin.Attach(self)
     for file, names in stub_map.items():
       for name in names:
         self._environment[name] = StubLoader(self, name, file)
-    # type:ignore[unresolved-reference, name-defined]
+    # type: ignore[unresolved-reference]
     self._environment['__builtins__'] = dict(__builtins__)
     self._environment['__builtins__']['__import__'] = self.ImportInjector
 
   def IsStubOrUndefined(self, key:str) -> bool:
-    """Checks if a key is either missing or still a stub."""
+    """Checks if a key is a stub or undefined."""
     if key not in self._environment:
       return True
     if isinstance(self._environment[key], StubLoader):
@@ -42,32 +39,34 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     return False
 
   def Get(self, key:str) -> typing.Any:
-    """Returns the value associated with the key from the environment."""
+    """Gets a value from the environment."""
     return self._environment[key]
 
-  def ImportInjector(self, name:str, locals:dict|None = None,
-                     globals:dict|None = None,
-                     fromlist:list[str]|None = None,
-                     level:int|None = None) -> types.ModuleType:
-    """Restricts imports in BUILD files and rule files to allowed targets."""
-    # declare allowed imports along with special cases used when importing
+  def ImportInjector(self, name:str, locals:dict|None=None,
+                     globals:dict|None=None, fromlist:list[str]|None=None,
+                     level:int|None=None) -> types.ModuleType:
+    """Injects synthetic modules for build rule definitions."""
+    # declare allowed imports along with special cases used when importing from them
     allowed_import_targets = {
-      # Stubs are just documented function stubs for decorators
+      # Stubs are just documented function stubs for the decorators
+      # used in declaring buildrules
       'impulse.types.stubs': {
-        'os': lambda target:__import__(target),
-        'Any': lambda _:None,
+        'os': lambda target: __import__(target),
+        'Any': lambda _: None,
       },
 
-      # Interfaces are essentially just classes for type annotations
+      # Interfaces are essentially just classes which can be used
+      # for type annotations in buildrules
       'impulse.types.interfaces': {
-        'Package': lambda _:None
+        'Package': lambda _: None
       }
     }
 
     if name not in allowed_import_targets:
-      msg = f'buildrule definitions may only import from ' \
-            f'{list(allowed_import_targets.keys())}'
-      raise Exception(f'{msg}, not {name}')
+      raise Exception(
+        f'buildrule definitions may only import from '
+        f'{list(allowed_import_targets.keys())}, not {name}'
+      )
 
     synthetic_module = types.ModuleType(name)
     special_cases = allowed_import_targets[name]
@@ -81,7 +80,7 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     return synthetic_module
 
   def LoadFile(self, file:references.File) -> None:
-    """Loads and executes a file into the shared environment."""
+    """Loads a build file into the environment."""
     if file in self._loaded_files:
       return
     self._loaded_files.add(file)
@@ -91,8 +90,8 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
       with open(abspath) as f:
         buildfile_content = f.read()
     except FileNotFoundError:
-      raise exceptions.FileNotFoundException(filepath = abspath,
-                                             relpath = file) from None
+      raise exceptions.FileNotFoundException(filepath=abspath,
+                                              relpath=file) from None
 
     try:
       compiled = compile(buildfile_content, abspath, 'exec')
@@ -100,9 +99,9 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     except NameError as e:
       _, _, traceback = sys.exc_info()
       assert traceback is not None
-      prev_frame = traceback.tb_next.tb_frame # type:ignore[union-attr]
-      filename = prev_frame.f_code.co_filename
-      line_no = prev_frame.f_lineno
+      previous_frame = traceback.tb_next.tb_frame # type: ignore
+      filename = previous_frame.f_code.co_filename
+      line_no = previous_frame.f_lineno
       missing_name = e.args[0].split('\'')[1]
       raise errors.FileHighlightError(f'Invalid symbol: `{missing_name}`',
                                       filename, missing_name, line_no,
@@ -110,31 +109,15 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     except AttributeError as e:
       _, _, traceback = sys.exc_info()
       assert traceback is not None
-      # Walk up the traceback to find the actual call site in the loaded file
-      tb:types.TracebackType|None = traceback
-      while tb and tb.tb_next:
-        tb = tb.tb_next
-      filename = tb.tb_frame.f_code.co_filename if tb else abspath
-      line_no = tb.tb_frame.f_lineno if tb else 1
-      raise errors.FileHighlightError(f'Attribute error: {str(e)}',
-                                      filename,
-                                      str(e).split()[-1].strip("'"),
-                                      line_no, line_no)
+      previous_frame = traceback.tb_next.tb_next.tb_next.tb_frame # type: ignore
+      filename = previous_frame.f_code.co_filename
+      raise exceptions.FileLoadException(str(e), [abspath, filename])
     except exceptions.FileLoadException as e:
       raise e.Chain(abspath) from None
-    except Exception as e:
-      _, _, traceback = sys.exc_info()
-      assert traceback is not None
-      tb = traceback
-      while tb and tb.tb_next:
-        tb = tb.tb_next
-      filename = tb.tb_frame.f_code.co_filename if tb else abspath
-      line_no = tb.tb_frame.f_lineno if tb else 1
-      raise errors.FileHighlightError(f'Error during file execution: {str(e)}',
-                                      filename, '', line_no, line_no)
 
 
 class StubLoader(object):
+  """Loads a stub from a file when it's first called."""
   def __init__(self, env:LazyEnvironmentLoader, name:str, filename:str):
     self._file = references.File(paths.QualifiedPath(filename).AbsPath())
     self._name = name
@@ -143,21 +126,21 @@ class StubLoader(object):
   def __call__(self, *args, **kwargs):
     self._env.LoadFile(self._file)
     if self._env.IsStubOrUndefined(self._name):
-      msg = f'Invalid stub mapping for {self._name} => {self._file}'
-      raise exceptions.FatalException(msg)
+      raise exceptions.FatalException(
+        f'Invalid stub mapping for {self._name} => {self._file}')
     return self._env.Get(self._name)(*args, **kwargs)
 
 
 class RecursiveFileParser(parsed_target.TargetArchive):
   """Loads files based on load() and buildrule statements."""
-  def __init__(self, platform:impulse_paths.BuildTarget|None = None,
-               **carried_args:typing.Any):
+  def __init__(self, platform:parsed_target.PlatformTarget|None=None,
+               **carried_args):
     self._carried_args = carried_args
     self._targets:dict[references.Target, parsed_target.BuildTarget] = {}
     self._meta_targets:set[str] = set()
     self._loaded_files:set[references.File] = set()
     self._platforms:dict[references.Target, parsed_target.PlatformTarget] = {}
-    self._platform:parsed_target.PlatformTarget|None = None
+    self._platform:parsed_target.PlatformTarget|None=None
 
     stubs = {
       '//rules/builtins/builtins.py': [
@@ -184,7 +167,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       '//rules/env/Docker/build_defs.py': ['container'],
     }
 
-    builtin_methods:dict[str, typing.Any] = {
+    builtin_methods:dict[str, builtins.BuiltinMethod] = {
       'langs': builtins.DeprecationWarning('langs'),
       'load': builtins.LoadFile(),
       'pattern': builtins.Pattern(),
@@ -200,96 +183,98 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       platpath = references.Target.Parse(platform.value())
     self.ParsePlatform(platpath)
 
-  def AddMetaTarget(self, target:str) -> None: # type:ignore[override]
-    """Adds a meta target generated through a buildmacro."""
+  def AddMetaTarget(self, target:str):
+    """Adds a meta target."""
     self._meta_targets.add(target)
 
-  def AddPlatformTarget(self, target:parsed_target.PlatformTarget) -> \
-      parsed_target.PlatformTarget:
-    """Adds a platform target to the parser."""
+  def AddPlatformTarget(
+    self, target:parsed_target.PlatformTarget
+  ) -> parsed_target.PlatformTarget:
+    """Adds a platform target."""
     self._platforms[target._name] = target
     return target
 
-  def AddBuildTarget(self, target:parsed_target.BuildTarget) -> \
-      parsed_target.BuildTarget:
-    """
-    Adds a build target to the parser and recursively parses its dependencies.
-    """
+  def AddBuildTarget(
+    self, target:parsed_target.BuildTarget
+  ) -> parsed_target.BuildTarget:
+    """Adds a build target."""
     self._targets[target._name] = target
     for dependency in target.GetDependencies():
       self.ParseTarget(dependency)
     return target
 
-  def GetBuildTarget(self, name:references.Target) -> parsed_target.BuildTarget:
-    """Returns a build target by name."""
+  def GetBuildTarget(
+    self, name:references.Target
+  ) -> parsed_target.BuildTarget:
+    """Gets a build target by name."""
     try:
       return self._targets[name]
     except KeyError as e:
       raise exceptions.BuildTargetMissing(e.args[0]) from None
 
-  def GetDefaultPlatformTarget(self) -> parsed_target.PlatformTarget:
-    """Returns the default platform target."""
-    assert self._platform is not None
+  def GetDefaultPlatformTarget(self) -> parsed_target.PlatformTarget|None:
+    """Gets the default platform target."""
     return self._platform
 
-  def SetDefaultPlatformTarget(self,
-                               platform:parsed_target.PlatformTarget) -> None:
+  def SetDefaultPlatformTarget(self, platform:parsed_target.PlatformTarget):
     """Sets the default platform target."""
     self._platform = platform
 
-  def GetPlatformTarget(self, name:references.Target) -> \
-      parsed_target.PlatformTarget:
-    """Returns a platform target by name."""
+  def GetPlatformTarget(
+    self, name:references.Target
+  ) -> parsed_target.PlatformTarget:
+    """Gets a platform target by name."""
     return self._platforms[name]
 
   def LoadBuildFile(self, file:references.File) -> None:
-    """Loads a BUILD file."""
+    """Loads a build file."""
     return self._env.LoadFile(file)
 
-  def GetBuildTargetFromFile(self, file:references.File, name:str) -> \
-      typing.Callable:
-    """Returns a build rule function from a specific file."""
+  def GetBuildTargetFromFile(
+    self, file:references.File, name:str
+  ) -> typing.Callable:
+    """Gets a build target from a file."""
     try:
       self.LoadBuildFile(file)
     except exceptions.FileNotFoundException as e:
-      raise exceptions.BuildFileNotFoundException(buildfile = e.filepath) \
-        from None
+      raise exceptions.BuildFileNotFoundException(
+        buildfile=e.filepath) from None
     try:
       return self._env.Get(name)
     except Exception:
-      val = file.Absolute().Value()
-      raise exceptions.BuildFileMissingTarget(buildfile = val, target = name)
+      raise exceptions.BuildFileMissingTarget(
+        buildfile=file.Absolute(), target=name)
 
   def ParseTarget(self, name:references.Target) -> None:
-    """Parses the BUILD file that defines the given target."""
+    """Parses a target."""
     try:
       self._env.LoadFile(name.GetBuildFile())
     except exceptions.FileNotFoundException as e:
-      raise exceptions.TargetCannotBeMapped(target = str(name),
-                                             location = e.filepath) from None
+      raise exceptions.TargetCannotBeMapped(
+        target=name, location=e.filepath) from None
 
   def ParsePlatform(self, name:references.Target) -> None:
-    """Parses and selects a platform target."""
+    """Parses a platform target."""
     self.ParseTarget(name)
     assert name in self._platforms
     self._platform = self._platforms[name]
 
   def StageTarget(self, name:references.Target) -> None:
-    """Stages a target for execution."""
+    """Stages a target."""
     if name not in self._targets:
       raise exceptions.BuildTargetMissing(str(name))
     self._targets[name].Stage(self)
 
   def GetStagedTargets(self) -> parsed_target.StagedBuildTargetSet:
-    """Returns the set of all staged build targets."""
+    """Gets all staged targets."""
     result = parsed_target.StagedBuildTargetSet()
     for _, target in self._targets.items():
-      if target._staged and isinstance(target._staged,
-                                       parsed_target.StagedBuildTargetSet):
-        result.AddAll(target._staged)
+      if target._staged:
+        result.AddAll(typing.cast(
+          parsed_target.StagedBuildTargetSet, target._staged))
     return result
 
-  def _stack_without_recursive_loader(self) -> list[inspect.FrameInfo]:
+  def _stack_without_recursive_loader(self):
     return [s for s in inspect.stack()
             if not s.filename.endswith('recursive_loader.py')]
 
@@ -301,7 +286,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       build_file_index += 1
     return build_file
 
-  def _get_macro_invoker_file(self, k = 2):
+  def _get_macro_invoker_file(self, k=2):
     starting_index = k # 0 and 1 are the definition of the macro.
     stack = self._stack_without_recursive_loader()
     while starting_index < len(stack):
@@ -322,17 +307,20 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       if frame.filename.endswith('BUILD'):
         return os.path.dirname(frame.filename)
 
-  def GetRulenameFromLoader(self, buildrule:str) -> typing.Any:
-    """Returns the rule function from the loader's environment."""
-    return self._env._environment.get(buildrule)
+  def GetRulenameFromLoader(self, buildrule:str):
+    """Gets the rule name from the loader."""
+    return self._env.Get(buildrule)
 
   def GetMacroInvokerFile(self):
+    """Gets the file that invoked the macro."""
     return self._get_macro_invoker_file()
 
-  def GetAllConvertedTargets(self, allow_meta:list[str]|bool = False):
+  def GetAllConvertedTargets(self, allow_meta:list[str]|bool=False):
+    """Gets all converted targets."""
     allowed_meta:list = []
     if isinstance(allow_meta, list):
       allowed_meta = allow_meta
+
     def converted_targets():
       for target in self._targets.values():
         if target._converted:
@@ -350,31 +338,33 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     return result
 
   def StageAllTestTargets(self):
+    """Stages all test targets."""
     for target, parsed in self._targets.items():
       if parsed._rule_name.endswith('_test'):
         self.StageTarget(target)
         yield target
 
   def StageAllTargets(self):
+    """Stages all targets."""
     for target in self._targets.values():
       target.Stage(self)
       yield target
 
   def GetRulenameFromRawTarget(self, targetname:str) -> str|None:
-    """Returns the rule name for a raw target string."""
+    """Gets the rule name from a raw target name."""
     # This is the buildfile that the rule is called from
     build_file = self._get_buildfile_from_stack()
     build_path = impulse_paths.get_qualified_build_file_dir(build_file)
     build_rule = impulse_paths.convert_to_build_target(targetname, build_path)
-    if isinstance(build_rule, references.Target) and \
-       build_rule in self._targets:
-      return self._targets[build_rule]._rule_name
+    if build_rule in self._targets:
+      return self._targets[build_rule]._rule_type
     return None
 
 
 def generate_graph(build_target:impulse_paths.ParsedTarget,
-                   platform = None,
-                   **kwargs):
+                   platform:parsed_target.PlatformTarget|None=None,
+                   **kwargs) -> parsed_target.StagedBuildTargetSet:
+  """Generates a build graph for the given target."""
   re = RecursiveFileParser(platform, **kwargs)
 
   btstr = build_target.GetFullyQualifiedRulePath()

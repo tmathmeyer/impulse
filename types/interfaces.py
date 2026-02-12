@@ -22,7 +22,7 @@ class Package():
     Adds a file to the output package.
 
     Args:
-        filename: The path to the file to include in the package.
+        filename:The path to the file to include in the package.
     """
     raise NotImplementedError()
 
@@ -31,7 +31,7 @@ class Package():
     Adds all files in a directory to the output package.
 
     Args:
-        directory: The path to the directory whose contents should be included.
+        directory:The path to the directory whose contents should be included.
     """
     raise NotImplementedError()
 
@@ -58,8 +58,8 @@ class Package():
     Triggers an exception with given cmdline and stderr.
 
     Args:
-        command: The command that failed.
-        stderr: The error message from the failed command.
+        command:The command that failed.
+        stderr:The error message from the failed command.
     """
     raise NotImplementedError()
 
@@ -77,7 +77,7 @@ class Package():
     Gets all Packages which this Package depends on.
 
     Args:
-        **filters: Key-value pairs to filter the dependencies (e.g., tags).
+        **filters:Key-value pairs to filter the dependencies (e.g., tags).
 
     Returns:
         A list of Package objects representing the dependencies.
@@ -89,16 +89,16 @@ class Package():
     Adds tags to this target.
 
     Args:
-        *tags: Variable length argument list of tags to add.
+        *tags:Variable length argument list of tags to add.
     """
     raise NotImplementedError()
 
   def Execute(self, *cmds:CommandLineString) -> None:
     """
-    Executes |cmds| in order.
+    Executes|cmds| in order.
 
     Args:
-        *cmds: Variable length argument list of command lines to execute.
+        *cmds:Variable length argument list of command lines to execute.
     """
     raise NotImplementedError()
 
@@ -107,8 +107,8 @@ class Package():
     Sets an environment variable for execution.
 
     Args:
-        var: The name of the environment variable.
-        value: The value to set.
+        var:The name of the environment variable.
+        value:The value to set.
     """
     raise NotImplementedError()
 
@@ -126,7 +126,7 @@ class Package():
     Unsets an environment variable for execution.
 
     Args:
-        var: The name of the environment variable to unset.
+        var:The name of the environment variable to unset.
     """
     raise NotImplementedError()
 

@@ -63,7 +63,7 @@ class PathException(Exception):
     super(PathException, self).__init__(self._path)
 
   def __repr__(self) -> str:
-    return 'Invalid Target: ' + self._path
+    return 'Invalid Target:' + self._path
 
 
 class LoggerEnv(dict):
