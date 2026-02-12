@@ -4,7 +4,7 @@ import queue
 import signal
 import traceback
 import typing
-from typing import Set, TypeVar, Generic, Any, Union
+from typing import TypeVar, Generic, Any
 
 from impulse.core import job_printer
 from impulse.core import exceptions
@@ -18,16 +18,19 @@ class Messages(object):
 
 class UpdateGraphResponseData(object):
   """Data returned by a job to update the dependency graph dynamically."""
-  def __init__(self) ->None:
+  def __init__(self) -> None:
     self.added_graph:set['GraphNode'] = set()
     self.rerun_more_deps:list['GraphNode'] = []
 
-  def InjectMoreGraph(self, graph:set['GraphNode']) ->None:
+  def InjectMoreGraph(self, graph:set['GraphNode']) -> None:
     """Adds more nodes to the build graph."""
     self.added_graph |= graph
 
-  def RerunWithDependency(self, nodes:list['GraphNode']) ->None:
-    """Specifies that the current job should be rerun after these nodes are completed."""
+  def RerunWithDependency(self, nodes:list['GraphNode']) -> None:
+    """
+    Specifies that the current job should be rerun after these nodes
+    completed.
+    """
     self.added_graph |= set(nodes)
     self.rerun_more_deps = nodes
 
@@ -38,18 +41,18 @@ T = TypeVar('T')
 class GraphNode(Generic[T]):
   """Base class for a node in the dependency graph."""
   def __init__(self,
-               dependencies:Set['GraphNode'],
+               dependencies:set['GraphNode'],
                has_internal_access:bool):
     self.dependencies = dependencies
     self.remaining_dependencies = set(dependencies)
     self._has_internal_access = has_internal_access
     self.__in_thread__ = False
 
-  def check_thread(self) ->None:
+  def check_thread(self) -> None:
     """Asserts that the code is running within a worker thread."""
     assert self.__in_thread__
 
-  def __call__(self, debug:bool = False) ->Any:
+  def __call__(self, debug:bool = False) -> Any:
     self.__in_thread__ = True
     if self._has_internal_access:
       access = UpdateGraphResponseData()
@@ -59,30 +62,31 @@ class GraphNode(Generic[T]):
       return self.run_job(debug)
 
   @abc.abstractmethod
-  def run_job(self, debug:bool, internal_access:UpdateGraphResponseData|None = None) ->Any:
+  def run_job(self, debug:bool,
+              internal_access:UpdateGraphResponseData|None = None) -> Any:
     """Executes the actual work of the job."""
     pass
 
   @abc.abstractmethod
-  def __eq__(self, other:object) ->bool:
+  def __eq__(self, other:object) -> bool:
     pass
 
   @abc.abstractmethod
-  def __hash__(self) ->int:
+  def __hash__(self) -> int:
     pass
 
   @abc.abstractmethod
-  def get_name(self) ->str:
+  def get_name(self) -> str:
     """Returns the name of the job."""
     pass
 
   @abc.abstractmethod
-  def data(self) ->T:
+  def data(self) -> T:
     """Returns the data associated with the job."""
     pass
 
 
-class NullNode(GraphNode[Any]):
+class NullNode(GraphNode[None]):
   def __init__(self):
     super().__init__(set(), False)
 
@@ -112,33 +116,34 @@ class JobResponse(object):
 
   def __init__(self, level:str,
                      job_id:int,
-                     job:Union['GraphNode', None],
+                     job:GraphNode|None,
                      message:str = '',
-                     result:Union['UpdateGraphResponseData', typing.Callable, None] = None):
+                     result:UpdateGraphResponseData|typing.Callable|None = None
+                     ):
     self._level = level
     self._msg = message
     self._result = result
     self._job = job
     self._id = job_id
 
-  def level(self) ->str:
+  def level(self) -> str:
     """Returns the level of the response."""
     return self._level
 
-  def message(self) ->str:
+  def message(self) -> str:
     """Returns the message of the response."""
     return self._msg
 
-  def result(self) ->Union[UpdateGraphResponseData, typing.Callable, None]:
+  def result(self) -> UpdateGraphResponseData|typing.Callable|None:
     """Returns the result of the job."""
     return self._result
 
-  def job(self) ->'GraphNode':
+  def job(self) -> GraphNode:
     """Returns the job associated with the response."""
     assert self._job is not None
     return self._job
 
-  def id(self) ->int:
+  def id(self) -> int:
     """Returns the ID of the worker thread."""
     return self._id
 
@@ -169,14 +174,9 @@ class ThreadWatchdog(multiprocessing.Process):
 
   def _Fail(self, exc:Exception):
     """Handles job failure by sending a fatal response."""
-    msg = str(exc)
-    # The underlying exception might be a FileErrorException which is renderable
-    if isinstance(exc, exceptions.BuildDefsRaisesException):
-      pass
-
     self._job_response_queue.put(JobResponse(
         JobResponse.LEVEL.FATAL, self._id, NullNode(),
-        message = msg))
+        message = str(exc)))
     if not self._debug:
       return
     traceback.print_exc()
@@ -217,8 +217,10 @@ class ThreadPool(multiprocessing.Process):
   def __init__(self, poolcount:int, debug:bool = False):
     super().__init__()
     self._debug = debug
-    self._job_response_queue:queue.Queue[JobResponse] = multiprocessing.Queue()
-    self._job_input_queue:queue.Queue[GraphNode] = multiprocessing.JoinableQueue()
+    self._job_response_queue:queue.Queue[JobResponse] = (
+      multiprocessing.Queue())
+    self._job_input_queue:queue.Queue[GraphNode] = (
+      multiprocessing.JoinableQueue())
     self._pool_count:int = poolcount
     self._printer = job_printer.JobPrinter(0, poolcount)
     self._input = None
@@ -316,7 +318,7 @@ class DependentPool(ThreadPool):
     self._pending_add = set()
 
   def _cycle_graph(self, remove_node:GraphNode|None = None):
-    newgraph:Set[GraphNode] = set()
+    newgraph:set[GraphNode] = set()
     for node in self._input:
       if remove_node:
         node.remaining_dependencies.discard(remove_node)
@@ -351,7 +353,7 @@ class DependentPool(ThreadPool):
 
   def _update_graph(self,
                     node_from:GraphNode,
-                    results:UpdateGraphResponseData) ->bool:
+                    results:UpdateGraphResponseData) -> bool:
     results.added_graph -= self._completed
     self._input |= results.added_graph
     self._printer.add_job_count(len(results.added_graph))

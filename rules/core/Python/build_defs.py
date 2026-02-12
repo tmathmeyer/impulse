@@ -6,14 +6,16 @@ from impulse.types.stubs import Any
 from impulse.types.interfaces import Package
 
 
-def py_make_binary(target:Package, package_name:str, package_file:str, binary_location:str):
+def py_make_binary(target:Package, package_name:str, package_file:str,
+                   binary_location:str):
   def _get_exe(minversion):
     if not minversion:
       return 'python3'
     import sys
     if minversion[1] <= sys.version_info.minor:
       return f'python3.{sys.version_info.minor}'
-    msg = f'Requires Minimum version: {minversion}, system version is {sys.version_info}'
+    msg = (f'Requires Minimum version: {minversion}, '
+           f'system version is {sys.version_info}')
     target.FatalError(msg)
 
   binary_file = os.path.join(binary_location, package_name)
@@ -31,12 +33,13 @@ def py_make_binary(target:Package, package_name:str, package_file:str, binary_lo
     f'chmod +x {binary_file}')
 
 
-def _add_files(target:Package, srcs:list):
+def _add_files(target:Package, srcs:list[str]):
   for src in srcs:
     added_file = os.path.join(target.GetPackageDirectory(), src)
     if not os.path.exists(added_file):
       pwd = os.getcwd()
-      target.ExecutionFailed(f'CHECKFILE {added_file}', f'file does not exist in {pwd}')
+      msg = f'file does not exist in {pwd}'
+      target.ExecutionFailed(f'CHECKFILE {added_file}', msg)
     target.AddFile(added_file)
   for deplib in target.Dependencies(tags = Any('py_library')):
     for f in deplib.IncludedFiles():
@@ -115,13 +118,15 @@ def _version_check(target, kwargs):
   minversion = _parse_version(kwargs.get('minversion', None))
   maxversion = _parse_version(kwargs.get('maxversion', None))
   for deplib in target.Dependencies(package_ruletype = 'py_library'):
-    minversion = _version_max(minversion, deplib.GetPropagatedData('minversion'))
-    maxversion = _version_min(maxversion, deplib.GetPropagatedData('maxversion'))
+    minversion = _version_max(minversion,
+                               deplib.GetPropagatedData('minversion'))
+    maxversion = _version_min(maxversion,
+                               deplib.GetPropagatedData('maxversion'))
 
   if not _noversion(minversion) and not _noversion(maxversion):
     if _lt(maxversion < minversion):
-      target.ExecutionFailed(
-        'Minimum package version is greater than maximum package version')
+      msg = 'Minimum package version is greater than maximum package version'
+      target.ExecutionFailed(msg)
 
   if minversion is not None:
     for decimal in minversion:
@@ -134,7 +139,7 @@ def _version_check(target, kwargs):
 
 @using(_add_files, _write_file, _get_recursive_pips, _version_check)
 @buildrule
-def py_library(target:Package, name:str, srcs:list, **kwargs):
+def py_library(target:Package, name:str, srcs:list[str], **kwargs):
   target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
   for pip in _get_recursive_pips(target, kwargs):
@@ -226,7 +231,7 @@ def py_binary(target:Package, name:str, **kwargs):
 @using(_add_files, _write_file, py_make_binary, _get_recursive_pips,
        _version_check, _python_package_fresh_venv)
 @buildrule
-def py_test(target:Package, name:str, srcs:list, **kwargs):
+def py_test(target:Package, name:str, srcs:list[str], **kwargs):
   target.SetTags('exe', 'test')
   _add_files(target, srcs + kwargs.get('data', []))
   # Create the init files

@@ -1,12 +1,12 @@
-
 import inspect
 import types
 import typing
 
 
 class _InterfaceMeta(type):
-  """Checks signatures on instances of concrete classes that implement
-     interface classes.
+  """
+  Checks signatures on instances of concrete classes that implement
+  interface classes.
   """
   def __new__(mcls, name, bases, namespace, **kwargs):
     # Create the class so we can attach stuff to it
@@ -54,7 +54,7 @@ class _InterfaceMeta(type):
     return any(getattr(base, '_InterfaceParentSentinal') for base in bases)
 
   @classmethod
-  def MethodSignatures(cls, namespace) -> typing.Dict[str, inspect.Signature]:
+  def MethodSignatures(cls, namespace) -> dict[str, inspect.Signature]:
     methods = {}
     for name, method in namespace.items():
       if isinstance(method, types.FunctionType):
@@ -67,7 +67,7 @@ class _InterfaceParent(metaclass=_InterfaceMeta):
   _InterfaceParentSentinal = True
 
 
-def IFace(class_def: type) -> '_InterfaceParent':
+def IFace(class_def:type) -> '_InterfaceParent':
   """Decorator method to turn a class into an interface."""
 
   # Find all the local methods

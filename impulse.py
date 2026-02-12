@@ -18,10 +18,10 @@ from impulse.types import parsed_target
 from impulse.types import paths
 from impulse.types import references
 
-command = args.ArgumentParser(complete=True)
+command = args.ArgumentParser(complete = True)
 
 
-def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
+def setup(enable_debug:bool, fakeroot:args.Directory|None) -> None:
   """Sets up debug and path info."""
   if enable_debug:
     debug.EnableDebug()
@@ -30,9 +30,10 @@ def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
 
 
-def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet, N:int=6) -> None:
+def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet,
+                     N:int = 6) -> None:
   """Starts a pool with N threads and waits for graph run completion."""
-  pool = threading.DependentPool(N, debug=debug)
+  pool = threading.DependentPool(N, debug = debug)
   pool.Start(graph._targets)
   pool.join()
 
@@ -53,33 +54,34 @@ def GetStagedRuleInfo(target:parsed_target.StagedBuildTarget):
   return pt.GetRuleInfo()
 
 
-def graph_for_directory(project=None, testonly:bool=False) -> (
-    list[parsed_target.StagedBuildTarget], parsed_target.StagedBuildTargetSet):
+def graph_for_directory(project = None, testonly:bool = False) -> (
+    tuple[list[parsed_target.StagedBuildTarget],
+          parsed_target.StagedBuildTargetSet]):
   directory = os.getcwd()
   if project:
     directory = os.path.join(impulse_paths.root(), project)
 
   rfp = recursive_loader.RecursiveFileParser()
-  for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
+  for filename in glob.iglob(directory + '/**/BUILD', recursive = True):
     rfp.LoadBuildFile(references.File(paths.AbsolutePath(filename)))
 
   targets = []
   if testonly:
     targets = list(rfp.StageAllTestTargets())
   else:
-    targets=list(rfp.StageAllTargets())
+    targets = list(rfp.StageAllTargets())
   return targets, rfp.GetStagedTargets()
 
 
 @command
 def build(
   target:impulse_paths.BuildTarget,
-  platform:impulse_paths.BuildTarget|None=None,
-  debug:bool=False,
-  force:bool=False,
-  fakeroot:args.Directory|None=None,
-  threads:int=6,
-  hackermode:bool=False
+  platform:impulse_paths.BuildTarget|None = None,
+  debug:bool = False,
+  force:bool = False,
+  fakeroot:args.Directory|None = None,
+  threads:int = 6,
+  hackermode:bool = False
 ):
   """Builds the given target."""
   if hackermode:
@@ -89,22 +91,22 @@ def build(
     return
 
   setup(debug, fakeroot)
-  parsed_target = fix_build_target(target)
+  p_target = fix_build_target(target)
   build_and_await(
     debug,
     recursive_loader.generate_graph(
-      parsed_target, platform=platform, force_build=force, allow_meta=True
+      p_target, platform = platform, force_build = force, allow_meta = True
     ), threads
   )
-  return parsed_target.GetRuleInfo()
+  return p_target.GetRuleInfo()
 
 
 @command
 def targets(
-  fakeroot:args.Directory|None=None,
-  testonly:bool=False,
-  project:str|None=None,
-  debug:bool=False,
+  fakeroot:args.Directory|None = None,
+  testonly:bool = False,
+  project:str|None = None,
+  debug:bool = False,
 ):
   """Lists all buildable targets."""
   setup(debug, fakeroot)
@@ -116,16 +118,16 @@ def targets(
 @command
 def sitehost(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  force:bool=False,
-  fakeroot:args.Directory|None=None
+  debug:bool = False,
+  force:bool = False,
+  fakeroot:args.Directory|None = None
 ):
-  ruleinfo = build(target, debug=debug, force=force, fakeroot=fakeroot)
+  ruleinfo = build(target, debug = debug, force = force, fakeroot = fakeroot)
   print(ruleinfo.type, ruleinfo.name, ruleinfo.output)
   if ruleinfo.type != 'website':
     print('Only website targets can be run')
     return
-  with temp_dir.ScopedTempDirectory(delete_non_empty=True):
+  with temp_dir.ScopedTempDirectory(delete_non_empty = True):
     os.system(f'unzip {ruleinfo.output}')
     os.system('tree')
     os.system('python3 -m http.server 8000')
@@ -134,11 +136,12 @@ def sitehost(
 @command
 def run(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None
+  debug:bool = False,
+  fakeroot:args.Directory|None = None
 ):
   """Builds a binary and executes it."""
-  ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
+  ruleinfo = build(target = target, debug = debug, force = False,
+                   fakeroot = fakeroot)
   if not ruleinfo.type.endswith('_binary'):
     print('Only binary targets can be run')
     return
@@ -148,17 +151,18 @@ def run(
 @command
 def docker(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None,
-  norun:bool=False
+  debug:bool = False,
+  fakeroot:args.Directory|None = None,
+  norun:bool = False
 ):
   """Builds a docker container from the target."""
-  ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
+  ruleinfo = build(target = target, debug = debug, force = False,
+                   fakeroot = fakeroot)
   if not ruleinfo.type == 'container':
     print(f'Only docker containers can be run: {ruleinfo.type}')
     return
   container = os.path.basename(ruleinfo.output)
-  with temp_dir.ScopedTempDirectory(delete_non_empty=True):
+  with temp_dir.ScopedTempDirectory(delete_non_empty = True):
     os.system(f'unzip {ruleinfo.output}')
     os.system(f'docker build -t {container[:-4]} .')
     if norun:
@@ -175,8 +179,8 @@ def docker(
 @command
 def test(
   target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None,
+  debug:bool = False,
+  fakeroot:args.Directory|None = None,
 ):
   """Builds a testcase and executes it."""
   ruleinfo = build(target, None, debug, False, fakeroot)
@@ -188,10 +192,10 @@ def test(
 
 @command
 def testsuite(
-  project:str|None=None,
-  debug:bool=False,
-  threads:int=6,
-  fakeroot:args.Directory|None=None
+  project:str|None = None,
+  debug:bool = False,
+  threads:int = 6,
+  fakeroot:args.Directory|None = None
 ):
   setup(debug, fakeroot)
   targets, buildgraph = graph_for_directory(project, True)
@@ -206,12 +210,12 @@ def testsuite(
 
 
 @command
-def format(fakeroot:args.Directory|None=None):
+def format(fakeroot:args.Directory|None = None):
   '''Formats all buildfiles'''
   setup(False, fakeroot)
   directory = impulse_paths.root()
   files = {}
-  for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
+  for filename in glob.iglob(directory + '/**/BUILD', recursive = True):
     reader = fmt.FormattingBuildFileReader()
     reader.ReadFile(filename)
     files[filename] = reader.PrintFormat().strip()
@@ -236,7 +240,7 @@ def init():
     if override not in ('y', 'yes', 'Y'):
       return
   print(f'Exporting $IMPULSE_ROOT to {os.environ["PWD"]}')
-  os.makedirs(f'{home}/.config/impulse/', exist_ok=True)
+  os.makedirs(f'{home}/.config/impulse/', exist_ok = True)
   with open(f'{home}/.config/impulse/config', 'w') as config:
     config.write(os.environ['PWD'])
 

@@ -17,7 +17,8 @@ BuildTargetName = str
 BuildTarget = None
 TargetKwargs = dict[str, typing.Any]
 HelperFunction = typing.Callable[[typing.Any], typing.Any]
-BuildRuleFunction = typing.Callable[[BuildTarget, TargetName, SourceList, TargetKwargs], None]
+BuildRuleFunction = typing.Callable[[BuildTarget, TargetName, SourceList,
+                                     TargetKwargs], None]
 BuildRuleDecorator = typing.Callable[[BuildRuleFunction], BuildRuleFunction]
 
 

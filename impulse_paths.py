@@ -12,15 +12,18 @@ NOT_A_BUILD_TARGET = object()
 
 class Environ():
   """Helper class to access environment variables via attributes."""
-  def __getattr__(self, attr:str) ->str:
+  def __getattr__(self, attr:str) -> str:
     return os.environ[attr]
-  def __getitem__(self, item:str) ->str:
+  def __getitem__(self, item:str) -> str:
     return os.environ[item]
 ENV = Environ()
 
 
-def root() ->str:
-  """Returns the impulse root directory, initializing it from config if necessary."""
+def root() -> str:
+  """
+  Returns the impulse root directory, initializing it from config if
+  necessary.
+  """
   if 'impulse_root' not in os.environ:
     config = f'{ENV.HOME}/.config/impulse/config'
     if os.path.exists(config):
@@ -31,7 +34,7 @@ def root() ->str:
   return os.environ['impulse_root']
 
 
-def relative_pwd() ->str:
+def relative_pwd() -> str:
   """Returns the current working directory relative to the impulse root."""
   impulse_root = root()
   pwd = os.getcwd()
@@ -41,11 +44,11 @@ def relative_pwd() ->str:
   if pwd.startswith(impulse_root):
     return '/' + pwd[len(impulse_root):]
 
-  raise ValueError(
-    f'Impulse must be run inside {impulse_root}\nbut you are in {pwd}')
+  msg = f'Impulse must be run inside {impulse_root}\nbut you are in {pwd}'
+  raise ValueError(msg)
 
 
-def output_directory() ->str:
+def output_directory() -> str:
   """Returns the absolute path to the impulse output directory."""
   return os.path.join(root(), EXPORT_DIR)
 
@@ -59,26 +62,26 @@ class PathException(Exception):
       self._path = f'Invalid Target: {path}'
     super(PathException, self).__init__(self._path)
 
-  def __repr__(self) ->str:
+  def __repr__(self) -> str:
     return 'Invalid Target: ' + self._path
 
 
-class LoggerEnv(typing.Dict[str, typing.Any]):
+class LoggerEnv(dict):
   """
   A dictionary-like environment used to log build rule calls
   during BUILD file execution.
   """
   def __init__(self, called_as:str = 'module', push_up:'LoggerEnv'|None = None):
     super().__init__()
-    self._calls:typing.List[typing.Tuple[typing.Tuple[typing.Any, ...],
-                                         typing.Dict[str, typing.Any]]] = []
+    self._calls:list[tuple[tuple[typing.Any, ...],
+                           dict[str, typing.Any]]] = []
     self._called_as = called_as
     self._push_up = push_up
 
-  def __getitem__(self, value:str) ->'LoggerEnv': # type:ignore[override]
+  def __getitem__(self, value:str) -> 'LoggerEnv': # type:ignore[override]
     return LoggerEnv(called_as = value, push_up = self)
 
-  def __call__(self, *args:typing.Any, **kwargs:typing.Any) ->typing.List[typing.Any]:
+  def __call__(self, *args:typing.Any, **kwargs:typing.Any) -> list[typing.Any]:
     kwargs['called_as'] = kwargs.get('called_as', [])
     kwargs['called_as'].append(self._called_as)
     if self._push_up:
@@ -87,12 +90,12 @@ class LoggerEnv(typing.Dict[str, typing.Any]):
       self._calls.append((args, kwargs))
     return []
 
-  def __iter__(self) ->typing.Iterator[str]: # type:ignore[override]
+  def __iter__(self) -> typing.Iterator[str]: # type:ignore[override]
     """Returns an iterator over the keys in the environment."""
     return super().__iter__()
 
-  def Calls(self) ->typing.Iterator[typing.Tuple[typing.Tuple[typing.Any, ...],
-                                                typing.Dict[str, typing.Any]]]:
+  def Calls(self) -> typing.Iterator[tuple[tuple[typing.Any, ...],
+                                          dict[str, typing.Any]]]:
     """Returns an iterator over the logged build rule calls."""
     for call in self._calls:
       yield call
@@ -101,8 +104,7 @@ class LoggerEnv(typing.Dict[str, typing.Any]):
 class RuleSpec(object):
   """Specifies the type, name, and output path of a build rule."""
   def __init__(self, target:'ParsedTarget',
-               callspec:typing.Tuple[typing.Tuple[typing.Any, ...],
-                                     typing.Dict[str, typing.Any]]):
+               callspec:tuple[tuple[typing.Any, ...], dict[str, typing.Any]]):
     self.type = callspec[1].get('called_as', ['unknown'])[0]
     self.name = callspec[1].get('name', 'unknown')
     output_type = 'BINARIES'
@@ -120,32 +122,37 @@ class ParsedTarget(object):
     self.target_name = target_name
     self.target_path = target_path
 
-  def ParseFile(self, _:typing.Any, parser:typing.Callable[[str], None]) ->None:
+  def ParseFile(self, _:typing.Any,
+                parser:typing.Callable[[str], None]) -> None:
     """Parses the BUILD file associated with this target."""
     parser(self.GetBuildFileForTarget())
 
-  def GetBuildFileForTarget(self) ->str:
+  def GetBuildFileForTarget(self) -> str:
     """Returns the absolute path to the BUILD file for this target."""
     try:
-      return expand_fully_qualified_path(os.path.join(self.target_path, 'BUILD'))
+      path = os.path.join(self.target_path, 'BUILD')
+      return expand_fully_qualified_path(path)
     except exceptions.InvalidPathException:
       msg = f'Missing rule: {self.GetFullyQualifiedRulePath()}'
       raise exceptions.BuildTargetMissing(msg)
 
-  def GetFullyQualifiedRulePath(self) ->str:
+  def GetFullyQualifiedRulePath(self) -> str:
     """Returns the fully qualified target path (e.g., //foo/bar:baz)."""
     return self.target_path + ':' + self.target_name
 
-  def GetPackagePkgFile(self) ->str:
+  def GetPackagePkgFile(self) -> str:
     """Returns the path to the package zip file."""
     return os.path.join(self.GetPackagePathDirOnly(), self.target_name) + '.zip'
 
-  def GetPackagePathDirOnly(self) ->str:
+  def GetPackagePathDirOnly(self) -> str:
     """Returns the directory part of the target path relative to root."""
     return self.target_path[2:]
 
-  def GetRuleInfo(self) ->'RuleSpec'|None:
-    """Executes the BUILD file to find and return information about this target's rule."""
+  def GetRuleInfo(self) -> 'RuleSpec'|None:
+    """
+    Executes the BUILD file to find and return information about this
+    target's rule.
+    """
     build_file = self.GetBuildFileForTarget()
     with open(build_file) as f:
       compiled = compile(f.read(), build_file, 'exec')
@@ -156,30 +163,30 @@ class ParsedTarget(object):
           return RuleSpec(self, call)
     return None
 
-  def startswith(self, chunk:str) ->bool:
+  def startswith(self, chunk:str) -> bool:
     """Checks if the fully qualified path starts with the given chunk."""
     return self.GetFullyQualifiedRulePath().startswith(chunk)
 
-  def __hash__(self) ->int:
+  def __hash__(self) -> int:
     return hash(self.GetFullyQualifiedRulePath())
 
-  def __eq__(self, other:typing.Any) ->bool:
+  def __eq__(self, other:typing.Any) -> bool:
     if isinstance(other, ParsedTarget):
-      return self.GetFullyQualifiedRulePath() == other.GetFullyQualifiedRulePath()
+      qual_p = self.GetFullyQualifiedRulePath()
+      return qual_p == other.GetFullyQualifiedRulePath()
     return False
 
-  def __repr__(self) ->str:
+  def __repr__(self) -> str:
     return self.GetFullyQualifiedRulePath()
 
 
-def convert_name_to_build_target(name:str, loaded_from_dir:str) ->ParsedTarget:
+def convert_name_to_build_target(name:str, loaded_from_dir:str) -> ParsedTarget:
   """Converts a target name and directory into a ParsedTarget."""
   return ParsedTarget(name, loaded_from_dir)
 
 
-def convert_to_build_target(target:typing.Union[str, ParsedTarget],
-                           loaded_from_dir:str,
-                           quit_on_err:bool = False) ->typing.Union[ParsedTarget, object]:
+def convert_to_build_target(target:str|ParsedTarget, loaded_from_dir:str,
+                           quit_on_err:bool = False) -> ParsedTarget|object:
   if isinstance(target, ParsedTarget):
     return target
 
@@ -198,7 +205,7 @@ def convert_to_build_target(target:typing.Union[str, ParsedTarget],
   return NOT_A_BUILD_TARGET
 
 
-def expand_fully_qualified_path(path:str) ->str:
+def expand_fully_qualified_path(path:str) -> str:
   """Expands a repository-qualified path (//foo) to an absolute path."""
   if not is_fully_qualified_path(path):
     msg = 'Path is not repository-relative (missing starting //)'
@@ -206,18 +213,24 @@ def expand_fully_qualified_path(path:str) ->str:
   return os.path.join(root(), path[2:])
 
 
-def is_fully_qualified_path(path:str) ->bool:
+def is_fully_qualified_path(path:str) -> bool:
   """Returns True if the path is repository-qualified (starts with //)."""
   return path.startswith('//')
 
 
-def is_relative_path(path:str) ->bool:
-  """Returns True if the path is relative to the current BUILD file (starts with :)."""
+def is_relative_path(path:str) -> bool:
+  """
+  Returns True if the path is relative to the current BUILD file
+  (starts with :).
+  """
   return path.startswith(':')
 
 
-def get_qualified_build_file_dir(build_file_path:str) ->str:
-  """Returns the repository-qualified directory path for a BUILD or build_defs.py file."""
+def get_qualified_build_file_dir(build_file_path:str) -> str:
+  """
+  Returns the repository-qualified directory path for a BUILD or
+  build_defs.py file.
+  """
   build_pat = re.compile(os.path.join(root(), '(.*)/BUILD'))
   defs_pat = re.compile(os.path.join(root(), '(.*)/build_defs.py'))
   build_match = build_pat.match(build_file_path)
@@ -226,9 +239,8 @@ def get_qualified_build_file_dir(build_file_path:str) ->str:
     return '//' + build_match.group(1)
   if defs_match:
     return '//' + defs_match.group(1)
-  raise exceptions.InvalidPathException(
-    'targets must be defined in BUILD files or in build_defs.py macros',
-    build_file_path)
+  msg = 'targets must be defined in BUILD files or in build_defs.py macros'
+  raise exceptions.InvalidPathException(msg, build_file_path)
 
 
 class Platform():
@@ -267,7 +279,7 @@ class BuildTarget(args.ArgComplete):
         yield value
 
   @classmethod
-  def _parse_from_build_file(cls, path_exists:str) ->typing.Iterator[str]:
+  def _parse_from_build_file(cls, path_exists:str) -> typing.Iterator[str]:
     with open(path_exists) as f:
       compiled = compile(f.read(), path_exists, 'exec')
       logger = LoggerEnv()
