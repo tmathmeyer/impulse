@@ -1,8 +1,8 @@
-from __future__ import annotations
 import abc
 import inspect
 import glob
 import typing
+from typing import Union, List, Optional
 
 from impulse.core import errors
 from impulse.core import exceptions
@@ -12,14 +12,14 @@ from impulse.types import parsed_target
 from impulse.types import paths
 
 
-def StackScour(filename:str) ->inspect.FrameInfo|None:
+def StackScour(filename:str) ->Optional[inspect.FrameInfo]:
   for frame in inspect.stack():
     if frame.filename.endswith(filename):
       return frame
   return None
 
 
-class EnvironmentLoader(metaclass=abc.ABCMeta):
+class EnvironmentLoader(metaclass = abc.ABCMeta):
   @abc.abstractmethod
   def LoadFile(self, file:references.File) ->None:
     '''Loads a file into the environment'''
@@ -27,7 +27,7 @@ class EnvironmentLoader(metaclass=abc.ABCMeta):
 
 class BuiltinMethod(object):
   def __init__(self):
-    self._loader:EnvironmentLoader|None = None
+    self._loader:Union[EnvironmentLoader, None] = None
 
   def Attach(self, loader:EnvironmentLoader) ->None:
     self._loader = loader
@@ -54,7 +54,7 @@ class DeprecationWarning(BuiltinMethod):
 
 
 class LoadFile(BuiltinMethod):
-  def __call__(self, *files:list[str]) ->None:
+  def __call__(self, *files:str) ->None:
     if self._loader is None:
       raise errors.FatalError('BuiltinMethod not attached to loader')
     for loading in files:
@@ -71,7 +71,7 @@ class LoadFile(BuiltinMethod):
 
 
 class Pattern(BuiltinMethod):
-  def __call__(self, pattern:str) ->list[references.File]:
+  def __call__(self, pattern:str) ->List[references.File]:
     build_file:references.File = self._GetBuildFileFromStack()
     filename = references.Filename(pattern)
     pattern_file:references.File = build_file.Directory().GetFile(filename)
@@ -113,7 +113,7 @@ class BuildRule(BuiltinMethod):
     debug.DebugMsg(f'Registering build rule: {buildrule_name}')
 
     # all params to a build rule must be keyword!
-    def replacement(DBBG=False, *args, **kwargs):
+    def replacement(DBBG = False, *args, **kwargs):
       # 'name' is a required argument!
       if 'name' not in kwargs:
         callframe = StackScour('BUILD')
@@ -136,10 +136,10 @@ class BuildRule(BuiltinMethod):
         callframe = StackScour('BUILD')
         if callframe is None:
           raise errors.FatalError('Could not find BUILD file on stack')
-        raise errors.InvalidDependency(targetname=tcbm.target,
-                                       targetfile=tcbm.location,
-                                       sourcefile=callframe.filename,
-                                       sourcerange=callframe.positions) from None
+        raise errors.InvalidDependency(targetname = tcbm.target,
+                                       targetfile = tcbm.location,
+                                       sourcefile = callframe.filename,
+                                       sourcerange = callframe.positions) from None
     return replacement
 
 

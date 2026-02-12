@@ -1,4 +1,3 @@
-from __future__ import annotations
 import inspect
 import os
 import sys
@@ -20,10 +19,10 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
   Loads files into a shared environment lazily.
   Handles buildrule stubs and restricted imports.
   """
-  def __init__(self, stub_map:dict[str, list[str]],
-               builtin_methods:dict[str, builtins.BuiltinMethod]):
-    self._loaded_files:set[references.File] = set()
-    self._environment:dict[str, typing.Any] = builtin_methods
+  def __init__(self, stub_map:typing.Dict[str, typing.List[str]],
+               builtin_methods:typing.Dict[str, builtins.BuiltinMethod]):
+    self._loaded_files:typing.Set[references.File] = set()
+    self._environment:typing.Dict[str, typing.Any] = builtin_methods
     for builtin in self._environment.values():
       if isinstance(builtin, builtins.BuiltinMethod):
         builtin.Attach(self)
@@ -46,8 +45,10 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     """Returns the value associated with the key from the environment."""
     return self._environment[key]
 
-  def ImportInjector(self, name:str, locals:dict|None = None, globals:dict|None = None,
-                     fromlist:list[str]|None = None, level:int|None = None) ->types.ModuleType:
+  def ImportInjector(self, name:str, locals:typing.Dict|None = None,
+                     globals:typing.Dict|None = None,
+                     fromlist:typing.List[str]|None = None,
+                     level:int|None = None) ->types.ModuleType:
     """Restricts imports in BUILD files and rule files to allowed targets."""
     # declare allowed imports along with special cases used when importing from them
     allowed_import_targets = {
@@ -146,12 +147,11 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   """Loads files based on load() and buildrule statements."""
   def __init__(self, platform:impulse_paths.BuildTarget|None = None, **carried_args:typing.Any):
     self._carried_args = carried_args
-    self._targets:dict[references.Target, parsed_target.BuildTarget] = {}
-    self._meta_targets:set[str] = set()
-    self._loaded_files:set[references.File] = set() # We don't want to load files multiple times
-    # All the so-far-declared platforms
-    self._platforms:dict[references.Target, parsed_target.PlatformTarget] = {}
-    self._platform:parsed_target.PlatformTarget|None = None # The selected platform
+    self._targets:typing.Dict[references.Target, parsed_target.BuildTarget] = {}
+    self._meta_targets:typing.Set[str] = set()
+    self._loaded_files:typing.Set[references.File] = set()
+    self._platforms:typing.Dict[references.Target, parsed_target.PlatformTarget] = {}
+    self._platform:parsed_target.PlatformTarget|None = None
 
     stubs = {
       '//rules/builtins/builtins.py': [
@@ -178,7 +178,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       '//rules/env/Docker/build_defs.py': ['container'],
     }
 
-    builtin_methods:dict[str, typing.Any] = {
+    builtin_methods:typing.Dict[str, typing.Any] = {
       'langs': builtins.DeprecationWarning('langs'),
       'load': builtins.LoadFile(),
       'pattern': builtins.Pattern(),
@@ -242,7 +242,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       raise exceptions.BuildFileNotFoundException(buildfile=e.filepath) from None
     try:
       return self._env.Get(name)
-    except:
+    except Exception:
       raise exceptions.BuildFileMissingTarget(buildfile=file.Absolute().Value(), target=name)
 
   def ParseTarget(self, name:references.Target) ->None:
@@ -272,7 +272,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
         result.AddAll(target._staged)
     return result
 
-  def _stack_without_recursive_loader(self) ->list[inspect.FrameInfo]:
+  def _stack_without_recursive_loader(self) ->typing.List[inspect.FrameInfo]:
     return [s for s in inspect.stack()
             if not s.filename.endswith('recursive_loader.py')]
 
@@ -312,9 +312,9 @@ class RecursiveFileParser(parsed_target.TargetArchive):
   def GetMacroInvokerFile(self):
     return self._get_macro_invoker_file()
 
-  def GetAllConvertedTargets(self, allow_meta:list[str]|bool = False):
-    allowed_meta:list = []
-    if type(allow_meta) is list:
+  def GetAllConvertedTargets(self, allow_meta:typing.Union[typing.List[str], bool] = False):
+    allowed_meta:typing.List = []
+    if isinstance(allow_meta, list):
       allowed_meta = allow_meta
     def converted_targets():
       for target in self._targets.values():

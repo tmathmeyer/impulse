@@ -1,4 +1,3 @@
-from __future__ import annotations
 import os
 import re
 import typing
@@ -64,21 +63,22 @@ class PathException(Exception):
     return 'Invalid Target: ' + self._path
 
 
-class LoggerEnv(dict[str, typing.Any]):
+class LoggerEnv(typing.Dict[str, typing.Any]):
   """
   A dictionary-like environment used to log build rule calls
   during BUILD file execution.
   """
-  def __init__(self, called_as:str = 'module', push_up:LoggerEnv|None = None):
+  def __init__(self, called_as:str = 'module', push_up:'LoggerEnv'|None = None):
     super().__init__()
-    self._calls:list[tuple[tuple[typing.Any, ...], dict[str, typing.Any]]] = []
+    self._calls:typing.List[typing.Tuple[typing.Tuple[typing.Any, ...],
+                                         typing.Dict[str, typing.Any]]] = []
     self._called_as = called_as
     self._push_up = push_up
 
-  def __getitem__(self, value:str) ->LoggerEnv: # type:ignore[override]
-    return LoggerEnv(called_as=value, push_up=self)
+  def __getitem__(self, value:str) ->'LoggerEnv': # type:ignore[override]
+    return LoggerEnv(called_as = value, push_up = self)
 
-  def __call__(self, *args:typing.Any, **kwargs:typing.Any) ->list[typing.Any]:
+  def __call__(self, *args:typing.Any, **kwargs:typing.Any) ->typing.List[typing.Any]:
     kwargs['called_as'] = kwargs.get('called_as', [])
     kwargs['called_as'].append(self._called_as)
     if self._push_up:
@@ -91,7 +91,8 @@ class LoggerEnv(dict[str, typing.Any]):
     """Returns an iterator over the keys in the environment."""
     return super().__iter__()
 
-  def Calls(self) ->typing.Iterator[tuple[tuple[typing.Any, ...], dict[str, typing.Any]]]:
+  def Calls(self) ->typing.Iterator[typing.Tuple[typing.Tuple[typing.Any, ...],
+                                                typing.Dict[str, typing.Any]]]:
     """Returns an iterator over the logged build rule calls."""
     for call in self._calls:
       yield call
@@ -99,8 +100,9 @@ class LoggerEnv(dict[str, typing.Any]):
 
 class RuleSpec(object):
   """Specifies the type, name, and output path of a build rule."""
-  def __init__(self, target:ParsedTarget,
-               callspec:tuple[tuple[typing.Any, ...], dict[str, typing.Any]]):
+  def __init__(self, target:'ParsedTarget',
+               callspec:typing.Tuple[typing.Tuple[typing.Any, ...],
+                                     typing.Dict[str, typing.Any]]):
     self.type = callspec[1].get('called_as', ['unknown'])[0]
     self.name = callspec[1].get('name', 'unknown')
     output_type = 'BINARIES'
@@ -142,7 +144,7 @@ class ParsedTarget(object):
     """Returns the directory part of the target path relative to root."""
     return self.target_path[2:]
 
-  def GetRuleInfo(self) ->RuleSpec|None:
+  def GetRuleInfo(self) ->'RuleSpec'|None:
     """Executes the BUILD file to find and return information about this target's rule."""
     build_file = self.GetBuildFileForTarget()
     with open(build_file) as f:
@@ -175,8 +177,9 @@ def convert_name_to_build_target(name:str, loaded_from_dir:str) ->ParsedTarget:
   return ParsedTarget(name, loaded_from_dir)
 
 
-def convert_to_build_target(target:str|ParsedTarget, loaded_from_dir:str,
-                           quit_on_err:bool = False) ->ParsedTarget|object:
+def convert_to_build_target(target:typing.Union[str, ParsedTarget],
+                           loaded_from_dir:str,
+                           quit_on_err:bool = False) ->typing.Union[ParsedTarget, object]:
   if isinstance(target, ParsedTarget):
     return target
 

@@ -1,6 +1,6 @@
-from __future__ import annotations
 import os
 import typing
+from typing import Union
 
 from impulse.core import exceptions
 from impulse.types import paths
@@ -37,7 +37,7 @@ class Directory(object):
     """Returns the repository-relative path of the directory."""
     return self._path.QualPath()
 
-  def GetFile(self, file:Filename) ->File:
+  def GetFile(self, file:Filename) ->'File':
     """Returns a File object for a file within this directory."""
     return File(paths.AbsolutePath(os.path.join(self._path.Value(), file.Name())))
 
@@ -156,13 +156,11 @@ class Target(object):
     return self._target_dir
 
   @staticmethod
-  def Parse(content:str, directory:Directory|None = None) ->Target:
+  def Parse(content:str, directory:Union[Directory, None] = None) ->'Target':
     split = content.split(':')
     if len(split) != 2:
-      raise exceptions.InvalidPathException(
-        'Target must either a local path (:target) '
-        'or qualified path (//path/to/build:target)',
-        content)
+      msg = 'Target must either a local path (:target) or qualified path (//path/to/build:target)'
+      raise exceptions.InvalidPathException(msg, content)
     path, name = split
     if path.startswith('//'):
       return Target(TargetName(name),

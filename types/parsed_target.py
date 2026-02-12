@@ -1,4 +1,3 @@
-from __future__ import annotations
 import abc
 import marshal
 import os
@@ -51,8 +50,8 @@ class PlatformTarget(Target):
     if attr.startswith('__'):
       raise AttributeError(attr)
     if attr not in self._values:
-      raise exceptions.PlatformKeyAbsentError(
-        self._values.get('platform_target', str(self._name)), attr)
+      plat_name = self._values.get('platform_target', str(self._name))
+      raise exceptions.PlatformKeyAbsentError(plat_name, attr)
     return self._values[attr]
 
 
@@ -65,10 +64,10 @@ class StagedBuildTarget(Target):
 class StagedBuildTargetSet(object):
   """A set of StagedBuildTarget objects."""
   __slots__ = ('_targets',)
-  def __init__(self, targets:set[StagedBuildTarget]|None = None):
-    self._targets:set[StagedBuildTarget] = set(targets or set())
+  def __init__(self, targets:typing.Set[StagedBuildTarget]|None = None):
+    self._targets:typing.Set[StagedBuildTarget] = set(targets or set())
 
-  def AddAll(self, targets:StagedBuildTargetSet) ->None:
+  def AddAll(self, targets:'StagedBuildTargetSet') ->None:
     """Adds all targets from another set to this set."""
     self._targets |= targets._targets
 
@@ -80,7 +79,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
     """Adds a meta target generated through a buildmacro."""
 
   @abc.abstractmethod
-  def AddBuildTarget(self, target:BuildTarget) ->BuildTarget:
+  def AddBuildTarget(self, target:'BuildTarget') ->'BuildTarget':
     """Adds a build target to the archive."""
 
   @abc.abstractmethod
@@ -100,7 +99,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
     """Gets the default platform target if set."""
 
   @abc.abstractmethod
-  def GetBuildTarget(self, name:references.Target) ->BuildTarget:
+  def GetBuildTarget(self, name:references.Target) ->'BuildTarget':
     """Gets a build target by name."""
 
   @abc.abstractmethod
@@ -116,15 +115,15 @@ class BuildTarget(Target):
                function:BuildableTargetInterface,
                kwargs:dict,
                scope:dict,
-               tags:list[str]):
+               tags:typing.List[str]):
     super().__init__(name)
     self._func = marshal.dumps(function.__code__)
-    self._deps:list[references.Target] = []
-    self._includes:dict[str, bytes] = {}
+    self._deps:typing.List[references.Target] = []
+    self._includes:typing.Dict[str, bytes] = {}
     self._kwargs = self._PrecomputeDependencies(kwargs)
     self._scope = scope
     self._tags = tags
-    self._staged:StagedBuildTargetSet|object|None = None
+    self._staged:typing.Union['StagedBuildTargetSet', object, None] = None
     self._rule_name = function.__name__
 
   def GetName(self) ->str:
@@ -150,17 +149,17 @@ class BuildTarget(Target):
     except exceptions.InvalidPathException:
       return None
 
-  def GetDependencies(self) ->list[references.Target]:
+  def GetDependencies(self) ->typing.List[references.Target]:
     """Returns the list of dependencies for this target."""
     return list(self._deps)
 
-  def AddIncludes(self, funcs:list[BuildableTargetInterface]) ->BuildTarget:
+  def AddIncludes(self, funcs:typing.List[BuildableTargetInterface]) ->'BuildTarget':
     """Adds additional helper functions to the rule execution environment."""
     for func in funcs:
       self._includes[func.__name__] = (marshal.dumps(func.__code__))
     return self
 
-  def Stage(self, archive:TargetArchive) ->StagedBuildTargetSet:
+  def Stage(self, archive:TargetArchive) ->'StagedBuildTargetSet':
     """Stages the target and its dependencies for execution."""
     if self._staged is RULE_STAGING_RECURSIVE_CANARY:
       raise exceptions.BuildTargetCycle.Cycle(self)
@@ -176,7 +175,7 @@ class BuildTarget(Target):
     except exceptions.ImpulseFileChainException as e:
       raise e.Chain(str(self._name))
 
-  def _StageInternal(self, archive:TargetArchive) ->StagedBuildTargetSet:
+  def _StageInternal(self, archive:TargetArchive) ->'StagedBuildTargetSet':
     """Internal staging logic that handles dependency resolution."""
     dependencies = StagedBuildTargetSet()
     for dependency in self._deps:
@@ -231,8 +230,9 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
   def __repr__(self) ->str:
     return f'Staged[{self._name}]'
 
-  def LoadToTemp(self, package_dir:str, binary_dir:str) ->tuple[str, dict[str, str],
-                                                                packaging.ExportablePackage]:
+  def LoadToTemp(self, package_dir:str, binary_dir:str) ->typing.Tuple[str,
+                                                                      typing.Dict[str, str],
+                                                                      packaging.ExportablePackage]:
     """Loads the package into a temporary directory for build execution."""
     return self._package.LoadToTemp(package_dir, binary_dir)
 
@@ -248,7 +248,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     """Returns the associated ExportablePackage data."""
     return self._package
 
-  def _GetFilesIncludedInBuildDirectory(self, root:paths.AbsolutePath) ->dict[str, str]:
+  def _GetFilesIncludedInBuildDirectory(self, root:paths.AbsolutePath) ->typing.Dict[str, str]:
     """Returns a mapping of relative paths to absolute paths for files in the build directory."""
     self.check_thread()
     result = {}
@@ -276,7 +276,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
       return True
     return needs_building
 
-  def _RunBuildRule(self) ->tuple[typing.Any, str, str]:
+  def _RunBuildRule(self) ->typing.Tuple[typing.Any, str, str]:
     """Executes the build rule function."""
     self.check_thread()
     buildrule, rule, buildfile = self._CompileBuildRule()
@@ -307,12 +307,12 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
           raise exceptions.BuildDefsRaisesException(target_name,
                                                     buildrule_type,
                                                     highlighted) from None
-      except:
+      except Exception:
         pass
 
       raise exceptions.BuildDefsRaisesException(target_name, buildrule_type, e)
 
-  def _CompileBuildRule(self) ->tuple[types.FunctionType, str, str]:
+  def _CompileBuildRule(self) ->typing.Tuple[types.FunctionType, str, str]:
     """Unmarshals and compiles the build rule function."""
     self.check_thread()
     try:
@@ -324,7 +324,7 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     except Exception as e:
       raise exceptions.BuildRuleCompilationError(e)
 
-  def _GetExecEnv(self) ->dict[str, typing.Any]:
+  def _GetExecEnv(self) ->typing.Dict[str, typing.Any]:
     """Creates the execution environment for the build rule."""
     self.check_thread()
     env = globals().copy()
@@ -333,7 +333,8 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
     return env
 
   def run_job(self, debug:bool,
-              internal_access:threading.UpdateGraphResponseData|None = None) ->typing.Any:
+              internal_access:typing.Optional['threading.UpdateGraphResponseData'] = None
+              ) ->typing.Any:
     """Runs the build job for this target."""
     # Set internal access on the package
     if internal_access:
@@ -410,7 +411,7 @@ def CheckRuleFile(rulefile:str) ->str:
   return rulefile
 
 
-def GetRootRelativePath(path:str) ->str|None:
+def GetRootRelativePath(path:str) ->typing.Optional[str]:
   """Returns the path relative to the impulse root, or None if not within root."""
   root = environment.Root()
   if path.startswith(root):

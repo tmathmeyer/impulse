@@ -1,5 +1,5 @@
-from __future__ import annotations
 from impulse.core.interface import IFace
+import typing
 
 FileName = str
 PackageName = str
@@ -72,7 +72,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def Dependencies(self, **filters) ->list[Package]:
+  def Dependencies(self, **filters) ->typing.List['Package']:
     """
     Gets all Packages which this Package depends on.
 
@@ -130,7 +130,7 @@ class Package():
     """
     raise NotImplementedError()
 
-  def IncludedFiles(self) ->list[FileName]:
+  def IncludedFiles(self) ->typing.List[FileName]:
     """
     Gets a list of all files included in this package.
 

@@ -1,4 +1,3 @@
-from __future__ import annotations
 from impulse.types.stubs import buildrule
 from impulse.types.stubs import depends_targets
 from impulse.types.stubs import using
@@ -23,7 +22,7 @@ def py_make_binary(target:Package, package_name:str, package_file:str, binary_lo
 
   try:
     target.Execute(f'which {pyversion}')
-  except:
+  except Exception:
     target.FatalError(f'Minimum python version {pyversion} not found')
 
   target.Execute(
@@ -32,7 +31,7 @@ def py_make_binary(target:Package, package_name:str, package_file:str, binary_lo
     f'chmod +x {binary_file}')
 
 
-def _add_files(target:Package, srcs:list[str]):
+def _add_files(target:Package, srcs:list):
   for src in srcs:
     added_file = os.path.join(target.GetPackageDirectory(), src)
     if not os.path.exists(added_file):
@@ -135,7 +134,7 @@ def _version_check(target, kwargs):
 
 @using(_add_files, _write_file, _get_recursive_pips, _version_check)
 @buildrule
-def py_library(target:Package, name:str, srcs:list[str], **kwargs:Any):
+def py_library(target:Package, name:str, srcs:list, **kwargs):
   target.SetTags('py_library')
   _add_files(target, srcs + kwargs.get('data', []))
   for pip in _get_recursive_pips(target, kwargs):
@@ -180,7 +179,7 @@ def _python_package_fresh_venv(target, packages):
 @using(_add_files, _write_file, _get_tools_paths, py_make_binary,
        _get_recursive_pips, _version_check, _python_package_fresh_venv)
 @buildrule
-def py_binary(target:Package, name:str, **kwargs:Any):
+def py_binary(target:Package, name:str, **kwargs):
   target.SetTags('exe')
   srcs = kwargs.get('srcs', [])
 
@@ -227,7 +226,7 @@ def py_binary(target:Package, name:str, **kwargs:Any):
 @using(_add_files, _write_file, py_make_binary, _get_recursive_pips,
        _version_check, _python_package_fresh_venv)
 @buildrule
-def py_test(target:Package, name:str, srcs:list[str], **kwargs:Any):
+def py_test(target:Package, name:str, srcs:list, **kwargs):
   target.SetTags('exe', 'test')
   _add_files(target, srcs + kwargs.get('data', []))
   # Create the init files

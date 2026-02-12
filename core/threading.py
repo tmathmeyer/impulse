@@ -1,12 +1,13 @@
-from __future__ import annotations
 import abc
 import multiprocessing
 import queue
 import signal
 import traceback
-from typing import Set, TypeVar, Generic, Any
+import typing
+from typing import Set, TypeVar, Generic, Any, Union
 
 from impulse.core import job_printer
+from impulse.core import exceptions
 
 
 class Messages(object):
@@ -18,24 +19,26 @@ class Messages(object):
 class UpdateGraphResponseData(object):
   """Data returned by a job to update the dependency graph dynamically."""
   def __init__(self) ->None:
-    self.added_graph:set[GraphNode] = set()
-    self.rerun_more_deps:list[GraphNode] = []
+    self.added_graph:set['GraphNode'] = set()
+    self.rerun_more_deps:list['GraphNode'] = []
 
-  def InjectMoreGraph(self, graph:set[GraphNode]) ->None:
+  def InjectMoreGraph(self, graph:set['GraphNode']) ->None:
     """Adds more nodes to the build graph."""
     self.added_graph |= graph
 
-  def RerunWithDependency(self, nodes:list[GraphNode]) ->None:
+  def RerunWithDependency(self, nodes:list['GraphNode']) ->None:
     """Specifies that the current job should be rerun after these nodes are completed."""
     self.added_graph |= set(nodes)
     self.rerun_more_deps = nodes
 
 
 T = TypeVar('T')
+
+
 class GraphNode(Generic[T]):
   """Base class for a node in the dependency graph."""
   def __init__(self,
-               dependencies:Set[GraphNode],
+               dependencies:Set['GraphNode'],
                has_internal_access:bool):
     self.dependencies = dependencies
     self.remaining_dependencies = set(dependencies)
@@ -79,17 +82,22 @@ class GraphNode(Generic[T]):
     pass
 
 
-class NullNode(GraphNode):
+class NullNode(GraphNode[Any]):
   def __init__(self):
     super().__init__(set(), False)
-  def run_job(*args, **kwargs):
+
+  def run_job(self, *args, **kwargs):
     raise NotImplementedError()
+
   def __eq__(self, other):
     return type(other) == NullNode
-  def __hash__(*args, **kwargs):
+
+  def __hash__(self):
     raise NotImplementedError()
-  def get_name(*args, **kwargs):
+
+  def get_name(self):
     raise NotImplementedError()
+
   def data(self):
     raise NotImplementedError()
 
@@ -104,9 +112,9 @@ class JobResponse(object):
 
   def __init__(self, level:str,
                      job_id:int,
-                     job:GraphNode|None,
+                     job:Union['GraphNode', None],
                      message:str = '',
-                     result:Any = None):
+                     result:Union['UpdateGraphResponseData', typing.Callable, None] = None):
     self._level = level
     self._msg = message
     self._result = result
@@ -121,11 +129,11 @@ class JobResponse(object):
     """Returns the message of the response."""
     return self._msg
 
-  def result(self) ->Any:
+  def result(self) ->Union[UpdateGraphResponseData, typing.Callable, None]:
     """Returns the result of the job."""
     return self._result
 
-  def job(self) ->GraphNode:
+  def job(self) ->'GraphNode':
     """Returns the job associated with the response."""
     assert self._job is not None
     return self._job
@@ -162,11 +170,9 @@ class ThreadWatchdog(multiprocessing.Process):
   def _Fail(self, exc:Exception):
     """Handles job failure by sending a fatal response."""
     msg = str(exc)
-    # If it's a BuildDefsRaisesException, it might contain a RenderableError or another Exception
-    from impulse.core import exceptions
+    # The underlying exception might be a FileErrorException which is renderable
     if isinstance(exc, exceptions.BuildDefsRaisesException):
-        # The underlying exception might be a FileErrorException which is renderable
-        pass
+      pass
 
     self._job_response_queue.put(JobResponse(
         JobResponse.LEVEL.FATAL, self._id, NullNode(),
@@ -205,6 +211,7 @@ class ThreadWatchdog(multiprocessing.Process):
         JobResponse.LEVEL.GREEN, self._id, job,
         result = job_result))
       self._job_input_queue.task_done()
+
 
 class ThreadPool(multiprocessing.Process):
   def __init__(self, poolcount:int, debug:bool = False):
