@@ -30,4 +30,4 @@ jobs:
         run: make
 
       - name: Run Unit Tests
-        run: ./GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(pwd)
+        run: ./GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(pwd) --project impulse

@@ -66,8 +66,6 @@ def graph_for_directory(project=None, testonly:bool=False) -> (
 
   rfp = recursive_loader.RecursiveFileParser()
   for filename in glob.iglob(directory + '/**/BUILD', recursive=True):
-    if os.path.dirname(filename) == impulse_paths.root():
-      continue
     rfp.LoadBuildFile(references.File(paths.AbsolutePath(filename)))
 
   targets = []
