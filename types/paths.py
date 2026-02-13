@@ -49,7 +49,7 @@ class AbsolutePath(Path):
       if not self._rawpath.startswith(root):
         raise exceptions.InvalidPathException(
           self._rawpath, f'Path is not within impulse root ({root})')
-      self._qualpath = QualifiedPath('/' + self._rawpath[len(root):])
+      self._qualpath = QualifiedPath('//' + self._rawpath[len(root):].lstrip('/'))
     return self._qualpath
 
   def __hash__(self) -> int:
