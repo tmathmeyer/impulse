@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import inspect
+import os
 import re
 import sys
 import traceback
@@ -21,7 +22,9 @@ class FailedAssertError(Exception):
     super().__init__()
     self._filename = filename
     self._lineno = lineno
-    testbase = (__file__ or '')[:-27]
+    testbase = os.path.dirname(
+      os.path.dirname(os.path.abspath(__file__ or ''))
+    ) + '/'
     if filename.startswith(testbase):
       filename = filename[len(testbase):]
     self._file_location = '{}:{}'.format(filename, lineno)
@@ -320,7 +323,7 @@ class TestCase(object):
     for f in out['failures']:
       print(
         f'::error file={f._rel_filename},line={f._lineno},'
-        f'title={f._casename}::{f._assertName} failed; '
+        f'title={f._casename}::{f._assertName} failed::'
         f'expected {f._expected}, was {f._actual}'
       )
     for c in out['crashes']:
@@ -329,7 +332,9 @@ class TestCase(object):
         tb = tb.tb_next
       filename = tb.tb_frame.f_code.co_filename
       lineno = tb.tb_lineno
-      testbase = (__file__ or '')[:-27]
+      testbase = os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__ or ''))
+      ) + '/'
       if filename.startswith(testbase):
         filename = filename[len(testbase):]
       print(
