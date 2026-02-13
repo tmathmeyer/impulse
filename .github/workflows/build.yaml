@@ -2,7 +2,9 @@ name: build impulse
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
 
 jobs:
   setup:
@@ -24,5 +26,11 @@ jobs:
           which fuse-overlayfs
           fuse-overlayfs --help
 
-      - name: Build impulse inside Podman using fuse-overlayfs
+      - name: Build Impulse
         run: make
+
+      - name: Run Unit Tests
+        run: |
+          make copy_srcs
+          cd impulse
+          ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd))
