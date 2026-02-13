@@ -22,11 +22,7 @@ class FailedAssertError(Exception):
     super().__init__()
     self._filename = filename
     self._lineno = lineno
-    testbase = os.path.dirname(
-      os.path.dirname(os.path.abspath(__file__ or ''))
-    ) + '/'
-    if filename.startswith(testbase):
-      filename = filename[len(testbase):]
+    filename = TestCase._RelativizePath(filename)
     self._file_location = '{}:{}'.format(filename, lineno)
     self._rel_filename = filename
     self._assertName = assertname
@@ -323,7 +319,7 @@ class TestCase(object):
     for f in out['failures']:
       print(
         f'::error file={f._rel_filename},line={f._lineno},'
-        f'title={f._casename}::{f._assertName} failed::'
+        f'title={f._casename} ({f._assertName} failed)::'
         f'expected {f._expected}, was {f._actual}'
       )
     for c in out['crashes']:
@@ -332,16 +328,23 @@ class TestCase(object):
         tb = tb.tb_next
       filename = tb.tb_frame.f_code.co_filename
       lineno = tb.tb_lineno
-      testbase = os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__ or ''))
-      ) + '/'
-      if filename.startswith(testbase):
-        filename = filename[len(testbase):]
+      filename = cls._RelativizePath(filename)
       print(
         f'::error file={filename},line={lineno},title={c.isolator.name}::'
         f'Crashed: {c.exc}'
       )
     return exit_code
+
+  @classmethod
+  def _RelativizePath(cls, filename):
+    testbase = os.path.dirname(
+      os.path.dirname(os.path.abspath(__file__ or ''))
+    ) + '/'
+    if filename.startswith(testbase):
+      filename = filename[len(testbase):]
+    if filename.startswith('impulse/'):
+      filename = filename[8:]
+    return filename
 
   @classmethod
   def PrintFailure(cls, failure:FailedAssertError, max_len:int):
