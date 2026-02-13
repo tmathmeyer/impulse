@@ -14,3 +14,4 @@ class FormatTests(unittest.TestCase):
     reader.ReadFile(file)
     with open(file) as f:
       self.assertNoDiff(f.read().strip(), reader.PrintFormat().strip())
+      self.assertFalse(True)
