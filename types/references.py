@@ -1,175 +1,144 @@
+
 import os
 import typing
 
-from impulse.core import exceptions
 from impulse.types import paths
 
 
 class Filename(object):
-  """Represents a single filename without any path components."""
+  """Represents a filename component of a path."""
   def __init__(self, name:str):
     self._name = name
 
   def Name(self) -> str:
-    """Returns the string representation of the filename."""
     return self._name
 
-  def __hash__(self) -> int:
-    return hash(self._name)
-
-  def __eq__(self, other:object) -> bool:
-    if not isinstance(other, Filename):
-      return False
-    return self._name == other._name
+  def __str__(self) -> str:
+    return self._name
 
 
 class Directory(object):
-  """Represents a directory in the filesystem."""
-  def __init__(self, path:paths.AbsolutePath):
+  """Represents a directory in the impulse repository."""
+  def __init__(self, path:paths.QualifiedPath):
     self._path = path
 
-  def Absolute(self) -> paths.AbsolutePath:
-    """Returns the absolute path of the directory."""
+  def GetFile(self, file:Filename) -> 'File':
+    """Returns a File object in this directory."""
+    path = os.path.join(self._path.Value(), file.Name())
+    return File(paths.QualifiedPath(path))
+
+  def QualPath(self) -> paths.QualifiedPath:
     return self._path
 
-  def Relative(self) -> paths.QualifiedPath:
-    """Returns the repository-relative path of the directory."""
-    return self._path.QualPath()
+  def Relative(self) -> paths.RelativePath:
+    return self._path.Relative()
 
-  def GetFile(self, file:Filename) -> 'File':
-    """Returns a File object for a file within this directory."""
-    path = os.path.join(self._path.Value(), file.Name())
-    return File(paths.AbsolutePath(path))
+  def Absolute(self) -> paths.AbsolutePath:
+    return self._path.Absolute()
+
+  def __str__(self) -> str:
+    return self._path.Value()
+
+  def __eq__(self, other:object) -> bool:
+    if isinstance(other, Directory):
+      return self._path == other._path
+    return False
 
   def __hash__(self) -> int:
     return hash(self._path)
-
-  def __eq__(self, other:object) -> bool:
-    if not isinstance(other, Directory):
-      return False
-    return self._path == other._path
 
 
 class File(object):
-  """Represents a file in the filesystem."""
-  def __init__(self, path:paths.AbsolutePath):
+  """Represents a file in the impulse repository."""
+  def __init__(self, path:paths.Path):
     self._path = path
 
   def Absolute(self) -> paths.AbsolutePath:
-    """Returns the absolute path of the file."""
-    return self._path
+    return self._path.Absolute()
 
-  def Relative(self) -> paths.QualifiedPath:
-    """Returns the repository-relative path of the file."""
+  def QualPath(self) -> paths.QualifiedPath:
     return self._path.QualPath()
 
-  def Directory(self) -> 'Directory':
-    """Returns the Directory object containing this file."""
-    return Directory(paths.AbsolutePath(os.path.dirname(self._path.Value())))
+  def Directory(self) -> Directory:
+    """Returns the directory containing this file."""
+    return Directory(self.QualPath())
 
-  def Filename(self) -> Filename:
-    """Returns the Filename object for this file."""
-    return Filename(os.path.basename(self._path.Value()))
+  def __str__(self) -> str:
+    return self._path.Value()
+
+  def __eq__(self, other:object) -> bool:
+    if isinstance(other, File):
+      return self._path == other._path
+    return False
 
   def __hash__(self) -> int:
     return hash(self._path)
 
-  def __eq__(self, other:object) -> bool:
-    if not isinstance(other, File):
-      return False
-    return self._path == other._path
 
-
-class TargetName(object):
-  """Represents the name of a build target."""
+class Package(object):
+  """Represents a package (a directory containing a BUILD file)."""
   def __init__(self, name:str):
     self._name = name
 
-  def Name(self) -> str:
-    """Returns the string representation of the target name."""
+  def GetRelativePath(self) -> str:
+    """Returns the path of the package zip file relative to output root."""
+    return self._name[2:] + '.zip'
+
+  def __str__(self) -> str:
     return self._name
 
-  def __hash__(self) -> int:
-    return hash(self._name)
-
   def __eq__(self, other:object) -> bool:
-    if not isinstance(other, TargetName):
-      return False
-    return self._name == other._name
-
-
-class Package(object):
-  """Represents a build package (usually a zip file)."""
-  def __init__(self, name:Filename, path:paths.QualifiedPath):
-    self._name = name
-    self._path = path
+    if isinstance(other, Package):
+      return self._name == other._name
+    return False
 
   def __hash__(self) -> int:
     return hash(self._name)
-
-  def __eq__(self, other:object) -> bool:
-    if not isinstance(other, Package):
-      return False
-    return self._name == other._name and self._path == other._path
-
-  def GetRelativePath(self) -> str:
-    """Returns the repository-relative path to the package file."""
-    return os.path.join(self._path.Value()[2:], self._name.Name())
 
 
 class Target(object):
-  """Represents a fully qualified build target (directory + name)."""
-  def __init__(self, name:TargetName, directory:Directory):
+  """Represents a build target (e.g., //foo:bar)."""
+  def __init__(self, directory:Directory, name:Filename):
     self._target_name = name
     self._target_dir = directory
-    assert isinstance(directory, Directory)
-
-  def __repr__(self) -> str:
-    return str(self)
-
-  def __str__(self) -> str:
-    return f'{self._target_dir.Relative().Value()}:{self._target_name.Name()}'
-
-  def __hash__(self) -> int:
-    return hash(repr(self))
-
-  def __eq__(self, other:object) -> bool:
-    if not isinstance(other, Target):
-      return False
-    return repr(self) == repr(other)
-
-  def GetBuildFile(self) -> File:
-    """Returns the File object for the BUILD file defining this target."""
-    return self._target_dir.GetFile(Filename('BUILD'))
-
-  def GetPackage(self) -> Package:
-    """Returns the Package object that this target will produce."""
-    return Package(Filename(self._target_name.Name() + '.zip'),
-                   self._target_dir.Relative())
-
-  def GetName(self) -> TargetName:
-    """Returns the TargetName object for this target."""
-    return self._target_name
-
-  def GetDirectory(self) -> Directory:
-    """Returns the Directory object where this target is defined."""
-    return self._target_dir
 
   @staticmethod
   def Parse(content:str, directory:Directory|None=None) -> 'Target':
+    """Parses a target string into a Target object."""
+    if ':' not in content:
+      raise ValueError(f'Invalid target: {content}')
     split = content.split(':')
-    if len(split) != 2:
-      msg = ('Target must either a local path (:target) or '
-             'qualified path (//path/to/build:target)')
-      raise exceptions.InvalidPathException(msg, content)
-    path, name = split
-    if path.startswith('//'):
-      return Target(TargetName(name),
-                    Directory(paths.QualifiedPath(path).AbsPath()))
-    if not directory:
-      raise exceptions.InvalidPathException(
-        'Unable to determine local path', content)
-    if path:
-      raise exceptions.InvalidPathException(
-        'Path component must be fully qualified', path)
-    return Target(TargetName(name), directory)
+    path_str, name_str = split
+    if path_str == '' and directory is not None:
+      path = directory.QualPath()
+    else:
+      path = paths.QualifiedPath(path_str)
+    return Target(Directory(path), Filename(name_str))
+
+  def GetPackage(self) -> Package:
+    """Returns the package containing this target."""
+    return Package(str(self._target_dir))
+
+  def GetName(self) -> Filename:
+    """Returns the name component of the target."""
+    return self._target_name
+
+  def GetDirectory(self) -> Directory:
+    """Returns the directory component of the target."""
+    return self._target_dir
+
+  def GetBuildFile(self) -> File:
+    """Returns the File object for the package's BUILD file."""
+    return self._target_dir.GetFile(Filename('BUILD'))
+
+  def __str__(self) -> str:
+    return f'{self._target_dir}:{self._target_name}'
+
+  def __eq__(self, other:object) -> bool:
+    if isinstance(other, Target):
+      return (self._target_name == other._target_name and
+              self._target_dir == other._target_dir)
+    return False
+
+  def __hash__(self) -> int:
+    return hash(str(self))

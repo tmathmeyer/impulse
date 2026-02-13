@@ -1,3 +1,4 @@
+
 import abc
 import hashlib
 import json
@@ -33,7 +34,7 @@ class Hasher(metaclass=abc.ABCMeta):
     hash_md5 = hashlib.md5()
     try:
       with open(filename, "rb") as f:
-        for chunk in iter(lambda:f.read(4096), b""):
+        for chunk in iter(lambda: f.read(4096), b""):
           hash_md5.update(chunk)
       return hash_md5.hexdigest()
     except FileNotFoundError:
@@ -48,7 +49,7 @@ class HashedFile(object):
     self.hash = package.GetHash(file)
 
   def dict(self):
-    return {'file':self.file, 'hash':self.hash}
+    return {'file': self.file, 'hash': self.hash}
 
   def __eq__(self, other:object) -> bool:
     if type(other) != type(self):
@@ -66,12 +67,12 @@ class HashedFile(object):
 class ExportedPackage(object):
   """Read-only package wrapper."""
   def __init__(self,
-               filename:str,
-               json_data:dict|None = None,
-               export_binary = None):
+               filename: str,
+               json: dict|None=None,
+               export_binary=None):
     self.filename = filename
-    if json_data:
-      self.__dict__.update(json_data)
+    if json:
+      self.__dict__.update(json)
     if export_binary:
       self.ExportBinary = export_binary
 
@@ -102,7 +103,7 @@ class ExportedPackage(object):
         r = self.RunCommand(command)
         if r.returncode:
           raise errors.FatalError(f'command "{command}" failed.')
-      except Exception:
+      except:
         raise errors.FatalError(f'command "{command}" failed.')
 
   def FatalError(self, msg:str):
@@ -127,18 +128,18 @@ class UtilHelper(object):
 class ExportablePackage(Hasher):
   """A wrapper class for building a package file."""
 
-  def __init__(self, package_target:references.Target, ruletype:str,
-               platform:object,
-               can_access_internal:bool = False,
-               binaries_location:str = ''):
+  def __init__(self, package_target:references.Target, ruletype: str,
+               platform:object, # TODO: fix type
+               can_access_internal: bool=False,
+               binaries_location: str=''):
     self._extracted_dir = None
 
-    self.included_files:list[str] = []
-    self.input_files:set[HashedFile] = set()
-    self.depends_on_targets:list[str] = []
+    self.included_files:typing.List[str] = []
+    self.input_files:typing.Set[HashedFile] = set()
+    self.depends_on_targets:typing.List[str] = []
     self.build_file:HashedFile
     self.rule_file:HashedFile
-    self.tags:set[str] = set()
+    self.tags:typing.Set[str] = set()
 
     self.package_target = package_target
     self.build_timestamp = int(time.time())
@@ -186,8 +187,7 @@ class ExportablePackage(Hasher):
       if k == 'depends_on_targets':
         copydict[k] = [[d.package_target, d.build_timestamp] for d in v]
       if k == 'input_files':
-        copydict[k] = sorted(list(e.dict() for e in v),
-                             key = lambda x:x['file'])
+        copydict[k] = sorted(list(e.dict() for e in v), key=lambda x:x['file'])
       if k == 'build_file':
         copydict[k] = v.dict()
       if k == 'rule_file':
@@ -209,7 +209,7 @@ class ExportablePackage(Hasher):
         continue
       try:
         potential = getattr(self, potential)
-      except Exception:
+      except:
         continue
       if not callable(potential):
         continue
@@ -237,7 +237,7 @@ class ExportablePackage(Hasher):
   def SetInternalAccess(self, access):
     self._buildqueue_ref = access
 
-  def SetInputFiles(self, files:list[str]):
+  def SetInputFiles(self, files:typing.List[str]):
     for f in files:
       self.input_files.add(HashedFile(f, self))
 
@@ -300,7 +300,7 @@ class ExportablePackage(Hasher):
   def Export(self) -> ExportedPackage:
     r = self.RunCommand('pwd')
     if r.returncode:
-      raise errors.FatalError(f'{r.returncode}=> {r.stderr}')
+      raise errors.FatalError(f'{r.returncode} => {r.stderr}')
 
     r = self.RunCommand('touch pkg_contents.json')
     if r.returncode:
@@ -322,7 +322,7 @@ class ExportablePackage(Hasher):
       archive = zipfile.ZipFile(
         os.path.join(package_dir, self.GetPackageName()), 'r')
       return json.loads(archive.read('pkg_contents.json'))
-    except Exception:
+    except Exception as e:
       return None
 
   def NeedsBuild(self, package_dir, src_dir):
@@ -374,8 +374,7 @@ class ExportablePackage(Hasher):
 
     return self, False, None
 
-  def LoadToTempAttempt(self, bin_dir) -> \
-      tuple[str|None, dict, 'ExportedPackage']:
+  def LoadToTempAttempt(self, bin_dir) -> (str, dict, 'ExportedPackage'):
     with open('pkg_contents.json', 'r+') as f:
       package_contents = json.loads(f.read())
       exported_package = ExportedPackage(
@@ -385,9 +384,9 @@ class ExportablePackage(Hasher):
           self.package_target.GetDirectory().Relative().Value()[2:],
           self.package_target.GetName().Name())
         full_path_binary = os.path.join(bin_dir, relative_binary)
-        binary_location = os.path.join('bin',
-                                       self.package_target.GetName().Name())
-        return None, {binary_location:full_path_binary}, exported_package
+        binary_location = os.path.join(
+          'bin', self.package_target.GetName().Name())
+        return None, {binary_location: full_path_binary}, exported_package
       else:
         return self._extracted_dir, {}, exported_package
 
@@ -422,12 +421,12 @@ class ExportablePackage(Hasher):
       raise errors.FatalError(f'{self._extracted_dir} does not exist')
     r = self.RunCommand(extract)
     if r.returncode:
-      raise errors.FatalError(f'{extract}===> {r.stderr}')
+      raise errors.FatalError(f'{extract} ===> {r.stderr}')
 
     with temp_dir.ScopedTempDirectory(self._extracted_dir):
       try:
         return self.LoadToTempAttempt(bin_dir)
-      except Exception:
+      except:
         raise exceptions.FilesystemSyncException()
 
   def UnloadPackageDirectory(self):
@@ -462,7 +461,7 @@ class ExportablePackage(Hasher):
     self.tags.update(set(tags))
 
   def Execute(self, *cmds):
-    '''Executes|cmds| in order.'''
+    '''Executes |cmds| in order.'''
     for command in cmds:
       command = f'{self._exec_env_str} {command}'
       try:
@@ -489,7 +488,7 @@ class ExportablePackage(Hasher):
     self._update_exec_env_str()
 
   def _update_exec_env_str(self):
-    self._exec_env_str = ' '.join(f'{k}={v}' for k, v in self._exec_env.items())
+    self._exec_env_str = ' '.join(f'{k}={v}' for k,v in self._exec_env.items())
 
   def IncludedFiles(self):
     '''A list of all files included in this package.'''

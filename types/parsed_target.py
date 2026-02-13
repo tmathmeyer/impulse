@@ -3,9 +3,9 @@ import abc
 import marshal
 import os
 import shutil
-import tempfile
-import typing
+import sys
 import types
+import typing
 
 from impulse.core import exceptions
 from impulse.core import environment
@@ -139,7 +139,7 @@ class BuildTarget(Target):
     if isinstance(search, list):
       return [self._PrecomputeDependencies(i) for i in search]
     if isinstance(search, str):
-      if converted : = self._ConvertToTargetRefName(search):
+      if converted := self._ConvertToTargetRefName(search):
         self._deps.append(converted)
         return converted
     return search
@@ -152,35 +152,32 @@ class BuildTarget(Target):
       return None
 
   def GetDependencies(self) -> list[references.Target]:
-    """Returns the list of dependencies for this target."""
+    """Returns the list of resolved target dependencies."""
     return list(self._deps)
 
   def AddIncludes(self, funcs:list[BuildableTargetInterface]) -> 'BuildTarget':
-    """Adds additional helper functions to the rule execution environment."""
+    """Adds helper functions to be included in the build rule's environment."""
     for func in funcs:
-      self._includes[func.__name__] = (marshal.dumps(func.__code__))
+      self._includes[func.__name__] = marshal.dumps(func.__code__)
     return self
 
-  def Stage(self, archive:TargetArchive) -> 'StagedBuildTargetSet':
+  def Stage(self, archive:TargetArchive) -> StagedBuildTargetSet:
     """Stages the target and its dependencies for execution."""
     if self._staged is RULE_STAGING_RECURSIVE_CANARY:
       raise exceptions.BuildTargetCycle.Cycle(self)
-    if self._staged is not None and isinstance(self._staged,
-                                               StagedBuildTargetSet):
-      return self._staged
+    if self._staged is not None:
+      return typing.cast(StagedBuildTargetSet, self._staged)
     self._staged = RULE_STAGING_RECURSIVE_CANARY
     try:
       return self._StageInternal(archive)
     except exceptions.BuildTargetCycle as e:
       raise e.ChainException(self) from None
     except exceptions.BuildTargetMissing as e:
-      msg = str(e)
-      chain = [str(self._name)]
-      raise exceptions.ImpulseFileChainException(msg, chain)
+      raise exceptions.ImpulseFileChainException(str(e), [str(self._name)])
     except exceptions.ImpulseFileChainException as e:
       raise e.Chain(str(self._name))
 
-  def _StageInternal(self, archive:TargetArchive) -> 'StagedBuildTargetSet':
+  def _StageInternal(self, archive:TargetArchive) -> StagedBuildTargetSet:
     """Internal staging logic that handles dependency resolution."""
     dependencies = StagedBuildTargetSet()
     for dependency in self._deps:
@@ -193,13 +190,14 @@ class BuildTarget(Target):
 
 class Any(object):
   """Helper class to check if a value matches any of the provided objects."""
-  __slots__ = ('_objects', )
+  __slots__ = ('_objects',)
   def __init__(self, *objs:object):
     self._objects = objs
 
   def __eq__(self, other:object) -> bool:
     for each in self._objects:
-      if each == other:return True
+      if each == other:
+        return True
     return False
 
 
@@ -224,13 +222,13 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
 
     package_target:references.Target = target._name
     self._package = packaging.ExportablePackage(
-      package_target = package_target,
-      platform = archive.GetDefaultPlatformTarget(),
-      ruletype = target._rule_name,
-      can_access_internal = internal)
+      package_target=package_target,
+      platform=archive.GetDefaultPlatformTarget(),
+      ruletype=target._rule_name,
+      can_access_internal=internal)
 
   def __eq__(self, other:object) -> bool:
-    return (other.__class__==self.__class__ and
+    return (other.__class__ == self.__class__ and
             other._name == self._name)
 
   def __hash__(self) -> int:
@@ -347,7 +345,8 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     return env
 
   def run_job(self, debug:bool,
-              internal_access:'threading.UpdateGraphResponseData'|None = None
+              internal_access:threading.UpdateGraphResponseData[
+                packaging.ExportablePackage]|None=None
               ) -> object:
     """Runs the build job for this target."""
     # Set internal access on the package

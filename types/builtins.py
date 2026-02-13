@@ -1,6 +1,8 @@
+
 import abc
 import inspect
 import glob
+import typing
 
 from impulse.core import errors
 from impulse.core import exceptions
@@ -11,6 +13,7 @@ from impulse.types import paths
 
 
 def StackScour(filename:str) -> inspect.FrameInfo|None:
+  """Walks the stack to find a frame from the given file."""
   for frame in inspect.stack():
     if frame.filename.endswith(filename):
       return frame
@@ -18,20 +21,23 @@ def StackScour(filename:str) -> inspect.FrameInfo|None:
 
 
 class EnvironmentLoader(metaclass=abc.ABCMeta):
+  """Interface for loading files into a build environment."""
   @abc.abstractmethod
   def LoadFile(self, file:references.File) -> None:
-    '''Loads a file into the environment'''
+    """Loads a file into the environment."""
 
 
 class BuiltinMethod(object):
+  """Base class for methods available in BUILD files."""
   def __init__(self):
     self._loader:EnvironmentLoader|None = None
 
   def Attach(self, loader:EnvironmentLoader) -> None:
+    """Attaches the method to an environment loader."""
     self._loader = loader
 
   def _GetBuildFileFromStack(self) -> references.File:
-    # Walks the stack to find the BUILD file where it was called
+    """Walks the stack to find the BUILD file where it was called."""
     build_file = 'Fake'
     build_file_index = 1
     while not build_file.endswith('BUILD'):
@@ -41,6 +47,7 @@ class BuiltinMethod(object):
 
 
 class DeprecationWarning(BuiltinMethod):
+  """Represents a deprecated builtin method."""
   def __init__(self, method:str):
     super().__init__()
     self._method = method
@@ -52,6 +59,7 @@ class DeprecationWarning(BuiltinMethod):
 
 
 class LoadFile(BuiltinMethod):
+  """Implementation of the load() builtin."""
   def __call__(self, *files:str) -> None:
     if self._loader is None:
       raise errors.FatalError('BuiltinMethod not attached to loader')
@@ -69,7 +77,8 @@ class LoadFile(BuiltinMethod):
 
 
 class Pattern(BuiltinMethod):
-  def __call__(self, pattern:str) -> list[references.File]:
+  """Implementation of the pattern() builtin (similar to glob)."""
+  def __call__(self, pattern:str) -> list[str]:
     build_file:references.File = self._GetBuildFileFromStack()
     filename = references.Filename(pattern)
     p_file:references.File = build_file.Directory().GetFile(filename)
@@ -85,6 +94,7 @@ class Pattern(BuiltinMethod):
 
 
 class Platform(BuiltinMethod):
+  """Implementation of the platform() builtin."""
   def __init__(self, archive:parsed_target.TargetArchive):
     super().__init__()
     self._archive = archive
@@ -99,6 +109,7 @@ class Platform(BuiltinMethod):
 
 
 class BuildRule(BuiltinMethod):
+  """Implementation of the buildrule() builtin."""
   def __init__(self, archive:parsed_target.TargetArchive, cmdline:dict):
     super().__init__()
     self._archive = archive
@@ -119,7 +130,7 @@ class BuildRule(BuiltinMethod):
         raise errors.InvalidSyntax(msg, buildrule_name, callframe)
       name = kwargs['name']
 
-      # add any extra tags a user sers
+      # add any extra tags a user sets
       extra_tags = kwargs.get('tags', [])
 
       # This is the buildfile that the rule is called from
@@ -135,14 +146,15 @@ class BuildRule(BuiltinMethod):
         if callframe is None:
           raise errors.FatalError('Could not find BUILD file on stack')
         raise errors.InvalidDependency(targetname=tcbm.target,
-                                       targetfile = tcbm.location,
-                                       sourcefile = callframe.filename,
-                                       sourcerange = callframe.positions) \
+                                       targetfile=tcbm.location,
+                                       sourcefile=callframe.filename,
+                                       sourcerange=callframe.positions) \
                                        from None
     return replacement
 
 
 class BuildMacro(BuiltinMethod):
+  """Implementation of the buildmacro() builtin."""
   def __init__(self, archive:parsed_target.TargetArchive):
     super().__init__()
     self._archive = archive
@@ -156,7 +168,8 @@ class BuildMacro(BuiltinMethod):
     return Replacement
 
   def ImitateRule(self, rulefile:str, rulename:str, args:dict,
-                  kwargs:dict|None = None, tags:list|None = None):
+                  kwargs:dict|None=None, tags:list|None=None):
+    """Allows a macro to imitate a build rule call."""
     args.update({'tags': tags or [], 'buildfile': self._GetMacroFile()})
     args.update(kwargs or {})
     load_file = references.File(paths.QualifiedPath(rulefile).AbsPath())

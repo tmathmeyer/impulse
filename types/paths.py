@@ -3,109 +3,122 @@ import abc
 import os
 import typing
 
-from impulse.core import exceptions
 from impulse.core import environment
 
 
 class Path(metaclass=abc.ABCMeta):
-  """Base class for all path representations in impulse."""
+  """Base class for all path types in the impulse system."""
   @abc.abstractmethod
   def Value(self) -> str:
-    """Returns the path as a string."""
+    """Returns the string representation of the path."""
 
   @abc.abstractmethod
-  def SplitFile(self) -> tuple['Path', str]:
-    """Splits the path into a directory path and a filename."""
+  def Relative(self) -> 'RelativePath':
+    """Returns the path as a RelativePath."""
 
   @abc.abstractmethod
-  def AbsPath(self) -> 'AbsolutePath':
-    """Converts this path to an absolute filesystem path."""
+  def Absolute(self) -> 'AbsolutePath':
+    """Returns the path as an AbsolutePath."""
 
   @abc.abstractmethod
   def QualPath(self) -> 'QualifiedPath':
-    """Converts this path to a repository-qualified path (starting with //)."""
+    """Returns the path as a QualifiedPath."""
+
+  def __repr__(self) -> str:
+    return f'{self.__class__.__name__}({self.Value()})'
+
+  def __str__(self) -> str:
+    return self.Value()
 
 
 class AbsolutePath(Path):
   """Represents an absolute path on the filesystem."""
-  _rawpath:str
-  _qualpath:'QualifiedPath'
-
   def __init__(self, path:str):
     self._rawpath = path
 
   def Value(self) -> str:
-    """Returns the absolute path string."""
     return self._rawpath
 
-  def SplitFile(self) -> tuple['AbsolutePath', str]:
-    """
-    Splits the absolute path into a directory AbsolutePath and a filename.
-    """
-    dir_path, file_name = os.path.split(self._rawpath)
-    return AbsolutePath(dir_path), file_name
+  def Relative(self) -> 'RelativePath':
+    root = environment.Root()
+    if self._rawpath.startswith(root):
+      return RelativePath('.' + self._rawpath[len(root):])
+    raise ValueError(f'Path {self._rawpath} is not within root {root}')
 
-  def AbsPath(self) -> 'AbsolutePath':
-    """Returns itself as it is already an absolute path."""
+  def Absolute(self) -> 'AbsolutePath':
     return self
 
   def QualPath(self) -> 'QualifiedPath':
-    """
-    Converts this absolute path to a repository-qualified path.
-    Requires that the path be within the impulse root.
-    """
-    if getattr(self, '_qualpath', None) is None:
-      root = environment.Root()
-      if not self._rawpath.startswith(root):
-        msg = f'Path is not within impulse root ({root})'
-        raise exceptions.InvalidPathException(self._rawpath, msg)
-      self._qualpath = QualifiedPath('/' + self._rawpath[len(root):])
-    return self._qualpath
+    root = environment.Root()
+    if not self._rawpath.startswith(root):
+      raise ValueError(f'Path {self._rawpath} is not within root {root}')
+    return QualifiedPath('//' + self._rawpath[len(root)+1:])
+
+  def __eq__(self, other:object) -> bool:
+    if isinstance(other, AbsolutePath):
+      return self._rawpath == other._rawpath
+    return False
 
   def __hash__(self) -> int:
     return hash(self._rawpath)
 
-  def __eq__(self, other:object) -> bool:
-    if not isinstance(other, AbsolutePath):
-      return False
-    return self._rawpath == other._rawpath
-
 
 class QualifiedPath(Path):
-  """Represents a repository-qualified path (starting with //)."""
+  """Represents a path qualified by the impulse repository root (//foo/bar)."""
   def __init__(self, path:str):
-    if not path.startswith('//'):
-      msg = 'Path is not repository-relative (missing //)'
-      raise exceptions.InvalidPathException(path, msg)
+    self._rawpath = path
+
+  def Value(self) -> str:
+    return self._rawpath
+
+  def Relative(self) -> 'RelativePath':
+    return RelativePath('.' + self._rawpath[1:])
+
+  def Absolute(self) -> 'AbsolutePath':
+    root = environment.Root()
+    return AbsolutePath(os.path.join(root, self._rawpath[2:]))
+
+  def QualPath(self) -> 'QualifiedPath':
+    return self
+
+  def AbsPath(self) -> str:
+    """Returns the absolute path as a string."""
+    return self.Absolute().Value()
+
+  def RelativeLocation(self) -> str:
+    """Returns the path relative to the root (without //)."""
+    return self._rawpath[2:]
+
+  def __eq__(self, other:object) -> bool:
+    if isinstance(other, QualifiedPath):
+      return self._rawpath == other._rawpath
+    return False
+
+  def __hash__(self) -> int:
+    return hash(self._rawpath)
+
+
+class RelativePath(Path):
+  """Represents a path relative to some directory."""
+  def __init__(self, path:str):
     self._value = path
 
   def Value(self) -> str:
-    """Returns the qualified path string (e.g., //foo/bar)."""
     return self._value
 
-  def SplitFile(self) -> tuple['QualifiedPath', str]:
-    """
-    Splits the qualified path into a directory QualifiedPath and a filename.
-    """
-    dir_path, file_name = os.path.split(self._value)
-    return QualifiedPath(dir_path), file_name
-
-  def QualPath(self) -> 'QualifiedPath':
-    """Returns itself as it is already a qualified path."""
+  def Relative(self) -> 'RelativePath':
     return self
 
-  def AbsPath(self) -> 'AbsolutePath':
-    """Converts this qualified path to an absolute filesystem path."""
-    return AbsolutePath(os.path.join(environment.Root(), self._value[2:]))
+  def Absolute(self) -> 'AbsolutePath':
+    return AbsolutePath(os.path.abspath(self._value))
+
+  def QualPath(self) -> 'QualifiedPath':
+    return self.Absolute().QualPath()
+
+  def __eq__(self, other:object) -> bool:
+    if isinstance(other, RelativePath):
+      return self._value == other._value
+    return False
 
   def __hash__(self) -> int:
     return hash(self._value)
-
-  def __eq__(self, other:object) -> bool:
-    if not isinstance(other, QualifiedPath):
-      return False
-    return self._value == other._value
-
-  def RelativeLocation(self) -> str:
-    """Returns the path relative to the impulse root (without //)."""
-    return self._value[2:]

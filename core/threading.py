@@ -3,7 +3,7 @@ import multiprocessing
 import queue
 import signal
 import traceback
-import typing
+from typing import TypeVar, Generic, Callable, Iterator, cast
 
 from impulse.core import job_printer
 from impulse.core import exceptions
@@ -11,36 +11,15 @@ from impulse.core import exceptions
 
 class Messages(object):
   """Shared message constants for threading."""
-  EMPTY_RESPONSE = 'Internal:Empty Response'
+  EMPTY_RESPONSE = 'Internal: Empty Response'
   TIMEOUT = 'Job Waiter Timed Out'
 
 
-class UpdateGraphResponseData(object):
-  """Data returned by a job to update the dependency graph dynamically."""
-  def __init__(self) -> None:
-    self.added_graph:set[GraphNode[object]] = set()
-    self.rerun_more_deps:list[GraphNode[object]] = []
-
-  def InjectMoreGraph(self, graph:set[GraphNode[object]]) -> None:
-    """Adds more nodes to the build graph."""
-    self.added_graph |= graph
-
-  def RerunWithDependency(self, nodes:list[GraphNode[object]]) -> None:
-    """
-    Specifies that the current job should be rerun after these nodes
-    completed.
-    """
-    self.added_graph |= set(nodes)
-    self.rerun_more_deps = nodes
-
-
-T = typing.TypeVar('T', covariant=True)
-
-
-class GraphNode(typing.Generic[T]):
+T = TypeVar('T', covariant=True)
+class GraphNode(Generic[T]):
   """Base class for a node in the dependency graph."""
   def __init__(self,
-               dependencies:set[GraphNode[object]],
+               dependencies:set['GraphNode[T]'],
                has_internal_access:bool):
     self.dependencies = dependencies
     self.remaining_dependencies = set(dependencies)
@@ -51,10 +30,10 @@ class GraphNode(typing.Generic[T]):
     """Asserts that the code is running within a worker thread."""
     assert self.__in_thread__
 
-  def __call__(self, debug:bool=False) -> object:
+  def __call__(self, debug:bool=False) -> T|'UpdateGraphResponseData[T]':
     self.__in_thread__ = True
     if self._has_internal_access:
-      access = UpdateGraphResponseData()
+      access = UpdateGraphResponseData[T]()
       self.run_job(debug, access)
       return access
     else:
@@ -62,7 +41,7 @@ class GraphNode(typing.Generic[T]):
 
   @abc.abstractmethod
   def run_job(self, debug:bool,
-              internal_access:UpdateGraphResponseData|None = None) -> object:
+              internal_access:'UpdateGraphResponseData[T]'|None=None) -> T:
     """Executes the actual work of the job."""
     pass
 
@@ -85,6 +64,25 @@ class GraphNode(typing.Generic[T]):
     pass
 
 
+class UpdateGraphResponseData(Generic[T]):
+  """Data returned by a job to update the dependency graph dynamically."""
+  def __init__(self) -> None:
+    self.added_graph:set[GraphNode[T]] = set()
+    self.rerun_more_deps:list[GraphNode[T]] = []
+
+  def InjectMoreGraph(self, graph:set[GraphNode[T]]) -> None:
+    """Adds more nodes to the build graph."""
+    self.added_graph |= graph
+
+  def RerunWithDependency(self, nodes:list[GraphNode[T]]) -> None:
+    """
+    Specifies that the current job should be rerun after these nodes
+    completed.
+    """
+    self.added_graph |= set(nodes)
+    self.rerun_more_deps = nodes
+
+
 class NullNode(GraphNode[None]):
   def __init__(self):
     super().__init__(set(), False)
@@ -105,7 +103,7 @@ class NullNode(GraphNode[None]):
     raise NotImplementedError()
 
 
-class JobResponse(object):
+class JobResponse(Generic[T]):
   """Response sent from a worker thread to the main pool."""
   class LEVEL(object):
     FATAL = '__L_FATAL__'
@@ -115,9 +113,9 @@ class JobResponse(object):
 
   def __init__(self, level:str,
                      job_id:int,
-                     job:GraphNode[object]|None,
+                     job:GraphNode[T]|None,
                      message:str='',
-                     result:UpdateGraphResponseData|typing.Callable|None=None
+                     result:UpdateGraphResponseData[T]|T|Callable|None=None
                      ):
     self._level = level
     self._msg = message
@@ -133,11 +131,11 @@ class JobResponse(object):
     """Returns the message of the response."""
     return self._msg
 
-  def result(self) -> UpdateGraphResponseData|typing.Callable|None:
+  def result(self) -> UpdateGraphResponseData[T]|T|Callable|None:
     """Returns the result of the job."""
     return self._result
 
-  def job(self) -> GraphNode[object]:
+  def job(self) -> GraphNode[T]:
     """Returns the job associated with the response."""
     assert self._job is not None
     return self._job
@@ -152,8 +150,8 @@ def handle_pdb(sig, frame):
   pdb.Pdb().set_trace(frame)
 
 
-class ThreadWatchdog(multiprocessing.Process):
-  POISON:GraphNode[object] = NullNode()
+class ThreadWatchdog(multiprocessing.Process, Generic[T]):
+  POISON = NullNode()
   __slots__ = ['_id', '_debug', '_job_input_queue', '_job_response_queue']
 
   def __init__(self,
@@ -173,9 +171,9 @@ class ThreadWatchdog(multiprocessing.Process):
 
   def _Fail(self, exc:Exception):
     """Handles job failure by sending a fatal response."""
-    self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.FATAL, self._id, NullNode(),
-        message=str(exc)))
+    resp = JobResponse(JobResponse.LEVEL.FATAL, self._id,
+                       cast(GraphNode[T], NullNode()), message=str(exc))
+    self._job_response_queue.put(resp)
     if not self._debug:
       return
     traceback.print_exc()
@@ -186,9 +184,9 @@ class ThreadWatchdog(multiprocessing.Process):
       try:
         job = self._job_input_queue.get(timeout=5)
       except Exception:
-        self._job_response_queue.put(JobResponse(
-          JobResponse.LEVEL.WARNING, self._id, None,
-          message=Messages.TIMEOUT))
+        resp = JobResponse(JobResponse.LEVEL.WARNING, self._id, None,
+                           message=Messages.TIMEOUT)
+        self._job_response_queue.put(resp)
         continue
 
       if job == ThreadWatchdog.POISON:
@@ -196,8 +194,9 @@ class ThreadWatchdog(multiprocessing.Process):
         self._job_input_queue.join()
         return
 
-      self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.YELLOW, self._id, job, message=str(job)))
+      resp = JobResponse(JobResponse.LEVEL.YELLOW, self._id,
+                         cast(GraphNode[T], job), message=str(job))
+      self._job_response_queue.put(resp)
 
       try:
         job_result = job()
@@ -206,25 +205,25 @@ class ThreadWatchdog(multiprocessing.Process):
         self._Fail(e)
         continue
 
-      self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.GREEN, self._id, job,
-        result = job_result))
+      resp = JobResponse(JobResponse.LEVEL.GREEN, self._id,
+                         cast(GraphNode[T], job), result=job_result)
+      self._job_response_queue.put(resp)
       self._job_input_queue.task_done()
 
 
-class ThreadPool(multiprocessing.Process):
+class ThreadPool(multiprocessing.Process, Generic[T]):
   def __init__(self, poolcount:int, debug:bool=False):
     super().__init__()
     self._debug = debug
-    self._job_response_queue:queue.Queue[JobResponse] = (
+    self._job_response_queue:queue.Queue[JobResponse[T]] = (
       multiprocessing.Queue())
-    self._job_input_queue:queue.Queue[GraphNode[object]] = (
+    self._job_input_queue:queue.Queue[GraphNode[T]] = (
       multiprocessing.JoinableQueue())
     self._pool_count:int = poolcount
     self._printer = job_printer.JobPrinter(0, poolcount)
     self._input = None
-    self._error_message = None
-    self._watchdogs = []
+    self._error_message:str|None = None
+    self._watchdogs:list[ThreadWatchdog[T]] = []
 
   @abc.abstractmethod
   def OnStart(self):
@@ -235,7 +234,7 @@ class ThreadPool(multiprocessing.Process):
     pass
 
   @abc.abstractmethod
-  def _on_reply(self, response):
+  def _on_reply(self, response:JobResponse[T]):
     pass
 
   @abc.abstractmethod
@@ -256,17 +255,17 @@ class ThreadPool(multiprocessing.Process):
 
   def _create_watchdogs(self):
     for i in range(self._pool_count):
-      watchdog = ThreadWatchdog(
-        watchdog_id = i,
-        debug_mode = self._debug,
-        job_input_queue = self._job_input_queue,
-        job_response_queue = self._job_response_queue)
+      watchdog = ThreadWatchdog[T](
+        watchdog_id=i,
+        debug_mode=self._debug,
+        job_input_queue=self._job_input_queue,
+        job_response_queue=self._job_response_queue)
       watchdog.start()
       self._watchdogs.append(watchdog)
 
   def _kill_watchdogs(self):
     for _ in range(self._pool_count):
-      self._job_input_queue.put(ThreadWatchdog.POISON)
+      self._job_input_queue.put(cast(GraphNode[T], ThreadWatchdog.POISON))
     self._job_input_queue.join()
     for dog in self._watchdogs:
       dog.kill()
@@ -298,12 +297,12 @@ class ThreadPool(multiprocessing.Process):
         return
 
 
-class DependentPool(ThreadPool):
+class DependentPool(ThreadPool[T]):
   def __init__(self, poolcount:int, debug:bool=False):
     super().__init__(poolcount, debug)
-    self._pending_add = set()
-    self._in_flight = set()
-    self._completed = set()
+    self._pending_add:set[GraphNode[T]] = set()
+    self._in_flight:set[GraphNode[T]] = set()
+    self._completed:set[GraphNode[T]] = set()
 
   def OnStart(self):
     self._printer.add_job_count(len(self._input))
@@ -316,8 +315,8 @@ class DependentPool(ThreadPool):
     self._in_flight |= self._pending_add
     self._pending_add = set()
 
-  def _cycle_graph(self, remove_node:GraphNode[object]|None=None):
-    newgraph:set[GraphNode[object]] = set()
+  def _cycle_graph(self, remove_node:GraphNode[T]|None=None):
+    newgraph:set[GraphNode[T]] = set()
     for node in self._input:
       if remove_node:
         node.remaining_dependencies.discard(remove_node)
@@ -337,7 +336,7 @@ class DependentPool(ThreadPool):
           return True
     return False
 
-  def _handle_good_status(self, status:JobResponse):
+  def _handle_good_status(self, status:JobResponse[T]):
     self._in_flight.remove(status.job())
     self._completed.add(status.job())
     response = status.result()
@@ -351,8 +350,8 @@ class DependentPool(ThreadPool):
       self._cycle_graph()
 
   def _update_graph(self,
-                    node_from:GraphNode[object],
-                    results:UpdateGraphResponseData) -> bool:
+                    node_from:GraphNode[T],
+                    results:UpdateGraphResponseData[T]) -> bool:
     results.added_graph -= self._completed
     self._input |= results.added_graph
     self._printer.add_job_count(len(results.added_graph))
@@ -380,7 +379,7 @@ class DependentPool(ThreadPool):
     self._add_nodes()
     return True
 
-  def _on_reply(self, response):
+  def _on_reply(self, response:JobResponse[T]):
     if response.level() == JobResponse.LEVEL.WARNING:
       if response.message() == Messages.TIMEOUT:
         if self._force_cycle_graph():
@@ -400,11 +399,11 @@ class DependentPool(ThreadPool):
     return True
 
 
-class StreamingPool(ThreadPool):
+class StreamingPool(ThreadPool[T]):
   def __init__(self, poolcount:int, debug:bool=False):
     super().__init__(poolcount, debug)
     self._finished = False
-    self._replies = []
+    self._replies:list[T] = []
     self._sent_jobs = 0
 
   def OnStart(self):
@@ -417,9 +416,9 @@ class StreamingPool(ThreadPool):
         self._finished = True
 
   def IsFinished(self):
-    return self._finished and (len(self._replies)==self._sent_jobs)
+    return self._finished and (len(self._replies) == self._sent_jobs)
 
-  def _on_reply(self, response):
+  def _on_reply(self, response:JobResponse[T]):
     if response.level() == JobResponse.LEVEL.WARNING:
       self._printer.write_task_msg(response.id(), response.message())
       return True
@@ -428,7 +427,7 @@ class StreamingPool(ThreadPool):
       return True
     if response.level() == JobResponse.LEVEL.GREEN:
       self._printer.remove_task_msg(response.id())
-      self._replies.append(response.result())
+      self._replies.append(cast(T, response.result()))
       return True
     return False
 

@@ -1,17 +1,16 @@
+
 import os
 import re
 import typing
-
 from impulse.args import args
-
 from impulse.core import exceptions
 
 EXPORT_DIR = 'GENERATED'
 NOT_A_BUILD_TARGET = object()
 
 
-class Environ():
-  """Helper class to access environment variables via attributes."""
+class Environ(object):
+  """A helper class to access environment variables via attributes."""
   def __getattr__(self, attr:str) -> str:
     return os.environ[attr]
   def __getitem__(self, item:str) -> str:
@@ -186,7 +185,7 @@ def convert_name_to_build_target(name:str, loaded_from_dir:str) -> ParsedTarget:
 
 
 def convert_to_build_target(target:str|ParsedTarget, loaded_from_dir:str,
-                           quit_on_err:bool = False) -> ParsedTarget|object:
+                           quit_on_err:bool=False) -> ParsedTarget|object:
   if isinstance(target, ParsedTarget):
     return target
 
@@ -267,9 +266,9 @@ class BuildTarget(args.ArgComplete):
         if value.startswith(stub[1:]):
           yield value
     elif stub.startswith('//'):
-      yield from  cls._parse_partial_target(stub[2:])
+      yield from cls._parse_partial_target(stub[2:])
     elif stub == '/':
-      yield from  cls._parse_partial_target(stub[1:])
+      yield from cls._parse_partial_target(stub[1:])
 
   @classmethod
   def _parse_from_local_build_file(cls):

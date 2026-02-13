@@ -49,7 +49,7 @@ class Directory(ArgComplete):
 
     cmd = f'compgen -o bashdefault -o default -o nospace -F _cd {stub}'
     stdout =  subprocess.Popen(cmd, shell=True,
-      stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stream = stdout.stdout
     if stream is not None:
       for line in stream.readlines():
@@ -73,7 +73,7 @@ class File(ArgComplete):
 
     cmd = f'compgen -o bashdefault -o default -o nospace -F _ls {stub}'
     stdout = subprocess.Popen(cmd, shell=True,
-      stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stream = stdout.stdout
     if stream is not None:
       for line in stream.readlines():
@@ -98,7 +98,7 @@ class ArgumentParser(object):
       'args': {}
     }
     task = self._subparser.add_parser(
-      methodname, help = methodhelp.splitlines()[0])
+      methodname, help=methodhelp.splitlines()[0])
 
     task.set_defaults(task=methodname)
     methodargs = inspect.getfullargspec(func)[0]
