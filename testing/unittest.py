@@ -19,10 +19,13 @@ class EarlyExitPassedError(Exception):
 class FailedAssertError(Exception):
   def __init__(self, filename, casename, lineno, assertname, A, B):
     super().__init__()
+    self._filename = filename
+    self._lineno = lineno
     testbase = (__file__ or '')[:-27]
     if filename.startswith(testbase):
       filename = filename[len(testbase):]
     self._file_location = '{}:{}'.format(filename, lineno)
+    self._rel_filename = filename
     self._assertName = assertname
     self._expected = A
     self._actual = B
@@ -310,6 +313,30 @@ class TestCase(object):
     if f_len or c_len:
       return 1
     return 0
+
+  @classmethod
+  def github_actions(cls, out):
+    exit_code = cls.print(out)
+    for f in out['failures']:
+      print(
+        f'::error file={f._rel_filename},line={f._lineno},'
+        f'title={f._casename}::{f._assertName} failed; '
+        f'expected {f._expected}, was {f._actual}'
+      )
+    for c in out['crashes']:
+      tb = c.tb
+      while tb.tb_next:
+        tb = tb.tb_next
+      filename = tb.tb_frame.f_code.co_filename
+      lineno = tb.tb_lineno
+      testbase = (__file__ or '')[:-27]
+      if filename.startswith(testbase):
+        filename = filename[len(testbase):]
+      print(
+        f'::error file={filename},line={lineno},title={c.isolator.name}::'
+        f'Crashed: {c.exc}'
+      )
+    return exit_code
 
   @classmethod
   def PrintFailure(cls, failure:FailedAssertError, max_len:int):

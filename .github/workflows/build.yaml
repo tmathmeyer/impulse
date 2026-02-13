@@ -33,4 +33,4 @@ jobs:
         run: |
           make copy_srcs
           cd impulse
-          ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd))
+          ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd)) --github_actions
