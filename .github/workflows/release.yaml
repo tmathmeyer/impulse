@@ -1,0 +1,40 @@
+name: Release Impulse
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fuse3 \
+            fuse-overlayfs \
+            libfuse-dev \
+            python3 make
+
+      - name: Build Impulse
+        run: make
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            Automated build of the impulse binary from the master branch.
+            Commit: ${{ github.sha }}
+          draft: false
+          prerelease: false
+          files: GENERATED/BINARIES/impulse/impulse
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
