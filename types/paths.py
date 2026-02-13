@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 import abc
 import os
@@ -34,13 +35,13 @@ class Path(metaclass=abc.ABCMeta):
 class AbsolutePath(Path):
   """Represents an absolute path on the filesystem."""
   def __init__(self, path:str):
-    self._rawpath = path
+    self._rawpath=path
 
   def Value(self) -> str:
     return self._rawpath
 
   def Relative(self) -> 'RelativePath':
-    root = environment.Root()
+    root=environment.Root()
     if self._rawpath.startswith(root):
       return RelativePath('.' + self._rawpath[len(root):])
     raise ValueError(f'Path {self._rawpath} is not within root {root}')
@@ -49,7 +50,7 @@ class AbsolutePath(Path):
     return self
 
   def QualPath(self) -> 'QualifiedPath':
-    root = environment.Root()
+    root=environment.Root()
     if not self._rawpath.startswith(root):
       raise ValueError(f'Path {self._rawpath} is not within root {root}')
     return QualifiedPath('//' + self._rawpath[len(root)+1:])
@@ -64,9 +65,9 @@ class AbsolutePath(Path):
 
 
 class QualifiedPath(Path):
-  """Represents a path qualified by the impulse repository root (//foo/bar)."""
+  """Represents a path qualified by the repository root (//foo/bar)."""
   def __init__(self, path:str):
-    self._rawpath = path
+    self._rawpath=path
 
   def Value(self) -> str:
     return self._rawpath
@@ -75,7 +76,7 @@ class QualifiedPath(Path):
     return RelativePath('.' + self._rawpath[1:])
 
   def Absolute(self) -> 'AbsolutePath':
-    root = environment.Root()
+    root=environment.Root()
     return AbsolutePath(os.path.join(root, self._rawpath[2:]))
 
   def QualPath(self) -> 'QualifiedPath':
@@ -89,6 +90,10 @@ class QualifiedPath(Path):
     """Returns the path relative to the root (without //)."""
     return self._rawpath[2:]
 
+  def DirName(self) -> 'QualifiedPath':
+    """Returns the qualified path to the parent directory."""
+    return QualifiedPath(os.path.dirname(self._rawpath))
+
   def __eq__(self, other:object) -> bool:
     if isinstance(other, QualifiedPath):
       return self._rawpath == other._rawpath
@@ -101,7 +106,7 @@ class QualifiedPath(Path):
 class RelativePath(Path):
   """Represents a path relative to some directory."""
   def __init__(self, path:str):
-    self._value = path
+    self._value=path
 
   def Value(self) -> str:
     return self._value

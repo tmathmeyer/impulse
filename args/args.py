@@ -10,28 +10,28 @@ import subprocess
 import sys
 
 class ArgComplete(metaclass=abc.ABCMeta):
-  def __init__(self, wrapped:str|None):
-    self.wrapped = wrapped
+  def __init__(self, wrapped:str | None):
+    self.wrapped=wrapped
 
   @classmethod
   @abc.abstractmethod
-  def get_completion_list(self, stub):
+  def get_completion_list(cls, stub:str) -> typing.Iterator[str]:
     raise NotImplementedError()
 
-  def value(self) -> str|None:
+  def value(self) -> str | None:
     return self.wrapped
 
 
 class DefaultArgComplete(ArgComplete):
   @classmethod
-  def get_completion_list(self, stub):
-    raise NotImplementedError()
+  def get_completion_list(cls, stub:str) -> typing.Iterator[str]:
+    return iter([])
 
 
 class Directory(ArgComplete):
   @classmethod
-  def get_completion_list(cls, stub):
-    dirs = list(cls._get_directories(stub=stub))
+  def get_completion_list(cls, stub:str) -> typing.Iterator[str]:
+    dirs=list(cls._get_directories(stub=stub))
     if len(dirs) == 1:
       yield dirs[0]
       yield dirs[0] + '/'
@@ -40,261 +40,280 @@ class Directory(ArgComplete):
         yield d
 
   @classmethod
-  def _get_directories(cls, stub:str) -> typing.Generator[str, None, None]:
-    shell = '/bin/sh'
+  def _get_directories(cls, stub:str) -> typing.Iterator[str]:
+    shell='/bin/sh'
     if not os.path.exists(shell):
       return
     if not os.path.islink(shell):
       return
 
-    cmd = f'compgen -o bashdefault -o default -o nospace -F _cd {stub}'
-    stdout =  subprocess.Popen(cmd, shell=True,
-      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stream = stdout.stdout
+    cmd=f'compgen -o bashdefault -o default -o nospace -F _cd {stub}'
+    stdout=subprocess.Popen(cmd,
+                             shell=True,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    stream=stdout.stdout
     if stream is not None:
       for line in stream.readlines():
-        f = line.decode().replace('\n', '').replace('//', '/')
+        f=line.decode().replace('\n', '').replace('//', '/')
         if os.path.isdir(f):
           yield f
 
 
 class File(ArgComplete):
   @classmethod
-  def get_completion_list(cls, stub):
+  def get_completion_list(cls, stub:str) -> typing.Iterator[str]:
     yield from cls._get_directories(stub=stub)
 
   @classmethod
-  def _get_directories(cls, stub):
-    shell = '/bin/sh'
+  def _get_directories(cls, stub:str) -> typing.Iterator[str]:
+    shell='/bin/sh'
     if not os.path.exists(shell):
       return
     if not os.path.islink(shell):
       return
 
-    cmd = f'compgen -o bashdefault -o default -o nospace -F _ls {stub}'
-    stdout = subprocess.Popen(cmd, shell=True,
-      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stream = stdout.stdout
+    cmd=f'compgen -o bashdefault -o default -o nospace -F _ls {stub}'
+    stdout=subprocess.Popen(cmd,
+                             shell=True,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+    stream=stdout.stdout
     if stream is not None:
       for line in stream.readlines():
-        f = line.decode().replace('\n', '').replace('//', '/')
+        f=line.decode().replace('\n', '').replace('//', '/')
         if os.path.exists(f):
           yield f
 
 
 class ArgumentParser(object):
-  def __init__(self, complete=True):
-    self._parser = argparse.ArgumentParser()
-    self._subparser = self._parser.add_subparsers(title='tasks')
-    self._methods = {}
-    self._complete = complete
+  def __init__(self, complete:bool=True):
+    self._parser=argparse.ArgumentParser()
+    self._subparser=self._parser.add_subparsers(title='tasks')
+    self._methods:dict[str, dict[str, object]]={}
+    self._complete=complete
 
-  def __call__(self, func):
-    methodname = func.__name__
-    methodhelp = func.__doc__ or methodname
+  def __call__(self, func:typing.Callable) -> typing.Callable:
+    methodname=func.__name__
+    methodhelp=func.__doc__ or methodname
 
-    self._methods[methodname] = {
+    self._methods[methodname]={
       'func': func,
       'args': {}
     }
-    task = self._subparser.add_parser(
+    task=self._subparser.add_parser(
       methodname, help=methodhelp.splitlines()[0])
 
     task.set_defaults(task=methodname)
-    methodargs = inspect.getfullargspec(func)[0]
+
+    try:
+        # Pass globals to resolve string forward references
+        type_hints = typing.get_type_hints(func, globalns=func.__globals__)
+    except Exception:
+        type_hints = {k: v.annotation for k, v in \
+                      inspect.signature(func).parameters.items()}
 
     for arg, info in inspect.signature(func).parameters.items():
-      argtype = info.annotation
-      default = info.default
+      argtype=type_hints.get(arg, info.annotation)
+      default=info.default
 
       if argtype == inspect.Parameter.empty:
         self._invalid_syntax(func, arg, 'type annotation')
-        return
+        return func
 
-      if type(argtype) == types.UnionType:
-        assert len(argtype.__args__) == 2
-        assert argtype.__args__[1] == type(None)
-        argtype = argtype.__args__[0]
+      if (type(argtype) == types.UnionType or
+          getattr(argtype, '__origin__', None) is typing.Union):
+        args_list = getattr(argtype, '__args__', [])
+        if len(args_list) == 2 and type(None) in args_list:
+           argtype = args_list[0] if args_list[1] == type(None) else args_list[1]
 
-      action = 'store'
+      action='store'
       if argtype == bool:
-        action = 'store_true'
+        action='store_true'
         if default == inspect.Parameter.empty:
           self._invalid_syntax(func, arg, 'a default value')
 
       if default == inspect.Parameter.empty:
-        self._methods[methodname]['args'][arg] = argtype
+        typing.cast(dict, self._methods[methodname]['args'])[arg]=argtype
         task.add_argument(arg, type=argtype, action=action)
       elif argtype == bool:
-        self._methods[methodname]['args']['--'+arg] = None
+        typing.cast(dict, self._methods[methodname]['args'])['--'+arg]=None
         task.add_argument('--'+arg, default=default, action=action)
       else:
-        self._methods[methodname]['args']['--'+arg] = argtype
-        try:
-          task.add_argument('--'+arg, type=argtype, default=default)
-        except:
-          print(argtype)
-          raise
+        typing.cast(dict, self._methods[methodname]['args'])['--'+arg]=argtype
+        task.add_argument('--'+arg, type=argtype, default=default)
     return func
 
-  def _exec_func(self, func, args):
-    _args = {}
+  def _exec_func(self, func:typing.Callable, args:argparse.Namespace) -> None:
+    _args={}
+    try:
+        type_hints = typing.get_type_hints(func, globalns=func.__globals__)
+    except Exception:
+        type_hints = {k: v.annotation for k, v in \
+                      inspect.signature(func).parameters.items()}
+
     for arg, info in inspect.signature(func).parameters.items():
       if hasattr(args, arg):
-        _args[arg] = getattr(args, arg)
-      annotation = info.annotation
-      if type(info.annotation) == types.UnionType:
-        assert len(info.annotation.__args__) == 2
-        assert info.annotation.__args__[1] == type(None)
-        annotation = info.annotation.__args__[0]
-      if issubclass(annotation, ArgComplete) and _args[arg] == None:
-        _args[arg] = DefaultArgComplete(None)
+        _args[arg]=getattr(args, arg)
+      annotation=type_hints.get(arg, info.annotation)
+      if (type(annotation) == types.UnionType or
+          getattr(annotation, '__origin__', None) is typing.Union):
+        args_list = getattr(annotation, '__args__', [])
+        if len(args_list) == 2 and type(None) in args_list:
+           annotation = args_list[0] if args_list[1] == type(None) \
+                        else args_list[1]
+
+      if (inspect.isclass(annotation) and
+          issubclass(annotation, ArgComplete) and _args.get(arg) is None):
+        _args[arg]=DefaultArgComplete(None)
     func(**_args)
 
-  def _invalid_syntax(self, func, argname, missing):
-    decorator_call = inspect.stack()[2]
-    msg = f'Argument {argname} requires {missing}.'
-    filepath = decorator_call.filename
-    lineno = decorator_call.lineno
-    codeline = decorator_call.code_context
-    raise SyntaxError(msg, (filepath, lineno, 0, codeline))
+  def _invalid_syntax(self, func:typing.Callable, argname:str,
+                      missing:str) -> None:
+    decorator_call=inspect.stack()[2]
+    msg=f'Argument {argname} requires {missing}.'
+    filepath=decorator_call.filename
+    lineno=decorator_call.lineno
+    codeline=decorator_call.code_context
+    raise SyntaxError(msg, (filepath, lineno, 0,
+                            codeline[0] if codeline else ''))
 
-  def _get_sub_completion(self, needs_new_token, cmdargs, args):
-    # dropped command and binary
-    def filter_flags_opts_no_requirements(F):
+  def _get_sub_completion(self, needs_new_token:bool,
+                          cmdargs:dict[str, object],
+                          args:list[str]) -> typing.Iterator[str]:
+    def filter_flags_opts_no_requirements(F:str) -> typing.Iterator[str]:
       for argname, argtype in cmdargs.items():
         if argname.startswith('-') and argname.startswith(F):
           yield argname
         elif not argname.startswith('-') and not F.startswith('-') and argtype:
-          if argtype not in [str, int, float]:
+          if (inspect.isclass(argtype) and
+              issubclass(argtype, ArgComplete)):
+            # type:ignore
             yield from argtype.get_completion_list(F)
 
-    # If we have no args at all, populate everything
     if not len(args):
       assert needs_new_token
       yield from filter_flags_opts_no_requirements('')
-
     elif len(args) == 1:
       if args[0].startswith('-'):
         if needs_new_token:
           assert args[0] in cmdargs
-        flag_param_type = cmdargs.get(args[0], None)
+        flag_param_type=cmdargs.get(args[0], None)
         if flag_param_type:
-          # this flag has a value, so we should try to populate it
+          # type:ignore
           yield from flag_param_type.get_completion_list('')
           if not needs_new_token:
-            # There could be substring flags too
             yield from filter_flags_opts_no_requirements(args[0])
         else:
           yield from filter_flags_opts_no_requirements('')
       else:
         yield from filter_flags_opts_no_requirements(
           '' if needs_new_token else args[0])
-
     elif len(args) == 2:
-      (penultimate, last) = args
+      (penultimate, last)=args
       if needs_new_token:
         yield from self._get_sub_completion(needs_new_token, cmdargs, [last])
       elif not penultimate.startswith('-'):
-        # penultimate was not a flag, populate normally
         yield from filter_flags_opts_no_requirements(last)
       elif penultimate in cmdargs:
-        flag_param_type = cmdargs.get(penultimate)
+        flag_param_type=cmdargs.get(penultimate)
         if not flag_param_type:
-          # The --flag takes no args, so populate normally
           yield from filter_flags_opts_no_requirements(last)
         else:
+          # type:ignore
           yield from flag_param_type.get_completion_list(last)
-
-    else: # more than two args, trim them
+    else:
       yield from self._get_sub_completion(needs_new_token, cmdargs, args[-2:])
 
-  def _print_commands_matching(self, stub, operation):
+  def _print_commands_matching(self, stub:str,
+                               operation:typing.Callable[[str], None]) -> None:
     for methodname in self._methods.keys():
       if methodname.startswith(stub):
         operation(methodname)
 
-  def _print_completion_for_testing(self, args, tst):
-    os.environ['_LOCAL_COMP_LINE'] = 'bin ' + ' '.join(args)
+  def _print_completion_for_testing(self, args:list[str],
+                                    tst:typing.Callable[[str], None]) -> None:
+    os.environ['_LOCAL_COMP_LINE']='bin ' + ' '.join(args)
     return self._print_completion(tst)
 
-  def _print_completion(self, operation=print):
+  def _print_completion(self,
+                        operation:typing.Callable[[str], None]=print) -> None:
     if '_LOCAL_COMP_LINE' not in os.environ:
       return
-
-    COMP_LINE = os.environ.get('_LOCAL_COMP_LINE') or ''
-    _, *args = shlex.split(COMP_LINE)
-    needs_new_token = COMP_LINE.endswith(' ')
-
-    # So far just the binary has been typed
+    COMP_LINE=os.environ.get('_LOCAL_COMP_LINE') or ''
+    args=shlex.split(COMP_LINE)
+    if COMP_LINE.endswith(' '):
+       args=args[1:]
+    else:
+       args=args[1:]
+    needs_new_token=COMP_LINE.endswith(' ')
     if len(args) == 0:
       if needs_new_token:
         self._print_commands_matching('', operation)
       return
-
-    # The cursor has no space after the subcommand
     if len(args) == 1 and not needs_new_token:
       self._print_commands_matching(args[0], operation)
       return
-
     if needs_new_token:
       if args[0] not in self._methods:
-        return # invalid subcommand, do not complete anything
-
-    cmd_args = self._methods[args[0]]['args']
+        return
+    cmd_args=typing.cast(dict, self._methods[args[0]]['args'])
     for value in self._get_sub_completion(needs_new_token, cmd_args, args[1:]):
       operation(value)
 
-  def eval(self):
+  def eval(self) -> None:
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacomplete':
       self._print_completion()
       return
-
     if self._complete and len(sys.argv) >= 2 and sys.argv[1] == '--iacompdbg':
       self._print_completion_for_testing(sys.argv[2:], print)
       return
-
-    parsed = self._parser.parse_args()
-
-    if 'task' in parsed:
+    parsed=self._parser.parse_args()
+    if hasattr(parsed, 'task'):
       self._exec_func(self._methods[parsed.task]['func'], parsed)
     else:
       self._parser.print_help(sys.stderr)
 
 
-def _GetForwardingWrapperFrame():
-  previous:object|None = None
+def _GetForwardingWrapperFrame() -> tuple[types.FrameType, typing.Callable]:
+  previous:types.FrameType | None=None
   for entry in inspect.stack():
     if entry.frame.f_code.co_name == '_exec_func':
-      module = inspect.getmodule(previous)
       assert previous is not None
+      module=inspect.getmodule(previous)
       return previous, getattr(module, previous.f_code.co_name)
-    previous = entry.frame
+    previous=entry.frame
+  raise RuntimeError('Could not find forwarding wrapper frame')
 
-def _GetDefaultValue(func, name):
+def _GetDefaultValue(func:typing.Callable, name:str) -> object:
   for arg, info in inspect.signature(func).parameters.items():
     if arg == name:
       return info.default
   return None
 
 
-def Forward(name):
-  frame, func = _GetForwardingWrapperFrame()
-  if name not in func.__annotations__:
+def Forward(name:str) -> str:
+  frame, func=_GetForwardingWrapperFrame()
+  try:
+      type_hints = typing.get_type_hints(func, globalns=func.__globals__)
+  except Exception:
+      type_hints = func.__annotations__
+
+  if name not in type_hints:
     return ''
-  argtype = func.__annotations__[name]
-  argvalue = frame.f_locals[name]
-  argdefault = _GetDefaultValue(func, name)
+  argtype=type_hints[name]
+  argvalue=frame.f_locals[name]
+  argdefault=_GetDefaultValue(func, name)
 
   if argtype == bool:
-    if argvalue == True:
+    if argvalue is True:
       return f'--{name}'
     return ''
 
   if argdefault == inspect.Parameter.empty:
-    return argvalue.wrapped
+    return str(argvalue.wrapped)
 
-  if argvalue == None:
+  if argvalue is None:
     return ''
 
   if argtype in (str, bool, int):

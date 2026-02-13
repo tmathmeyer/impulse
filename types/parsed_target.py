@@ -17,10 +17,10 @@ from impulse.types import references
 from impulse.util import temp_dir
 
 
-RULE_STAGING_RECURSIVE_CANARY = object()
-EXPORT_DIR = 'GENERATED'
-PACKAGES_DIR = os.path.join(EXPORT_DIR, 'PACKAGES')
-BINARIES_DIR = os.path.join(EXPORT_DIR, 'BINARIES')
+RULE_STAGING_RECURSIVE_CANARY=object()
+EXPORT_DIR='GENERATED'
+PACKAGES_DIR=os.path.join(EXPORT_DIR, 'PACKAGES')
+BINARIES_DIR=os.path.join(EXPORT_DIR, 'BINARIES')
 
 
 class BuildableTargetInterface(typing.Protocol):
@@ -34,7 +34,7 @@ class Target(object):
   _name:references.Target
 
   def __init__(self, name:references.Target):
-    self._name = name
+    self._name=name
 
   def __repr__(self) -> str:
     return f'Target[{self._name}]'
@@ -44,15 +44,14 @@ class PlatformTarget(Target):
   """Represents a target platform and its properties."""
   def __init__(self, refname_name:references.Target, **kwargs:object):
     super().__init__(refname_name)
-    # TODO:un-sketch this class
-    self._values = kwargs
+    self._values=kwargs
 
   def __getattr__(self, attr:str) -> object:
     if attr.startswith('__'):
       raise AttributeError(attr)
     if attr not in self._values:
-      plat_name = self._values.get('platform_target', str(self._name))
-      raise exceptions.PlatformKeyAbsentError(plat_name, attr)
+      plat_name=self._values.get('platform_target', str(self._name))
+      raise exceptions.PlatformKeyAbsentError(str(plat_name), attr)
     return self._values[attr]
 
 
@@ -64,9 +63,9 @@ class StagedBuildTarget(Target):
 
 class StagedBuildTargetSet(object):
   """A set of StagedBuildTarget objects."""
-  __slots__ = ('_targets',)
-  def __init__(self, targets:set[StagedBuildTarget]|None=None):
-    self._targets:set[StagedBuildTarget] = set(targets or set())
+  __slots__=('_targets',)
+  def __init__(self, targets:set[StagedBuildTarget] | None=None):
+    self._targets:set[StagedBuildTarget]=set(targets or set())
 
   def AddAll(self, targets:'StagedBuildTargetSet') -> None:
     """Adds all targets from another set to this set."""
@@ -96,7 +95,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
     """Gets a platform target by name."""
 
   @abc.abstractmethod
-  def GetDefaultPlatformTarget(self) -> PlatformTarget:
+  def GetDefaultPlatformTarget(self) -> PlatformTarget | None:
     """Gets the default platform target if set."""
 
   @abc.abstractmethod
@@ -111,7 +110,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
 
 class BuildTarget(Target):
   """Represents a build target with its rule function and arguments."""
-  __slots__ = ('_name', '_func', '_kwargs', '_scope', '_tags', '_deps',
+  __slots__=('_name', '_func', '_kwargs', '_scope', '_tags', '_deps',
                '_includes', '_staged', '_rule_name')
   def __init__(self, name:references.Target,
                function:BuildableTargetInterface,
@@ -119,14 +118,14 @@ class BuildTarget(Target):
                scope:dict,
                tags:list[str]):
     super().__init__(name)
-    self._func = marshal.dumps(function.__code__)
-    self._deps:list[references.Target] = []
-    self._includes:dict[str, bytes] = {}
-    self._kwargs = self._PrecomputeDependencies(kwargs)
-    self._scope = scope
-    self._tags = tags
-    self._staged:StagedBuildTargetSet|object|None = None
-    self._rule_name = function.__name__
+    self._func=marshal.dumps(function.__code__)
+    self._deps:list[references.Target]=[]
+    self._includes:dict[str, bytes]={}
+    self._kwargs=self._PrecomputeDependencies(kwargs)
+    self._scope=scope
+    self._tags=tags
+    self._staged:StagedBuildTargetSet | object | None=None
+    self._rule_name=function.__name__
 
   def GetName(self) -> str:
     """Returns the fully qualified name of the target."""
@@ -139,16 +138,18 @@ class BuildTarget(Target):
     if isinstance(search, list):
       return [self._PrecomputeDependencies(i) for i in search]
     if isinstance(search, str):
-      if converted := self._ConvertToTargetRefName(search):
+      if converted:=self._ConvertToTargetRefName(search):
         self._deps.append(converted)
         return converted
     return search
 
-  def _ConvertToTargetRefName(self, item:str) -> references.Target|None:
+  def _ConvertToTargetRefName(self, item:str) -> references.Target | None:
     """Attempts to parse a string as a target reference."""
+    if not (item.startswith('//') or item.startswith(':')):
+      return None
     try:
       return references.Target.Parse(item, self._name.GetDirectory())
-    except exceptions.InvalidPathException:
+    except (exceptions.InvalidPathException, ValueError):
       return None
 
   def GetDependencies(self) -> list[references.Target]:
@@ -156,9 +157,9 @@ class BuildTarget(Target):
     return list(self._deps)
 
   def AddIncludes(self, funcs:list[BuildableTargetInterface]) -> 'BuildTarget':
-    """Adds helper functions to be included in the build rule's environment."""
+    """Adds helper functions to be included in build rule environment."""
     for func in funcs:
-      self._includes[func.__name__] = marshal.dumps(func.__code__)
+      self._includes[func.__name__]=marshal.dumps(func.__code__)
     return self
 
   def Stage(self, archive:TargetArchive) -> StagedBuildTargetSet:
@@ -167,7 +168,7 @@ class BuildTarget(Target):
       raise exceptions.BuildTargetCycle.Cycle(self)
     if self._staged is not None:
       return typing.cast(StagedBuildTargetSet, self._staged)
-    self._staged = RULE_STAGING_RECURSIVE_CANARY
+    self._staged=RULE_STAGING_RECURSIVE_CANARY
     try:
       return self._StageInternal(archive)
     except exceptions.BuildTargetCycle as e:
@@ -179,20 +180,20 @@ class BuildTarget(Target):
 
   def _StageInternal(self, archive:TargetArchive) -> StagedBuildTargetSet:
     """Internal staging logic that handles dependency resolution."""
-    dependencies = StagedBuildTargetSet()
+    dependencies=StagedBuildTargetSet()
     for dependency in self._deps:
       dependencies.AddAll(archive.GetBuildTarget(dependency).Stage(archive))
-    self._staged = StagedBuildTargetSet([
+    self._staged=StagedBuildTargetSet([
       StagedBuildTargetImpl(self, dependencies, archive, False, False)
     ])
     return self._staged
 
 
 class Any(object):
-  """Helper class to check if a value matches any of the provided objects."""
-  __slots__ = ('_objects',)
+  """Helper to check if a value matches any of provided objects."""
+  __slots__=('_objects',)
   def __init__(self, *objs:object):
-    self._objects = objs
+    self._objects=objs
 
   def __eq__(self, other:object) -> bool:
     for each in self._objects:
@@ -213,15 +214,15 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     StagedBuildTarget.__init__(self, target._name)
 
     # These can't be unmarshalled or accessed on the main thread
-    self._marshalled_func = target._func
-    self._marshalled_includes = target._includes
-    self._marshalled_kwargs = target._kwargs
+    self._marshalled_func=target._func
+    self._marshalled_includes=target._includes
+    self._marshalled_kwargs=typing.cast(dict[str, object], target._kwargs)
 
-    self._force_build = force
-    self._buildrule_name = target._rule_name
+    self._force_build=force
+    self._buildrule_name=target._rule_name
 
-    package_target:references.Target = target._name
-    self._package = packaging.ExportablePackage(
+    package_target:references.Target=target._name
+    self._package=packaging.ExportablePackage(
       package_target=package_target,
       platform=archive.GetDefaultPlatformTarget(),
       ruletype=target._rule_name,
@@ -238,8 +239,8 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     return f'Staged[{self._name}]'
 
   def LoadToTemp(self, package_dir:str, binary_dir:str) -> \
-      tuple[str, dict[str, str], packaging.ExportablePackage]:
-    """Loads the package into a temporary directory for build execution."""
+      tuple[str | None, dict[str, str], packaging.ExportablePackage]:
+    """Loads package into a temporary directory for build execution."""
     return self._package.LoadToTemp(package_dir, binary_dir)
 
   def UnloadPackageDirectory(self) -> None:
@@ -256,29 +257,28 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
 
   def _GetFilesIncludedInBuildDirectory(self, root:paths.AbsolutePath) -> \
       dict[str, str]:
-    """
-    Returns a mapping of relative paths to absolute paths for files in the
-    build directory.
-    """
+    """Returns mapping of relative to absolute paths for build files."""
     self.check_thread()
-    result = {}
-    relative = root.QualPath().Value()[2:]
-    for entry in self._marshalled_kwargs.get('srcs', []):
-      filename = os.path.join(root.Value(), entry)
+    result={}
+    relative=root.QualPath().Value()[2:]
+    for entry in typing.cast(list[str],
+                              self._marshalled_kwargs.get('srcs', [])):
+      filename=os.path.join(root.Value(), entry)
       if not os.path.exists(filename):
         raise exceptions.ListedSourceNotFound(filename, self._name)
-      result[os.path.join(relative, entry)] = filename
-    for entry in self._marshalled_kwargs.get('data', []):
-      filename = os.path.join(root.Value(), entry)
+      result[os.path.join(relative, entry)]=filename
+    for entry in typing.cast(list[str],
+                              self._marshalled_kwargs.get('data', [])):
+      filename=os.path.join(root.Value(), entry)
       if not os.path.exists(filename):
         raise exceptions.ListedSourceNotFound(filename, self._name)
-      result[os.path.join(relative, entry)] = filename
+      result[os.path.join(relative, entry)]=filename
     return result
 
   def _NeedsBuild(self, package_dir:str, src_dir:str) -> bool:
     """Checks if the target needs to be rebuilt."""
     self.check_thread()
-    self._package, needs_building, _ = self._package.NeedsBuild(
+    self._package, needs_building, _=self._package.NeedsBuild(
       package_dir, src_dir)
     if self._force_build:
       return True
@@ -289,7 +289,7 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
   def _RunBuildRule(self) -> tuple[object, str, str]:
     """Executes the build rule function."""
     self.check_thread()
-    buildrule, rule, buildfile = self._CompileBuildRule()
+    buildrule, rule, buildfile=self._CompileBuildRule()
     try:
       return buildrule(self._package, **self._marshalled_kwargs), \
              rule, buildfile
@@ -298,37 +298,40 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     except exceptions.BuildTargetNoBuildNecessary:
       raise
     except Exception as e:
-      target_name = self._marshalled_kwargs['name']
-      buildrule_type = str(self._buildrule_name)
-      _, _, traceback = sys.exc_info()
+      target_name=self._marshalled_kwargs['name']
+      buildrule_type=str(self._buildrule_name)
+      _, _, traceback=sys.exc_info()
       assert traceback is not None
-      tb = traceback
+      tb=traceback
       while tb and tb.tb_next:
-        tb = tb.tb_next
-      filename = tb.tb_frame.f_code.co_filename
-      line_no = tb.tb_frame.f_lineno
+        tb=tb.tb_next
+      filename=tb.tb_frame.f_code.co_filename
+      line_no=tb.tb_frame.f_lineno
 
       try:
         # Try to create a highlighted error if it's a file we can read
         if os.path.exists(filename):
-          msg = (f'Error in build rule `{buildrule_type}` for target '
+          msg=(f'Error in build rule `{buildrule_type}` for target '
                  f'`{target_name}`: {str(e)}')
-          highlighted = exceptions.FileErrorException(
+          highlighted=exceptions.FileErrorException(
             msg, filename, line_no, 0, 0
           )
-          raise exceptions.BuildDefsRaisesException(target_name,
+          raise exceptions.BuildDefsRaisesException(str(target_name),
                                                     buildrule_type,
                                                     highlighted) from None
+      except exceptions.BuildDefsRaisesException:
+        raise
       except Exception:
         pass
 
-      raise exceptions.BuildDefsRaisesException(target_name, buildrule_type, e)
+      raise exceptions.BuildDefsRaisesException(str(target_name),
+                                                buildrule_type, e)
 
   def _CompileBuildRule(self) -> tuple[types.FunctionType, str, str]:
     """Unmarshals and compiles the build rule function."""
     self.check_thread()
     try:
-      code = marshal.loads(self._marshalled_func)
+      code=marshal.loads(self._marshalled_func)
       return (
         types.FunctionType(code, self._GetExecEnv(), str(self._buildrule_name)),
         code.co_filename, self._name.GetBuildFile().Absolute().Value()
@@ -339,14 +342,14 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
   def _GetExecEnv(self) -> dict[str, object]:
     """Creates the execution environment for the build rule."""
     self.check_thread()
-    env = globals().copy()
+    env=globals().copy()
     for k, v in self._marshalled_includes.items():
-      env[k] = types.FunctionType(marshal.loads(v), globals(), k)
+      env[k]=types.FunctionType(marshal.loads(v), globals(), k)
     return env
 
   def run_job(self, debug:bool,
               internal_access:threading.UpdateGraphResponseData[
-                packaging.ExportablePackage]|None=None
+                packaging.ExportablePackage] | None=None
               ) -> object:
     """Runs the build job for this target."""
     # Set internal access on the package
@@ -354,60 +357,59 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
       self._package.SetInternalAccess(internal_access)
 
     # The absolute path for the directory where this target is defined.
-    build_root = self._name.GetDirectory().Absolute()
+    build_root=self._name.GetDirectory().Absolute()
 
     # Generated files directories
-    package_directory = os.path.join(environment.Root(), PACKAGES_DIR)
-    binaries_directory = os.path.join(environment.Root(), BINARIES_DIR)
+    package_directory=os.path.join(environment.Root(), PACKAGES_DIR)
+    binaries_directory=os.path.join(environment.Root(), BINARIES_DIR)
 
-    # forced_files are files which have to be included in the overlayfs,
-    # while included_files are the set of files which are checked when
-    # calculating build update requirements.
-    forced_files = self._GetFilesIncludedInBuildDirectory(build_root)
-    included_files = dict(forced_files)
+    forced_files=self._GetFilesIncludedInBuildDirectory(build_root)
+    included_files=dict(forced_files)
 
-    # loaded_dep_dirs is the set of directories which get added as
-    # overlays when overlayfs is mounted.
-    loaded_dep_dirs = []
+    loaded_dep_dirs=[]
     for dependency in self.dependencies:
-      directory, files, package = dependency.LoadToTemp(package_directory,
-                                                         binaries_directory)
+      directory, files, package=dependency.LoadToTemp(package_directory,
+                                                       binaries_directory)
       if directory:
         loaded_dep_dirs.append(directory)
       self._package.AddDependency(package)
       forced_files.update(files)
 
-    ro_directory = environment.Root()
+    ro_directory=environment.Root()
     if not self._NeedsBuild(package_directory, ro_directory):
-      return
+      return None
 
-    pkg_rel_path = self._name.GetPackage().GetRelativePath()
-    package_export_path = os.path.join(package_directory, pkg_rel_path)
+    pkg_rel_path=self._name.GetPackage().GetRelativePath()
+    package_export_path=os.path.join(package_directory, pkg_rel_path)
 
     try:
-      export_binary = None
+      export_binary=None
       with overlayfs.FuseCTX(loaded_dep_dirs,
-                             forced_files) as working_directory:
-        with temp_dir.ScopedTempDirectory(working_directory):
+                             forced_files) as working_dir:
+        with temp_dir.ScopedTempDirectory(working_dir):
           # Set these as the hashed input files
           self._package.SetInputFiles(list(included_files.keys()))
-          export_binary, rulefile, buildfile = self._RunBuildRule()
-          rulefile = CheckRuleFile(rulefile)
-          self._package.SetRuleFile(GetRootRelativePath(rulefile), rulefile)
-          self._package.SetBuildFile(GetRootRelativePath(buildfile), buildfile)
+          export_binary, rulefile, buildfile=self._RunBuildRule()
+          rulefile=CheckRuleFile(rulefile)
+          self._package.SetRuleFile(GetRootRelativePath(rulefile) or '',
+                                    rulefile)
+          self._package.SetBuildFile(GetRootRelativePath(buildfile) or '',
+                                     buildfile)
           if not (internal_access and internal_access.rerun_more_deps):
-            self._package = self._package.Export()
-            packaging.EnsureDirectory(os.path.dirname(package_export_path))
-            shutil.copyfile(self._package.filename, package_export_path)
+            exported_pkg=self._package.Export()
+            p_dir=os.path.dirname(package_export_path)
+            packaging.EnsureDirectory(p_dir)
+            shutil.copyfile(exported_pkg.filename, package_export_path)
             if self._package.is_binary_target:
               if not export_binary:
-                msg = '{} must return a binary exporter!'.format(
+                msg='{} must return a binary exporter!'.format(
                   self._buildrule_name)
                 raise Exception(msg)
-              rel_p = build_root.QualPath().Value()[2:]
-              bindir = os.path.join(binaries_directory, rel_p)
+              rel_p=build_root.QualPath().Value()[2:]
+              bindir=os.path.join(binaries_directory, rel_p)
               packaging.EnsureDirectory(bindir)
-              export_binary(self._package, self._name._target_name.Name(),
+              # type:ignore
+              export_binary(exported_pkg, self._name._target_name.Name(),
                             package_export_path, bindir)
           return export_binary
     except exceptions.FilesystemSyncException:
@@ -417,6 +419,7 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     finally:
       for d in self.dependencies:
         d.UnloadPackageDirectory()
+    return None
 
 
 def CheckRuleFile(rulefile:str) -> str:
@@ -428,11 +431,9 @@ def CheckRuleFile(rulefile:str) -> str:
   return rulefile
 
 
-def GetRootRelativePath(path:str) -> str|None:
-  """
-  Returns the path relative to the impulse root, or None if not within root.
-  """
-  root = environment.Root()
+def GetRootRelativePath(path:str) -> str | None:
+  """Returns path relative to impulse root, or None if not within root."""
+  root=environment.Root()
   if path.startswith(root):
     return path[len(root)+1:]
   return None

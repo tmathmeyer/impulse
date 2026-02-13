@@ -7,18 +7,18 @@ import typing
 
 
 # Rebind `os` so the typechecker doesn't freak!
-os = os
+os=os
 
 
-SourceList = list[str]
-TargetName = str
-Any = set
-BuildTargetName = str
-BuildTarget = None
-TargetKwargs = dict[str, typing.Any]
-HelperFunction = typing.Callable[[typing.Any], typing.Any]
-BuildRuleFunction = typing.Callable[[BuildTarget, TargetName, SourceList, TargetKwargs], None]
-BuildRuleDecorator = typing.Callable[[BuildRuleFunction], BuildRuleFunction]
+SourceList=list[str]
+TargetName=str
+Any=set
+BuildTargetName=str
+BuildTarget=None
+TargetKwargs=dict[str, object]
+HelperFunction=typing.Callable[[object], object]
+BuildRuleFunction=typing.Callable[[BuildTarget, TargetName, SourceList, TargetKwargs], None]
+BuildRuleDecorator=typing.Callable[[BuildRuleFunction], BuildRuleFunction]
 
 
 def using(*includes:list[HelperFunction]) -> BuildRuleDecorator:

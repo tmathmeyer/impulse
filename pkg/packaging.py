@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 import abc
 import hashlib
@@ -16,22 +17,29 @@ from impulse.util import temp_dir
 from impulse.core import debug
 from impulse import impulse_paths
 
+if typing.TYPE_CHECKING:
+  from impulse.core import threading
 
-NOT_THE_SAME = object()
+
+NOT_THE_SAME=object()
 
 
-def EnsureDirectory(directory):
-  if not os.path.exists(directory):
+def EnsureDirectory(directory:str) -> None:
+  """Ensures that the given directory exists."""
+  if directory and not os.path.exists(directory):
     os.makedirs(directory, exist_ok=True)
 
 
 class Hasher(metaclass=abc.ABCMeta):
+  """Abstract base class for components that can compute file hashes."""
   @abc.abstractmethod
   def GetHash(self, filename:str) -> str:
+    """Returns the hash of the given file."""
     raise NotImplementedError()
 
   def MD5(self, filename:str) -> str:
-    hash_md5 = hashlib.md5()
+    """Computes the MD5 hash of a file."""
+    hash_md5=hashlib.md5()
     try:
       with open(filename, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -42,47 +50,51 @@ class Hasher(metaclass=abc.ABCMeta):
 
 
 class HashedFile(object):
-  __slots__ = ('file', 'hash')
+  """Represents a file along with its computed hash."""
+  __slots__=('file', 'hash')
 
   def __init__(self, file:str, package:Hasher):
-    self.file = file
-    self.hash = package.GetHash(file)
+    self.file=file
+    self.hash=package.GetHash(file)
 
-  def dict(self):
+  def dict(self) -> dict[str, str]:
+    """Returns a dictionary representation of the hashed file."""
     return {'file': self.file, 'hash': self.hash}
 
   def __eq__(self, other:object) -> bool:
-    if type(other) != type(self):
+    if not isinstance(other, HashedFile):
       return False
-    if getattr(other, 'file', None) != self.file:
-      return False
-    if getattr(other, 'hash', None) != self.hash:
-      return False
-    return True
+    return self.file == other.file and self.hash == other.hash
 
-  def __hash__(self):
+  def __hash__(self) -> int:
     return hash(f'{self.file}//{self.hash}')
 
 
 class ExportedPackage(object):
-  """Read-only package wrapper."""
+  """A read-only wrapper around a build package archive."""
   def __init__(self,
-               filename: str,
-               json: dict|None=None,
-               export_binary=None):
-    self.filename = filename
-    if json:
-      self.__dict__.update(json)
+               filename:str,
+               json_data:dict | None=None,
+               export_binary:typing.Callable | None=None):
+    self.filename=filename
+    self.included_files:list[str]=[]
+    self.package_target:references.Target | None=None
+    self.build_timestamp:float=0.0
+    if json_data:
+      self.__dict__.update(json_data)
     if export_binary:
-      self.ExportBinary = export_binary
+      self.ExportBinary=export_binary
 
-  def NeedsBuild(self):
+  def NeedsBuild(self) -> tuple['ExportedPackage', bool, str | None]:
+    """Exported packages are already built, so always returns False."""
     return self, False, None
 
-  def IncludedFiles(self):
-    return [file for file in self.included_files]
+  def IncludedFiles(self) -> list[str]:
+    """Returns the list of files included in this package."""
+    return list(self.included_files)
 
-  def GetPropagatedData(self, key):
+  def GetPropagatedData(self, key:str) -> object:
+    """Retrieves data propagated from dependencies."""
     if key in self.__dict__:
       return self.__dict__[key]
     if '_propagated_data' in self.__dict__:
@@ -90,207 +102,168 @@ class ExportedPackage(object):
         return self.__dict__['_propagated_data'][key]
     return []
 
-  def RunCommand(self, command):
+  def RunCommand(self, command:str) -> subprocess.CompletedProcess:
+    """Executes a shell command."""
     return subprocess.run(command,
                           encoding='utf-8',
                           shell=True,
                           stderr=subprocess.PIPE,
                           stdout=subprocess.PIPE)
 
-  def Execute(self, *cmds):
+  def Execute(self, *cmds:str) -> None:
+    """Executes a series of shell commands."""
     for command in cmds:
       try:
-        r = self.RunCommand(command)
+        r=self.RunCommand(command)
         if r.returncode:
-          raise errors.FatalError(f'command "{command}" failed.')
-      except:
-        raise errors.FatalError(f'command "{command}" failed.')
+          msg=f'command "{command}" failed:\n{r.stdout}\n{r.stderr}'
+          raise errors.FatalError(msg)
+      except Exception as e:
+        if isinstance(e, errors.FatalError):
+          raise
+        raise errors.FatalError(f'command "{command}" failed: {str(e)}')
 
-  def FatalError(self, msg:str):
+  def FatalError(self, msg:str) -> typing.NoReturn:
+    """Raises a fatal error."""
     raise errors.FatalError(msg)
 
-  def __str__(self):
+  def __str__(self) -> str:
     return '{}@{}'.format(str(self.package_target), self.build_timestamp)
 
-  def __repr__(self):
+  def __repr__(self) -> str:
     return str(self)
 
-  def __getitem__(self, name:str):
+  def __getitem__(self, name:str) -> object:
     return getattr(self, name)
 
 
-class UtilHelper(object):
-  def __init__(self, buildqueue_ref):
-    self.temp_dir = temp_dir
-    self.build_queue = buildqueue_ref
-
-
 class ExportablePackage(Hasher):
-  """A wrapper class for building a package file."""
+  """Represents a package being built."""
+  def __init__(self,
+               package_target:references.Target,
+               platform:'parsed_target.PlatformTarget | None',
+               ruletype:str,
+               can_access_internal:bool=False):
+    self.package_target=package_target
+    self.package_ruletype=ruletype
+    self.is_binary_target=(ruletype.endswith('_binary') or
+                             ruletype.endswith('_test'))
+    self.included_files:list[str]=[]
+    self.depends_on_targets:list[ExportablePackage | ExportedPackage]=[]
+    self.tags:set[str]=set()
+    self.build_timestamp=time.time()
+    self.rule_file:HashedFile | None=None
+    self.build_file:HashedFile | None=None
+    self.input_files:list[HashedFile]=[]
 
-  def __init__(self, package_target:references.Target, ruletype: str,
-               platform:object, # TODO: fix type
-               can_access_internal: bool=False,
-               binaries_location: str=''):
-    self._extracted_dir = None
-
-    self.included_files:typing.List[str] = []
-    self.input_files:typing.Set[HashedFile] = set()
-    self.depends_on_targets:typing.List[str] = []
-    self.build_file:HashedFile
-    self.rule_file:HashedFile
-    self.tags:typing.Set[str] = set()
-
-    self.package_target = package_target
-    self.build_timestamp = int(time.time())
-    self.is_binary_target = str(ruletype).endswith(
-      '_binary') or str(ruletype).endswith('_test')
-    self.package_ruletype = ruletype
-    self.execution_count = 0
-
-    self._export_binary = None
-    self._can_access_internal = can_access_internal
-    self._buildqueue_ref = None
-    self._binaries_location = binaries_location
-    self._previous_build_timestamp = 0
-    self._exec_env = {}
-    self._exec_env_str = ''
-    self._propagated_data = {}
-    self._platform = platform
-
-  def __getstate__(self):
-    return self.__dict__.copy()
-
-  def __setstate__(self, state):
-    self.__dict__.update(state)
-    self._extracted_dir = None
-
-  def __getattribute__(self, attr):
-    if attr in ('Internal', 'SetInternalAccess'):
-      if self._can_access_internal:
-        if attr == 'Internal':
-          return UtilHelper(self._buildqueue_ref)
-        if attr == 'SetInternalAccess':
-          return object.__getattribute__(self, attr)
-      raise AttributeError
-    return object.__getattribute__(self, attr)
-
-  def _GetJson(self) -> str:
-    copydict = {}
-    for k, v in self.__dict__.items():
-      if not k.startswith('_') and k != 'buildroot':
-        copydict[k] = v
-      if k == 'package_target':
-        copydict[k] = str(v)
-      if k == 'included_files':
-        copydict[k] = sorted(list(set(v)))
-      if k == 'depends_on_targets':
-        copydict[k] = [[d.package_target, d.build_timestamp] for d in v]
-      if k == 'input_files':
-        copydict[k] = sorted(list(e.dict() for e in v), key=lambda x:x['file'])
-      if k == 'build_file':
-        copydict[k] = v.dict()
-      if k == 'rule_file':
-        copydict[k] = v.dict()
-      if k == 'tags':
-        copydict[k] = list(v)
-      if k == '_platform':
-        copydict['platform'] = v._values
-
-    for k, v in self._propagated_data.items():
-      if k not in copydict:
-        copydict[k] = v
-
-    return json.dumps(copydict, indent=2)
-
-  def Help(self):
-    for potential in dir(self):
-      if potential.startswith('__'):
-        continue
-      try:
-        potential = getattr(self, potential)
-      except:
-        continue
-      if not callable(potential):
-        continue
-      if not hasattr(potential, '__doc__') or potential.__doc__ is None:
-        continue
-      print(f'{potential.__name__}:')
-      print(f'  {potential.__doc__}')
+    self._platform=platform
+    self._binaries_location=''
+    self._previous_build_timestamp=0.0
+    self._extracted_dir:str | None=None
+    self._internal_access:'threading.UpdateGraphResponseData | None'=None
+    self._export_binary:typing.Callable | None=None
+    self._exec_env:dict[str, str]={}
+    self._exec_env_str=''
 
   def GetHash(self, filename:str) -> str:
-    '''Gets the hash of a file, given its name'''
-    try:
-      return self.MD5(filename)
-    except FileNotFoundError as e:
-      raise exceptions.ListedSourceNotFound(filename,
-        str(self.package_target)) from e
-    except IsADirectoryError:
-      raise exceptions.ListedSourceNotFound(
-        filename, str(self.package_target))
+    """Returns the MD5 hash of the file."""
+    return self.MD5(filename)
 
-  def PropagateData(self, key, data):
-    if key not in self._propagated_data:
-      self._propagated_data[key] = []
-    self._propagated_data[key].append(data)
+  def SetInternalAccess(self,
+                        access:'threading.UpdateGraphResponseData') -> None:
+    """Sets the internal access object for dynamic graph updates."""
+    self._internal_access=access
 
-  def SetInternalAccess(self, access):
-    self._buildqueue_ref = access
+  def SetBinaryExporter(self, exporter:typing.Callable) -> None:
+    """Sets the function used to export binaries."""
+    self._export_binary=exporter
 
-  def SetInputFiles(self, files:typing.List[str]):
-    for f in files:
-      self.input_files.add(HashedFile(f, self))
+  def _GetJson(self) -> str:
+    """Returns a JSON string representing the package metadata."""
+    data={
+      'package_target': str(self.package_target),
+      'package_ruletype': self.package_ruletype,
+      'is_binary_target': self.is_binary_target,
+      'included_files': self.included_files,
+      'depends_on_targets': [
+        (str(t.package_target), t.build_timestamp)
+        for t in self.depends_on_targets
+      ],
+      'tags': list(self.tags),
+      'build_timestamp': self.build_timestamp,
+      'platform': self._platform._values if self._platform else {},
+    }
+    if self.rule_file:
+      data['rule_file']=self.rule_file.dict()
+    if self.build_file:
+      data['build_file']=self.build_file.dict()
+    data['input_files']=[f.dict() for f in self.input_files]
+    return json.dumps(data)
 
-  def SetRuleFile(self, file:str, hashpath:str):
-    self.rule_file = HashedFile(hashpath, self)
+  def SetInputFiles(self, files:list[str]) -> None:
+    """Sets the list of input files and computes their hashes."""
+    self.input_files=[HashedFile(f, self) for f in files]
 
-  def SetBuildFile(self, file:str, hashpath:str):
-    self.build_file = HashedFile(hashpath, self)
+  def SetRuleFile(self, file:str, hashpath:str) -> None:
+    """Sets the build rule file and its hash path."""
+    self.rule_file=HashedFile(hashpath, self)
 
-  def AddFile(self, filename:str):
-    '''Adds a file to the output package.'''
+  def SetBuildFile(self, file:str, hashpath:str) -> None:
+    """Sets the BUILD file and its hash path."""
+    self.build_file=HashedFile(hashpath, self)
+
+  def AddFile(self, filename:str) -> None:
+    """Adds a file to the output package."""
     self.included_files.append(filename)
 
-  def AddDirectory(self, directory:str):
-    '''Adds all files in a directory'''
-    for [dirname, _, files] in os.walk(directory):
+  def AddDirectory(self, directory:str) -> None:
+    """Adds all files within a directory to the output package."""
+    for dirname, _, files in os.walk(directory):
       for file in files:
         self.AddFile(os.path.join(dirname, file))
 
-  def AddDependency(self, dependency):
-    '''Add a dependency on another target.'''
+  def AddDependency(self,
+                    dependency:ExportablePackage | ExportedPackage) -> None:
+    """Adds a dependency on another target."""
     if dependency not in self.depends_on_targets:
       self.depends_on_targets.append(dependency)
 
   def GetPackageName(self) -> str:
-    '''Gets the name of the package.'''
+    """Returns the relative path of the package archive."""
     return self.package_target.GetPackage().GetRelativePath()
 
-  def GetPackageDirectory(self):
-    '''Gets the package source directory.'''
+  def GetPackageDirectory(self) -> str:
+    """Returns the package's directory relative to root."""
     return self.package_target.GetDirectory().Relative().Value()[2:]
 
-  def ExecutionFailed(self, command:str, stderr:str):
-    '''Triggers an exception with given cmdline and stderr.'''
-    raise exceptions.BuildDefsRaisesException(self.package_target._target_name,
+  def ExecutionFailed(self, command:str, stderr:str) -> None:
+    """Raises an exception indicating a build command failure."""
+    raise exceptions.BuildDefsRaisesException(
+      str(self.package_target.GetName()),
       self.package_ruletype, command + "\n\n" + stderr)
 
-  def ExecutionNotRequired(self):
+  def FatalError(self, msg:str) -> typing.NoReturn:
+    """Raises a fatal error."""
+    raise errors.FatalError(msg)
+
+  def ExecutionNotRequired(self) -> None:
+    """Raises an exception indicating that no build is necessary."""
     raise exceptions.BuildTargetNoBuildNecessary()
 
   def GetBinariesDir(self) -> str:
-    '''Gets the directory where binaries are exported to.'''
+    """Returns the directory where binaries are exported."""
     return self._binaries_location
 
-  def GetPreviousBuildTimestamp(self):
-    '''Gets the timestamp for when this rule was previously built.'''
+  def GetPreviousBuildTimestamp(self) -> float:
+    """Returns the timestamp of the previous build, if any."""
     return self._previous_build_timestamp
 
-  def GetPlatform(self):
+  def GetPlatform(self) -> 'parsed_target.PlatformTarget | None':
+    """Returns the target platform definition."""
     return self._platform
 
-  def RunCommand(self, command):
-    '''Executes a command.'''
+  def RunCommand(self, command:str) -> subprocess.CompletedProcess:
+    """Executes a shell command."""
     return subprocess.run(command,
                           encoding='utf-8',
                           shell=True,
@@ -298,157 +271,164 @@ class ExportablePackage(Hasher):
                           stdout=subprocess.PIPE)
 
   def Export(self) -> ExportedPackage:
-    r = self.RunCommand('pwd')
+    """Exports the package by creating a zip archive."""
+    r=self.RunCommand('pwd')
     if r.returncode:
       raise errors.FatalError(f'{r.returncode} => {r.stderr}')
 
-    r = self.RunCommand('touch pkg_contents.json')
+    r=self.RunCommand('touch pkg_contents.json')
     if r.returncode:
       raise errors.FatalError('Cant create new pkg_contents.json')
 
     with open('pkg_contents.json', 'w+') as f:
       f.write(self._GetJson())
-    cmd = 'zip --symlinks {} pkg_contents.json {} 2>&1 > /dev/null'
-    filename = self.GetPackageName()
-    cmd = cmd.format(filename, ' '.join(self.included_files))
+    filename=self.GetPackageName()
     EnsureDirectory(os.path.dirname(filename))
     subprocess.check_output(['zip', '--symlinks', filename, 'pkg_contents.json',
                              *self.included_files])
     os.system('rm pkg_contents.json')
     return ExportedPackage(filename, self.__dict__, self._export_binary)
 
-  def _GetPreviousBuild(self, package_dir):
+  def _GetPreviousBuild(self, package_dir:str) -> dict | None:
+    """Attempts to load metadata from a previously built package."""
     try:
-      archive = zipfile.ZipFile(
-        os.path.join(package_dir, self.GetPackageName()), 'r')
-      return json.loads(archive.read('pkg_contents.json'))
-    except Exception as e:
+      archive_path=os.path.join(package_dir, self.GetPackageName())
+      with zipfile.ZipFile(archive_path, 'r') as archive:
+        return json.loads(archive.read('pkg_contents.json'))
+    except Exception:
       return None
 
-  def NeedsBuild(self, package_dir, src_dir):
-    previous_build = self._GetPreviousBuild(package_dir)
+  def NeedsBuild(self, package_dir:str, src_dir:str) -> \
+      tuple['ExportablePackage', bool, str | None]:
+    """Checks if the package needs rebuilding."""
+    previous_build=self._GetPreviousBuild(package_dir)
     if not previous_build:
       return self, True, 'No previous build'
 
     if 'platform' not in previous_build:
       return self, True, 'No platform set on previous build'
 
-    for platkey, value in previous_build.get('platform', []).items():
-      if self._platform._values.get(platkey, NOT_THE_SAME) != value:
+    for platkey, value in previous_build.get('platform', {}).items():
+      if (self._platform and
+          self._platform._values.get(platkey, NOT_THE_SAME) != value):
         return self, True, f'platform value |{platkey}| differs'
 
-    self._previous_build_timestamp = previous_build.get('build_timestamp', 0)
+    self._previous_build_timestamp=previous_build.get('build_timestamp', 0)
 
-    prev_dict = {}
-    curr_dict = {}
-
-    for target, time in previous_build['depends_on_targets']:
-      prev_dict[target] = time
-
-    for target in self.depends_on_targets:
-      curr_dict[str(target.package_target)] = target.build_timestamp
+    prev_dict={target: time for target, time in \
+                previous_build['depends_on_targets']}
+    curr_dict={str(target.package_target): target.build_timestamp \
+                for target in self.depends_on_targets}
 
     if len(prev_dict) != len(curr_dict):
       return self, True, 'previous dependencies differ to current ones'
 
-    for k in prev_dict.keys():
+    for k, prev_time in prev_dict.items():
       if k not in curr_dict:
         return self, True, f'{k} (from previous build) not found in current'
-      if curr_dict[k] > prev_dict[k]:
+      if curr_dict[k] > prev_time:
         return self, True, f'{k} (from previous build) has been rebuilt'
 
     for src in previous_build['input_files']:
-      full_path = os.path.join(src_dir, src['file'])
+      full_path=os.path.join(src_dir, src['file'])
       if self.MD5(full_path) != src['hash']:
         return self, True, f'hash of input file {full_path} has changed'
 
-    check_files = []
-    if previous_build.get('build_file', None):
+    check_files=[]
+    if previous_build.get('build_file'):
       check_files.append(previous_build['build_file'])
-    if previous_build.get('rule_file', None):
+    if previous_build.get('rule_file'):
       check_files.append(previous_build['rule_file'])
     for fh in check_files:
-      full_path = os.path.join(src_dir, fh['file'])
+      full_path=os.path.join(src_dir, fh['file'])
       if self.MD5(full_path) != fh['hash']:
         return self, True, f'hash of file {full_path} has changed'
 
     return self, False, None
 
-  def LoadToTempAttempt(self, bin_dir) -> (str, dict, 'ExportedPackage'):
+  def LoadToTempAttempt(self, bin_dir:str) -> \
+      tuple[str | None, dict[str, str], ExportedPackage]:
+    """Internal method to load package contents into a temporary directory."""
     with open('pkg_contents.json', 'r+') as f:
-      package_contents = json.loads(f.read())
-      exported_package = ExportedPackage(
+      package_contents=json.loads(f.read())
+      exported_package=ExportedPackage(
         self.package_target.GetPackage().GetRelativePath(), package_contents)
       if self.is_binary_target:
-        relative_binary = os.path.join(
+        relative_binary=os.path.join(
           self.package_target.GetDirectory().Relative().Value()[2:],
           self.package_target.GetName().Name())
-        full_path_binary = os.path.join(bin_dir, relative_binary)
-        binary_location = os.path.join(
-          'bin', self.package_target.GetName().Name())
+        full_path_binary=os.path.join(bin_dir, relative_binary)
+        binary_location=os.path.join('bin',
+                                     self.package_target.GetName().Name())
         return None, {binary_location: full_path_binary}, exported_package
       else:
         return self._extracted_dir, {}, exported_package
 
   def MakeTempDir(self) -> str:
+    """Creates a temporary directory."""
     return tempfile.mkdtemp()
 
-  def UseTempDir(self):
-    '''Context manage for a temporary directory that auto cleans up.'''
-    wrapper = self
+  def UseTempDir(self) -> object:
+    """Returns a context manager for a temporary directory."""
+    wrapper=self
     class DirManager(object):
-      def __init__(self):
-        self._directory = None
-      def __enter__(self):
-        self._directory = wrapper.MakeTempDir()
+      def __init__(self) -> None:
+        self._directory:str | None=None
+      def __enter__(self) -> str:
+        self._directory=wrapper.MakeTempDir()
+        assert self._directory is not None
         return self._directory
-      def __exit__(self, *args, **kwargs):
-        wrapper.RunCommand(f'rm -rf {self._directory}')
-        self._directory = None
+      def __exit__(self, *args:object, **kwargs:object) -> None:
+        if self._directory:
+          wrapper.RunCommand(f'rm -rf {self._directory}')
+        self._directory=None
     return DirManager()
 
-  def LoadToTemp(self, pkg_dir, bin_dir):
-    # Temp directory to write to (deleted on object destruction)
+  def LoadToTemp(self, pkg_dir:str, bin_dir:str) -> \
+      tuple[str | None, dict[str, str], ExportablePackage | ExportedPackage]:
+    """Extracts package into temporary directory for build execution."""
     if self._extracted_dir:
       self.UnloadPackageDirectory()
-    self._extracted_dir = self.MakeTempDir()
-    package_name = os.path.join(pkg_dir,
+    self._extracted_dir=self.MakeTempDir()
+    package_name=os.path.join(pkg_dir,
       self.package_target.GetPackage().GetRelativePath())
 
-    extract = f'unzip {package_name} -d {self._extracted_dir}'
-    r = self.RunCommand(f'test -e {self._extracted_dir}')
-    if r.returncode:
-      raise errors.FatalError(f'{self._extracted_dir} does not exist')
-    r = self.RunCommand(extract)
+    if not os.path.exists(package_name):
+       return None, {}, self
+
+    extract=f'unzip {package_name} -d {self._extracted_dir}'
+    r=self.RunCommand(extract)
     if r.returncode:
       raise errors.FatalError(f'{extract} ===> {r.stderr}')
 
     with temp_dir.ScopedTempDirectory(self._extracted_dir):
       try:
         return self.LoadToTempAttempt(bin_dir)
-      except:
+      except Exception:
         raise exceptions.FilesystemSyncException()
 
-  def UnloadPackageDirectory(self):
+  def UnloadPackageDirectory(self) -> None:
+    """Removes the temporary directory used for extraction."""
     if self._extracted_dir and os.path.exists(self._extracted_dir):
       try:
         self.RunCommand(f'rm -rf {self._extracted_dir}')
       except FileNotFoundError:
         print(f'{self._extracted_dir} COULD NOT BE DELETED!')
-    self._extracted_dir = None
+    self._extracted_dir=None
 
-  def Dependencies(self, **filters):
-    '''Generates a list targets that this target depends on.'''
-    def yieldPackage(pkg):
+  def Dependencies(self, **filters:object) -> \
+      typing.Iterator[ExportablePackage | ExportedPackage]:
+    """Yields dependencies that match the provided filters."""
+    def yieldPackage(pkg:object) -> bool:
       for k, v in filters.items():
-        valueof = getattr(pkg, k, None)
-        if valueof == None:
+        valueof=getattr(pkg, k, None)
+        if valueof is None:
           return False
-        if type(valueof) == str and valueof != v:
+        if isinstance(valueof, str) and valueof != v:
           return False
-        if type(valueof) in (set, list, tuple) and v not in valueof:
+        if isinstance(valueof, (set, list, tuple)) and v not in valueof:
           return False
-        if type(v).__name__ == 'function' and not v(valueof):
+        if callable(v) and not v(valueof):
           return False
       return True
 
@@ -456,67 +436,72 @@ class ExportablePackage(Hasher):
       if yieldPackage(package):
         yield package
 
-  def SetTags(self, *tags):
-    '''Adds tags to this target.'''
+  def SetTags(self, *tags:str) -> None:
+    """Adds tags to the package."""
     self.tags.update(set(tags))
 
-  def Execute(self, *cmds):
-    '''Executes |cmds| in order.'''
+  def Execute(self, *cmds:str) -> None:
+    """Executes a series of shell commands."""
     for command in cmds:
-      command = f'{self._exec_env_str} {command}'
+      full_cmd=f'{self._exec_env_str} {command}' if self._exec_env_str \
+                else command
       try:
-        r = self.RunCommand(command)
+        r=self.RunCommand(full_cmd)
         if r.returncode:
           raise errors.FatalError(
-            f'command "{command}" failed:\n{r.stdout}\n{r.stderr}')
+            f'command "{full_cmd}" failed:\n{r.stdout}\n{r.stderr}')
       except Exception as e:
-        if type(e) == errors.FatalError:
+        if isinstance(e, errors.FatalError):
           raise
-        raise errors.FatalError(f'command "{command}" failed.')
+        raise errors.FatalError(f'command "{full_cmd}" failed: {str(e)}')
 
-  def SetEnvVar(self, var, value):
-    '''Sets an environment variable for execution.'''
-    self._exec_env[var] = value
+  def SetEnvVar(self, var:str, value:str) -> None:
+    """Sets an environment variable for command execution."""
+    self._exec_env[var]=value
     self._update_exec_env_str()
 
-  def IsDebug(self):
+  def IsDebug(self) -> bool:
+    """Returns True if debugging is enabled."""
     return debug.IsDebug()
 
-  def UnsetEnvVar(self, var):
-    '''Unsets an environment variable for execution.'''
-    self._exec_env.pop(var)
+  def UnsetEnvVar(self, var:str) -> None:
+    """Removes an environment variable."""
+    self._exec_env.pop(var, None)
     self._update_exec_env_str()
 
-  def _update_exec_env_str(self):
-    self._exec_env_str = ' '.join(f'{k}={v}' for k,v in self._exec_env.items())
+  def _update_exec_env_str(self) -> None:
+    """Updates the string representation of the execution environment."""
+    self._exec_env_str=' '.join(f'{k}={v}' for k,v in self._exec_env.items())
 
-  def IncludedFiles(self):
-    '''A list of all files included in this package.'''
-    return [f for f in self.included_files]
+  def IncludedFiles(self) -> list[str]:
+    """Returns a list of all files included in the package."""
+    return list(self.included_files)
 
-  def Semaphor(pkg):
+  def Semaphor(self) -> object:
+    """Returns a context manager for a file-based lock."""
+    pkg=self
     class Sem(object):
-      def __init__(self):
-        self._lockfile = os.path.join(impulse_paths.root(), '.lockfile')
-        self._has_lockfile = not pkg.RunCommand('which lockfile').returncode
-      def __enter__(self):
+      def __init__(self) -> None:
+        self._lockfile=os.path.join(impulse_paths.root(), '.lockfile')
+        self._has_lockfile=not pkg.RunCommand('which lockfile').returncode
+      def __enter__(self) -> None:
         if self._has_lockfile:
           pkg.RunCommand(f'lockfile {self._lockfile}')
         else:
           self._spinlock()
-      def __exit__(self, *args, **kwargs):
+      def __exit__(self, *args:object, **kwargs:object) -> None:
         pkg.RunCommand(f'rm -rf {self._lockfile}')
-      def _spinlock(self):
-        success = False
+      def _spinlock(self) -> None:
+        success=False
         while not success:
           while os.path.exists(self._lockfile):
             time.sleep(2)
             continue
-          success = not pkg.RunCommand(f'mkdir {self._lockfile}').returncode
+          success=not pkg.RunCommand(f'mkdir {self._lockfile}').returncode
     return Sem()
 
-
-  def __del__(self):
+  def __del__(self) -> None:
+    """Ensures that temporary directories are cleaned up."""
     if self._extracted_dir:
       if os.path.exists(self._extracted_dir):
         self.UnloadPackageDirectory()
