@@ -182,13 +182,18 @@ def test(
   target:impulse_paths.BuildTarget,
   debug:bool=False,
   fakeroot:args.Directory|None=None,
+  github_actions:bool=False,
 ):
   """Builds a testcase and executes it."""
   ruleinfo = build(target, None, debug, False, fakeroot)
   if not ruleinfo.type.endswith('_test'):
     print(f'Only test targets can be run {ruleinfo.type}')
     return
-  sys.exit(os.WEXITSTATUS(os.system(f'{ruleinfo.output} run')))
+  sys.exit(
+    os.WEXITSTATUS(
+      os.system(f'{ruleinfo.output} run {args.Forward("github_actions")}')
+    )
+  )
 
 
 @command
@@ -196,7 +201,8 @@ def testsuite(
   project:str|None=None,
   debug:bool=False,
   threads:int=6,
-  fakeroot:args.Directory|None=None
+  fakeroot:args.Directory|None=None,
+  github_actions:bool=False,
 ):
   setup(debug, fakeroot)
   targets, buildgraph = graph_for_directory(project, True)
@@ -205,7 +211,9 @@ def testsuite(
   for staged_build_target in targets:
     binary = GetStagedRuleInfo(staged_build_target).output
     print(f'Running `{binary} run`')
-    errcode = os.WEXITSTATUS(os.system(f'{binary} run'))
+    errcode = os.WEXITSTATUS(
+      os.system(f'{binary} run {args.Forward("github_actions")}')
+    )
     if errcode != 0:
       sys.exit(errcode)
 
