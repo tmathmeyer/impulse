@@ -47,7 +47,7 @@ def maketree(trees:dict[object, Tree], node:object) -> Tree:
   return Tree(getattr(node, 'get_name', lambda: 'unknown')(), children)
 
 
-def BuildTree(deps:typing.Iterable['threading.GraphNode']) -> Tree | None:
+def BuildTree(deps:typing.Iterable['threading.GraphNode']) -> Tree|None:
   """Constructs a printable tree from a set of nodes."""
   nodes={k: k for k in deps}
   trees:dict[object, Tree]={}

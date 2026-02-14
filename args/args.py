@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 class ArgComplete(metaclass=abc.ABCMeta):
-  def __init__(self, wrapped:str | None):
+  def __init__(self, wrapped:str|None):
     self.wrapped=wrapped
 
   @classmethod
@@ -18,7 +18,7 @@ class ArgComplete(metaclass=abc.ABCMeta):
   def get_completion_list(cls, stub:str) -> typing.Iterator[str]:
     raise NotImplementedError()
 
-  def value(self) -> str | None:
+  def value(self) -> str|None:
     return self.wrapped
 
 
@@ -276,7 +276,7 @@ class ArgumentParser(object):
 
 
 def _GetForwardingWrapperFrame() -> tuple[types.FrameType, typing.Callable]:
-  previous:types.FrameType | None=None
+  previous:types.FrameType|None=None
   for entry in inspect.stack():
     if entry.frame.f_code.co_name == '_exec_func':
       assert previous is not None

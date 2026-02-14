@@ -42,9 +42,9 @@ class LazyEnvironmentLoader(builtins.EnvironmentLoader):
     """Gets a value from the environment."""
     return self._environment[key]
 
-  def ImportInjector(self, name:str, locals:dict | None=None,
-                     globals:dict | None=None, fromlist:list[str] | None=None,
-                     level:int | None=None) -> types.ModuleType:
+  def ImportInjector(self, name:str, locals:dict|None=None,
+                     globals:dict|None=None, fromlist:list[str]|None=None,
+                     level:int|None=None) -> types.ModuleType:
     """Injects synthetic modules for build rule definitions."""
     allowed_import_targets={
       'impulse.types.stubs': {
@@ -140,14 +140,14 @@ class StubLoader(object):
 
 class RecursiveFileParser(parsed_target.TargetArchive):
   """Loads files based on load() and buildrule statements."""
-  def __init__(self, platform:parsed_target.PlatformTarget | None=None,
+  def __init__(self, platform:parsed_target.PlatformTarget|None=None,
                **carried_args:object):
     self._carried_args=carried_args
     self._targets:dict[references.Target, parsed_target.BuildTarget]={}
     self._meta_targets:set[str]=set()
     self._loaded_files:set[references.File]=set()
     self._platforms:dict[references.Target, parsed_target.PlatformTarget]={}
-    self._platform:parsed_target.PlatformTarget | None=None
+    self._platform:parsed_target.PlatformTarget|None=None
 
     stubs={
       '//rules/builtins/builtins.py': [
@@ -219,7 +219,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     except KeyError as e:
       raise exceptions.BuildTargetMissing(e.args[0]) from None
 
-  def GetDefaultPlatformTarget(self) -> parsed_target.PlatformTarget | None:
+  def GetDefaultPlatformTarget(self) -> parsed_target.PlatformTarget|None:
     """Gets the default platform target."""
     return self._platform
 
@@ -305,13 +305,13 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       starting_index+=1
     return 'OH FUCK'
 
-  def _get_macro_expansion_site(self) -> str | None:
+  def _get_macro_expansion_site(self) -> str|None:
     for frame in self._stack_without_recursive_loader():
       if frame.filename.endswith('BUILD'):
         return f'{frame.filename}:{frame.lineno}'
     return None
 
-  def _get_macro_expansion_directory(self) -> str | None:
+  def _get_macro_expansion_directory(self) -> str|None:
     for frame in self._stack_without_recursive_loader():
       if frame.filename.endswith('BUILD'):
         return os.path.dirname(frame.filename)
@@ -326,7 +326,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     return self._get_macro_invoker_file()
 
   def GetAllConvertedTargets(self,
-                              allow_meta:list[str] | bool=False) -> set[object]:
+                              allow_meta:list[str]|bool=False) -> set[object]:
     """Gets all converted targets."""
     allowed_meta:list=[]
     if isinstance(allow_meta, list):
@@ -347,7 +347,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
     result=set()
     for c in converted_targets():
       if isinstance(c, set):
-        result |= c
+        result|= c
       else:
         result.add(c)
     return result
@@ -365,7 +365,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
       target.Stage(self)
       yield target._name
 
-  def GetRulenameFromRawTarget(self, targetname:str) -> str | None:
+  def GetRulenameFromRawTarget(self, targetname:str) -> str|None:
     """Gets the rule name from a raw target name."""
     # This is the buildfile that the rule is called from
     build_file=self._get_buildfile_from_stack()
@@ -378,7 +378,7 @@ class RecursiveFileParser(parsed_target.TargetArchive):
 
 
 def generate_graph(build_target:impulse_paths.ParsedTarget,
-                   platform:parsed_target.PlatformTarget | None=None,
+                   platform:parsed_target.PlatformTarget|None=None,
                    **kwargs:object) -> parsed_target.StagedBuildTargetSet:
   """Generates a build graph for the given target."""
   re_parser=RecursiveFileParser(platform, **kwargs)

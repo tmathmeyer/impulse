@@ -10,10 +10,10 @@ class ScopedTempDirectory(object):
   Context manager that creates a temporary directory, changes the working
   directory to it, and optionally cleans it up on exit.
   """
-  def __init__(self, temp_directory:str | None=None,
+  def __init__(self, temp_directory:str|None=None,
                delete_non_empty:bool=False):
     self._temp_directory=temp_directory
-    self._old_directory:str | None=None
+    self._old_directory:str|None=None
     self._delete_on_exit=not temp_directory
     self._delete_non_empty=delete_non_empty
     self._exited=True

@@ -74,18 +74,18 @@ class ExportedPackage(object):
   """A read-only wrapper around a build package archive."""
   def __init__(self,
                filename:str,
-               json_data:dict | None=None,
-               export_binary:typing.Callable | None=None):
+               json_data:dict|None=None,
+               export_binary:typing.Callable|None=None):
     self.filename=filename
     self.included_files:list[str]=[]
-    self.package_target:references.Target | None=None
+    self.package_target:references.Target|None=None
     self.build_timestamp:float=0.0
     if json_data:
       self.__dict__.update(json_data)
     if export_binary:
       self.ExportBinary=export_binary
 
-  def NeedsBuild(self) -> tuple['ExportedPackage', bool, str | None]:
+  def NeedsBuild(self) -> tuple['ExportedPackage', bool, str|None]:
     """Exported packages are already built, so always returns False."""
     return self, False, None
 
@@ -141,7 +141,7 @@ class ExportablePackage(Hasher):
   """Represents a package being built."""
   def __init__(self,
                package_target:references.Target,
-               platform:'parsed_target.PlatformTarget | None',
+               platform:'parsed_target.PlatformTarget|None',
                ruletype:str,
                can_access_internal:bool=False):
     self.package_target=package_target
@@ -149,19 +149,19 @@ class ExportablePackage(Hasher):
     self.is_binary_target=(ruletype.endswith('_binary') or
                              ruletype.endswith('_test'))
     self.included_files:list[str]=[]
-    self.depends_on_targets:list[ExportablePackage | ExportedPackage]=[]
+    self.depends_on_targets:list[ExportablePackage|ExportedPackage]=[]
     self.tags:set[str]=set()
     self.build_timestamp=time.time()
-    self.rule_file:HashedFile | None=None
-    self.build_file:HashedFile | None=None
+    self.rule_file:HashedFile|None=None
+    self.build_file:HashedFile|None=None
     self.input_files:list[HashedFile]=[]
 
     self._platform=platform
     self._binaries_location=''
     self._previous_build_timestamp=0.0
-    self._extracted_dir:str | None=None
-    self._internal_access:'threading.UpdateGraphResponseData | None'=None
-    self._export_binary:typing.Callable | None=None
+    self._extracted_dir:str|None=None
+    self._internal_access:'threading.UpdateGraphResponseData|None'=None
+    self._export_binary:typing.Callable|None=None
     self._exec_env:dict[str, str]={}
     self._exec_env_str=''
 
@@ -223,7 +223,7 @@ class ExportablePackage(Hasher):
         self.AddFile(os.path.join(dirname, file))
 
   def AddDependency(self,
-                    dependency:ExportablePackage | ExportedPackage) -> None:
+                    dependency:ExportablePackage|ExportedPackage) -> None:
     """Adds a dependency on another target."""
     if dependency not in self.depends_on_targets:
       self.depends_on_targets.append(dependency)
@@ -258,7 +258,7 @@ class ExportablePackage(Hasher):
     """Returns the timestamp of the previous build, if any."""
     return self._previous_build_timestamp
 
-  def GetPlatform(self) -> 'parsed_target.PlatformTarget | None':
+  def GetPlatform(self) -> 'parsed_target.PlatformTarget|None':
     """Returns the target platform definition."""
     return self._platform
 
@@ -289,7 +289,7 @@ class ExportablePackage(Hasher):
     os.system('rm pkg_contents.json')
     return ExportedPackage(filename, self.__dict__, self._export_binary)
 
-  def _GetPreviousBuild(self, package_dir:str) -> dict | None:
+  def _GetPreviousBuild(self, package_dir:str) -> dict|None:
     """Attempts to load metadata from a previously built package."""
     try:
       archive_path=os.path.join(package_dir, self.GetPackageName())
@@ -299,7 +299,7 @@ class ExportablePackage(Hasher):
       return None
 
   def NeedsBuild(self, package_dir:str, src_dir:str) -> \
-      tuple['ExportablePackage', bool, str | None]:
+      tuple['ExportablePackage', bool, str|None]:
     """Checks if the package needs rebuilding."""
     previous_build=self._GetPreviousBuild(package_dir)
     if not previous_build:
@@ -311,7 +311,7 @@ class ExportablePackage(Hasher):
     for platkey, value in previous_build.get('platform', {}).items():
       if (self._platform and
           self._platform._values.get(platkey, NOT_THE_SAME) != value):
-        return self, True, f'platform value |{platkey}| differs'
+        return self, True, f'platform value|{platkey}|differs'
 
     self._previous_build_timestamp=previous_build.get('build_timestamp', 0)
 
@@ -347,7 +347,7 @@ class ExportablePackage(Hasher):
     return self, False, None
 
   def LoadToTempAttempt(self, bin_dir:str) -> \
-      tuple[str | None, dict[str, str], ExportedPackage]:
+      tuple[str|None, dict[str, str], ExportedPackage]:
     """Internal method to load package contents into a temporary directory."""
     with open('pkg_contents.json', 'r+') as f:
       package_contents=json.loads(f.read())
@@ -373,7 +373,7 @@ class ExportablePackage(Hasher):
     wrapper=self
     class DirManager(object):
       def __init__(self) -> None:
-        self._directory:str | None=None
+        self._directory:str|None=None
       def __enter__(self) -> str:
         self._directory=wrapper.MakeTempDir()
         assert self._directory is not None
@@ -385,7 +385,7 @@ class ExportablePackage(Hasher):
     return DirManager()
 
   def LoadToTemp(self, pkg_dir:str, bin_dir:str) -> \
-      tuple[str | None, dict[str, str], ExportablePackage | ExportedPackage]:
+      tuple[str|None, dict[str, str], ExportablePackage|ExportedPackage]:
     """Extracts package into temporary directory for build execution."""
     if self._extracted_dir:
       self.UnloadPackageDirectory()
@@ -417,7 +417,7 @@ class ExportablePackage(Hasher):
     self._extracted_dir=None
 
   def Dependencies(self, **filters:object) -> \
-      typing.Iterator[ExportablePackage | ExportedPackage]:
+      typing.Iterator[ExportablePackage|ExportedPackage]:
     """Yields dependencies that match the provided filters."""
     def yieldPackage(pkg:object) -> bool:
       for k, v in filters.items():

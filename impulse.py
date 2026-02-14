@@ -22,7 +22,7 @@ from impulse.types import references
 command=args.ArgumentParser(complete=True)
 
 
-def setup(enable_debug:bool, fakeroot:args.Directory | None) -> None:
+def setup(enable_debug:bool, fakeroot:args.Directory|None) -> None:
   """Sets up debug and path info."""
   if enable_debug:
     debug.EnableDebug()
@@ -50,14 +50,14 @@ def fix_build_target(
 
 
 def GetStagedRuleInfo(target:parsed_target.StagedBuildTarget) -> \
-    impulse_paths.RuleSpec | None:
+    impulse_paths.RuleSpec|None:
   pt=impulse_paths.convert_to_build_target(str(target),
                                              impulse_paths.relative_pwd(),
                                              True)
   return typing.cast(impulse_paths.ParsedTarget, pt).GetRuleInfo()
 
 
-def graph_for_directory(project:str | None=None, testonly:bool=False) -> \
+def graph_for_directory(project:str|None=None, testonly:bool=False) -> \
     tuple[list[references.Target],
           parsed_target.StagedBuildTargetSet]:
   directory=os.getcwd()
@@ -79,13 +79,13 @@ def graph_for_directory(project:str | None=None, testonly:bool=False) -> \
 @command
 def build(
   target:impulse_paths.BuildTarget,
-  platform:impulse_paths.BuildTarget | None=None,
+  platform:impulse_paths.BuildTarget|None=None,
   debug_mode:bool=False,
   force:bool=False,
-  fakeroot:args.Directory | None=None,
+  fakeroot:args.Directory|None=None,
   threads:int=6,
   hackermode:bool=False
-) -> impulse_paths.RuleSpec | None:
+) -> impulse_paths.RuleSpec|None:
   """Builds the given target."""
   if hackermode:
     os.system('impulse build //impulse:impulse')
@@ -106,9 +106,9 @@ def build(
 
 @command
 def targets(
-  fakeroot:args.Directory | None=None,
+  fakeroot:args.Directory|None=None,
   testonly:bool=False,
-  project:str | None=None,
+  project:str|None=None,
   debug_mode:bool=False,
 ) -> None:
   """Lists all buildable targets."""
@@ -123,7 +123,7 @@ def sitehost(
   target:impulse_paths.BuildTarget,
   debug_mode:bool=False,
   force:bool=False,
-  fakeroot:args.Directory | None=None
+  fakeroot:args.Directory|None=None
 ) -> None:
   """Builds and hosts a website target."""
   ruleinfo=build(target, debug_mode=debug_mode, force=force, fakeroot=fakeroot)
@@ -143,7 +143,7 @@ def sitehost(
 def run(
   target:impulse_paths.BuildTarget,
   debug_mode:bool=False,
-  fakeroot:args.Directory | None=None
+  fakeroot:args.Directory|None=None
 ) -> None:
   """Builds a binary and executes it."""
   ruleinfo=build(target=target, debug_mode=debug_mode, force=False,
@@ -160,7 +160,7 @@ def run(
 def docker(
   target:impulse_paths.BuildTarget,
   debug_mode:bool=False,
-  fakeroot:args.Directory | None=None,
+  fakeroot:args.Directory|None=None,
   norun:bool=False
 ) -> None:
   """Builds a docker container from the target."""
@@ -190,7 +190,7 @@ def docker(
 def test(
   target:impulse_paths.BuildTarget,
   debug_mode:bool=False,
-  fakeroot:args.Directory | None=None,
+  fakeroot:args.Directory|None=None,
 ) -> None:
   """Builds a testcase and executes it."""
   ruleinfo=build(target, None, debug_mode, False, fakeroot)
@@ -204,10 +204,10 @@ def test(
 
 @command
 def testsuite(
-  project:str | None=None,
+  project:str|None=None,
   debug_mode:bool=False,
   threads:int=6,
-  fakeroot:args.Directory | None=None
+  fakeroot:args.Directory|None=None
 ) -> None:
   """Builds and runs all tests in a project."""
   setup(debug_mode, fakeroot)
@@ -226,7 +226,7 @@ def testsuite(
 
 
 @command
-def format(fakeroot:args.Directory | None=None) -> None:
+def format(fakeroot:args.Directory|None=None) -> None:
   """Formats all buildfiles"""
   setup(False, fakeroot)
   directory=impulse_paths.root()

@@ -112,7 +112,7 @@ class Target(object):
     self._target_dir=directory
 
   @staticmethod
-  def Parse(content:str, directory:Directory | None=None) -> 'Target':
+  def Parse(content:str, directory:Directory|None=None) -> 'Target':
     """Parses a target string into a Target object."""
     if ':' not in content:
       raise ValueError(f'Invalid target: {content}')

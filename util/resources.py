@@ -18,7 +18,7 @@ class ResourceOpener(object):
   __slots__=('_extracted', '_extracted_cleanup', '_oldsignal')
 
   def __init__(self) -> None:
-    self._extracted:str | None=None
+    self._extracted:str|None=None
     self._extracted_cleanup=False
     self._oldsignal:object=None
 
@@ -47,7 +47,7 @@ class ResourceOpener(object):
     with open(self.Get(filename), 'r') as f:
       return f.read()
 
-  def OpenGlob(self, fileRegex:str, mode:str='r') -> typing.IO | None:
+  def OpenGlob(self, fileRegex:str, mode:str='r') -> typing.IO|None:
     """Opens the first file matching a glob pattern."""
     for file in glob.glob(self.Get(fileRegex)):
       return open(file, mode)

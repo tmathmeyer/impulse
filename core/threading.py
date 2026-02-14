@@ -34,7 +34,7 @@ class GraphNode(typing.Generic[T]):
     """Asserts that the code is running within a worker thread."""
     assert self.__in_thread__
 
-  def __call__(self, debug:bool=False) -> T | 'UpdateGraphResponseData[T]':
+  def __call__(self, debug:bool=False) -> T|'UpdateGraphResponseData[T]':
     self.__in_thread__=True
     if self._has_internal_access:
       access=UpdateGraphResponseData[T]()
@@ -45,7 +45,7 @@ class GraphNode(typing.Generic[T]):
 
   @abc.abstractmethod
   def run_job(self, debug:bool,
-              internal_access:'UpdateGraphResponseData[T]' | None=None) -> T:
+              internal_access:'UpdateGraphResponseData[T]'|None=None) -> T:
     """Executes the actual work of the job."""
     pass
 
@@ -76,14 +76,14 @@ class UpdateGraphResponseData(typing.Generic[T]):
 
   def InjectMoreGraph(self, graph:set[GraphNode[T]]) -> None:
     """Adds more nodes to the build graph."""
-    self.added_graph |= graph
+    self.added_graph|= graph
 
   def RerunWithDependency(self, nodes:list[GraphNode[T]]) -> None:
     """
     Specifies that the current job should be rerun after these nodes
     completed.
     """
-    self.added_graph |= set(nodes)
+    self.added_graph|= set(nodes)
     self.rerun_more_deps=nodes
 
 
@@ -118,10 +118,10 @@ class JobResponse(typing.Generic[T]):
 
   def __init__(self, level:str,
                      job_id:int,
-                     job:GraphNode[T] | None,
+                     job:GraphNode[T]|None,
                      message:str='',
-                     result:UpdateGraphResponseData[T] | T | \
-                            typing.Callable | None=None
+                     result:UpdateGraphResponseData[T]|T|\
+                            typing.Callable|None=None
                      ):
     self._level=level
     self._msg=message
@@ -137,8 +137,8 @@ class JobResponse(typing.Generic[T]):
     """Returns the message associated with the response."""
     return self._msg
 
-  def result(self) -> UpdateGraphResponseData[T] | T | \
-                       typing.Callable | None:
+  def result(self) -> UpdateGraphResponseData[T]|T|\
+                       typing.Callable|None:
     """Returns the result produced by the job."""
     return self._result
 
@@ -233,7 +233,7 @@ class ThreadPool(multiprocessing.Process, typing.Generic[T]):
     self._pool_count:int=poolcount
     self._printer=job_printer.JobPrinter(0, poolcount)
     self._input:object=None
-    self._error_message:str | None=None
+    self._error_message:str|None=None
     self._watchdogs:list[ThreadWatchdog[T]]=[]
 
   @abc.abstractmethod
@@ -335,10 +335,10 @@ class DependentPool(ThreadPool[T]):
     """Pushes available nodes from pending to the worker queue."""
     for node in self._pending_add:
       self._job_input_queue.put(node)
-    self._in_flight |= self._pending_add
+    self._in_flight|= self._pending_add
     self._pending_add=set()
 
-  def _cycle_graph(self, remove_node:GraphNode[T] | None=None) -> None:
+  def _cycle_graph(self, remove_node:GraphNode[T]|None=None) -> None:
     """Updates the graph by removing completed dependencies."""
     newgraph:set[GraphNode[T]]=set()
     for node in self._input: # type:ignore
@@ -380,7 +380,7 @@ class DependentPool(ThreadPool[T]):
                     results:UpdateGraphResponseData[T]) -> bool:
     """Injects new nodes into the graph based on job results."""
     results.added_graph -= self._completed
-    self._input |= results.added_graph # type:ignore
+    self._input|= results.added_graph # type:ignore
     self._printer.add_job_count(len(results.added_graph))
 
     if results.rerun_more_deps:

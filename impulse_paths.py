@@ -55,7 +55,7 @@ def output_directory() -> str:
 
 class PathException(Exception):
   """Exception raised for invalid build target paths."""
-  def __init__(self, path:str, included_from:str | None=None):
+  def __init__(self, path:str, included_from:str|None=None):
     if included_from:
       self._path=f'Invalid Target: {path} Included From: {included_from}'
     else:
@@ -72,7 +72,7 @@ class LoggerEnv(dict):
   during BUILD file execution.
   """
   def __init__(self, called_as:str='module',
-               push_up:'LoggerEnv | None'=None):
+               push_up:'LoggerEnv|None'=None):
     super().__init__()
     self._calls:list[tuple[tuple[object, ...],
                            dict[str, object]]]=[]
@@ -150,7 +150,7 @@ class ParsedTarget(object):
     """Returns the directory part of the target path relative to root."""
     return self.target_path[2:]
 
-  def GetRuleInfo(self) -> RuleSpec | None:
+  def GetRuleInfo(self) -> RuleSpec|None:
     """
     Executes the BUILD file to find and return information about this
     target's rule.
@@ -188,8 +188,8 @@ def convert_name_to_build_target(name:str, loaded_from_dir:str) -> \
   return ParsedTarget(name, loaded_from_dir)
 
 
-def convert_to_build_target(target:str | ParsedTarget, loaded_from_dir:str,
-                           quit_on_err:bool=False) -> ParsedTarget | object:
+def convert_to_build_target(target:str|ParsedTarget, loaded_from_dir:str,
+                           quit_on_err:bool=False) -> ParsedTarget|object:
   if isinstance(target, ParsedTarget):
     return target
 

@@ -64,12 +64,12 @@ class StagedBuildTarget(Target):
 class StagedBuildTargetSet(object):
   """A set of StagedBuildTarget objects."""
   __slots__=('_targets',)
-  def __init__(self, targets:set[StagedBuildTarget] | None=None):
+  def __init__(self, targets:set[StagedBuildTarget]|None=None):
     self._targets:set[StagedBuildTarget]=set(targets or set())
 
   def AddAll(self, targets:'StagedBuildTargetSet') -> None:
     """Adds all targets from another set to this set."""
-    self._targets |= targets._targets
+    self._targets|= targets._targets
 
 
 class TargetArchive(metaclass=abc.ABCMeta):
@@ -95,7 +95,7 @@ class TargetArchive(metaclass=abc.ABCMeta):
     """Gets a platform target by name."""
 
   @abc.abstractmethod
-  def GetDefaultPlatformTarget(self) -> PlatformTarget | None:
+  def GetDefaultPlatformTarget(self) -> PlatformTarget|None:
     """Gets the default platform target if set."""
 
   @abc.abstractmethod
@@ -124,7 +124,7 @@ class BuildTarget(Target):
     self._kwargs=self._PrecomputeDependencies(kwargs)
     self._scope=scope
     self._tags=tags
-    self._staged:StagedBuildTargetSet | object | None=None
+    self._staged:StagedBuildTargetSet|object|None=None
     self._rule_name=function.__name__
 
   def GetName(self) -> str:
@@ -143,7 +143,7 @@ class BuildTarget(Target):
         return converted
     return search
 
-  def _ConvertToTargetRefName(self, item:str) -> references.Target | None:
+  def _ConvertToTargetRefName(self, item:str) -> references.Target|None:
     """Attempts to parse a string as a target reference."""
     if not (item.startswith('//') or item.startswith(':')):
       return None
@@ -239,7 +239,7 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
     return f'Staged[{self._name}]'
 
   def LoadToTemp(self, package_dir:str, binary_dir:str) -> \
-      tuple[str | None, dict[str, str], packaging.ExportablePackage]:
+      tuple[str|None, dict[str, str], packaging.ExportablePackage]:
     """Loads package into a temporary directory for build execution."""
     return self._package.LoadToTemp(package_dir, binary_dir)
 
@@ -349,7 +349,7 @@ class StagedBuildTargetImpl(threading.GraphNode[packaging.ExportablePackage],
 
   def run_job(self, debug:bool,
               internal_access:threading.UpdateGraphResponseData[
-                packaging.ExportablePackage] | None=None
+                packaging.ExportablePackage]|None=None
               ) -> object:
     """Runs the build job for this target."""
     # Set internal access on the package
@@ -431,7 +431,7 @@ def CheckRuleFile(rulefile:str) -> str:
   return rulefile
 
 
-def GetRootRelativePath(path:str) -> str | None:
+def GetRootRelativePath(path:str) -> str|None:
   """Returns path relative to impulse root, or None if not within root."""
   root=environment.Root()
   if path.startswith(root):

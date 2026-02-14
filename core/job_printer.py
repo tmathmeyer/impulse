@@ -51,7 +51,7 @@ class JobPrinter(object):
     self._jobs_print_length=len(self._jobs) + 1
     sys.stdout.flush()
 
-  def finished(self, err:str | None=None) -> None:
+  def finished(self, err:str|None=None) -> None:
     """Prints the final status when all jobs are complete or an error occurs."""
     if err:
       self._jobs = [err]

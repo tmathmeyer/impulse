@@ -14,7 +14,7 @@ from impulse.types import references
 from impulse.types import paths
 
 
-def StackScour(filename:str) -> inspect.FrameInfo | None:
+def StackScour(filename:str) -> inspect.FrameInfo|None:
   """Walks the stack to find the first frame matching filename."""
   for frame in inspect.stack():
     if frame.filename.endswith(filename):
@@ -32,7 +32,7 @@ class EnvironmentLoader(metaclass=abc.ABCMeta):
 class BuiltinMethod(object):
   """Base class for build system builtin methods (e.g., load, pattern)."""
   def __init__(self) -> None:
-    self._loader:EnvironmentLoader | None=None
+    self._loader:EnvironmentLoader|None=None
 
   def Attach(self, loader:EnvironmentLoader) -> None:
     """Attaches this method to an environment loader."""
@@ -140,8 +140,8 @@ class BuildMacro(BuiltinMethod):
     return Replacement
 
   def ImitateRule(self, rulefile:str, rulename:str, args:dict[str, object],
-                  kwargs:dict[str, object] | None=None,
-                  tags:list[str] | None=None) -> None:
+                  kwargs:dict[str, object]|None=None,
+                  tags:list[str]|None=None) -> None:
     """Allows a macro to imitate a build rule call."""
     args.update({'tags': tags or [], 'buildfile': self._GetMacroFile()})
     args.update(kwargs or {})
