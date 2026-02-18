@@ -1,16 +1,16 @@
-import abc
-import multiprocessing
+
+import multiprocessing as mp
 import queue
 import signal
-import traceback
-from typing import Set, TypeVar, Generic
 
 from impulse.core import job_printer
+from impulse.pkg import packaging
+from impulse.types import graph_node
 
 
-class Messages(object):
-  EMPTY_RESPONSE = 'Internal: Empty Response'
-  TIMEOUT = 'Job Waiter Timed Out'
+def handle_pdb(sig, frame):
+  import pdb
+  pdb.Pdb().set_trace(frame)
 
 
 class UpdateGraphResponseData(object):
@@ -25,276 +25,266 @@ class UpdateGraphResponseData(object):
     self.added_graph |= (nodes)
     self.rerun_more_deps = nodes
 
-T = TypeVar('T')
-class GraphNode(Generic[T]):
-  def __init__(self,
-               dependencies:Set['GraphNode'],
-               has_internal_access:bool):
-    # A set(DependentJob)
-    self.dependencies = dependencies
-    self.remaining_dependencies = set(dependencies)
-    self._has_internal_access = has_internal_access
-    self.__in_thread__ = False
 
-  def check_thread(self):
-    assert self.__in_thread__
-
-  def __call__(self, debug=False):
-    self.__in_thread__ = True
-    if self._has_internal_access:
-      access = UpdateGraphResponseData()
-      self.run_job(debug, access)
-      return access
-    else:
-      return self.run_job(debug)
-
-  @abc.abstractmethod
-  def run_job(self, debug, internal_access=None):
-    pass
-
-  @abc.abstractmethod
-  def __eq__(self, other):
-    pass
-
-  @abc.abstractmethod
-  def __hash__(self):
-    pass
-
-  @abc.abstractmethod
-  def get_name(self):
-    pass
-
-  @abc.abstractmethod
-  def data(self) -> T:
-    pass
+JobSpec = graph_node.GraphNode[packaging.ExportablePackage]
 
 
-class NullNode(GraphNode):
+class JobStop(graph_node.GraphNode[None]):
   def __init__(self):
     super().__init__(set(), False)
   def run_job(*args, **kwargs):
     raise NotImplementedError()
   def __eq__(self, other):
-    return type(other) == NullNode
+    return type(other) == JobStop
   def __hash__(*args, **kwargs):
     raise NotImplementedError()
   def get_name(*args, **kwargs):
     raise NotImplementedError()
-  def data(self):
+  def data(self) -> None:
     raise NotImplementedError()
 
 
-class JobResponse(object):
-  class LEVEL(object):
-    FATAL = '__L_FATAL__'
-    WARNING = '__L_WARNING__'
-    YELLOW = '__L_YELLOW__'
-    GREEN = '__L_GREEN__'
+class TypePipe[T]:
+  """Typed Wrapper on multiprcessing.Connection - does not support bytes."""
+  __slots__ = ('_pipe',)
 
-  def __init__(self, level:str,
-                     job_id:int,
-                     job:GraphNode|None,
-                     message:str='',
-                     result=None):
-    self._level = level
-    self._msg = message
-    self._result = result
-    self._job = job
-    self._id = job_id
+  @staticmethod
+  def Pipe() -> (TypePipe[T], TypePipe[T]):
+    a, b = mp.Pipe()
+    return (TypePipe(a), TypePipe(b))
 
-  def level(self) -> str:
-    return self._level
+  def __init__(self, pipe:mp.Connection):
+    self._pipe = pipe
 
-  def message(self) -> str:
-    return self._msg
+  def send(self, object:T) -> None:
+    return self._pipe.send(object)
 
-  def result(self):
-    return self._result
+  def recv(self) -> T:
+    return self._pipe.recv()
 
-  def job(self) -> GraphNode:
-    return self._job
+  def close(self) -> None:
+    self._pipe.close()
 
-  def id(self) -> int:
-    return self._id
+  def poll(self, timeout:int|None = -1) -> bool:
+    if timeout != -1:
+      return self._pipe.poll(timeout)
+    return self._pipe.poll()
 
 
-def handle_pdb(sig, frame):
-  import pdb
-  pdb.Pdb().set_trace(frame)
+class TypeQueue[T]:
+  def __init__(self, joinable:bool = False):
+    self._joinable = joinable
+    self._queue = mp.JoinableQueue() if joinable else mp.Queue()
+
+  def get(self, block:bool=True, timeout:int|None = -1) -> T:
+    if timeout != -1:
+      return self._queue.get(block, timeout)
+    return self._queue.get(block)
+
+  def put(self, object:T) -> None:
+    return self._queue.put(object)
+
+  def task_done(self) -> None:
+    if self._joinable:
+      return self._queue.task_done()
+
+  def join(self) -> None:
+    if self._joinable:
+      return self._queue.join()
 
 
-class ThreadWatchdog(multiprocessing.Process):
-  POISON = NullNode()
-  __slots__ = ['_id', '_debug', '_job_input_queue', '_job_response_queue']
+class JobStatus():
+  WORKING_SIGNAL = 1
+  WAITING_SIGNAL = 2
+  SUCCESS_SIGNAL = 3
+  FAILURE_SIGNAL = 4
 
-  def __init__(self,
-               watchdog_id:int,
-               debug_mode:bool,
-               job_input_queue:multiprocessing.JoinableQueue,
-               job_response_queue:multiprocessing.Queue):
-    multiprocessing.Process.__init__(self)
-    self._id = watchdog_id
-    self._debug = debug_mode
-    self._job_input_queue = job_input_queue
-    self._job_response_queue = job_response_queue
-    self.name = f'Watchdog#{self._id}'
+  def __init__(self, signal:int, task_runner_id:int):
+    self._signal = signal
+    self._task_runner_id = task_runner_id
 
+  def IsWorking(self):
+    return self._signal == JobStatus.WORKING_SIGNAL
+
+  def IsWaiting(self):
+    return self._signal == JobStatus.WAITING_SIGNAL
+
+  def IsSuccess(self):
+    return self._signal == JobStatus.SUCCESS_SIGNAL
+
+  def IsFailed(self):
+    return self._signal == JobStatus.FAILURE_SIGNAL
+
+  def ThreadID(self) -> int:
+    return self._task_runner_id
+
+  def GetMessage(self) -> str:
+    if self.IsWorking():
+      return str(self._job)
+    if self.IsWaiting():
+      return f'Waiting... {self._timeout}s'
+    if self.IsSuccess():
+      raise ValueError('!!!')
+    if self.IsFailed():
+      return str(self._exception)
+
+  def GetJob(self) -> JobSpec:
+    if self.IsWorking() or self.IsSuccess():
+      return self._job
+    raise ValueError('!!!')
+
+  def GetResult(self) -> packaging.ExportablePackage:
+    if self.IsSuccess():
+      return self._result
+    raise ValueError('!!!')
+
+  def GetException(self) -> Exception:
+    if self.IsFailed():
+      return self._exception
+    raise ValueError('!!!')
+
+  @staticmethod
+  def Waiting(task_runner_id:int, timeout:int) -> JobStatus:
+    waiting = JobStatus(JobStatus.WAITING_SIGNAL, task_runner_id)
+    waiting._timeout = timeout
+    return waiting
+
+  @staticmethod
+  def Working(task_runner_id:int, job:JobSpec) -> JobStatus:
+    working = JobStatus(JobStatus.WORKING_SIGNAL, task_runner_id)
+    working._job = job
+    return working
+
+  @staticmethod
+  def Failed(task_runner_id:int, exception:Exception) -> JobStatus:
+    failed = JobStatus(JobStatus.FAILURE_SIGNAL, task_runner_id)
+    failed._exception = exception
+    return failed
+
+  @staticmethod
+  def Success(task_runner_id: int, job:JobSpec, result:packaging.ExportablePackage) -> JobStatus:
+    success = JobStatus(JobStatus.SUCCESS_SIGNAL, task_runner_id)
+    success._job = job
+    success._result = result
+    return success
+
+
+class PoolStatus():
+  SUCCESS = 0
+  FAILURE = 1
+  def __init__(self, signal:int, failed:JobStatus|None):
+    self._signal = signal
+    self._failed = failed
+
+  def GetErrorReport(self) -> JobStatus|None:
+    return self._failed
+
+  @staticmethod
+  def Success() -> PoolStatus:
+    return PoolStatus(PoolStatus.SUCCESS, None)
+
+  @staticmethod
+  def Error(failed:JobStatus|None) -> PoolStatus:
+    return PoolStatus(PoolStatus.FAILURE, failed)
+
+
+class TaskRunner(mp.Process):
+  # This is delcared once so that it has the same `id`
+  STOP_JOB = JobStop()
+
+  def __init__(self, task_runner_id:int, debug:bool, inqueue:TypeQueue[JobSpec|JobStop], outqueue:TypeQueue[JobStatus]):
+    super().__init__()
+    self._task_runner_id = task_runner_id
+    self._debug = debug
+    self._job_input_queue = inqueue
+    self._job_output_queue = outqueue
     if self._debug:
       signal.signal(signal.SIGUSR1, handle_pdb)
 
-  def _Fail(self, exc:Exception):
-    self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.FATAL, self._id, NullNode(),
-        message=str(exc)))
-    if not self._debug:
-      return
-    traceback.print_exc()
-
   def run(self):
+    job_wait_timeout = 1
     while True:
-      job = ThreadWatchdog.POISON
+      job = TaskRunner.STOP_JOB
       try:
-        job = self._job_input_queue.get(timeout=5)
-      except:
-        self._job_response_queue.put(JobResponse(
-          JobResponse.LEVEL.WARNING, self._id, None,
-          message=Messages.TIMEOUT))
+        job = self._job_input_queue.get(timeout=job_wait_timeout)
+      except queue.Empty:
+        job_wait_timeout *= 2
+        self._job_output_queue.put(JobStatus.Waiting(
+          self._task_runner_id, job_wait_timeout))
         continue
 
-      if job == ThreadWatchdog.POISON:
+      if job == TaskRunner.STOP_JOB:
         self._job_input_queue.task_done()
         self._job_input_queue.join()
         return
 
-      self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.YELLOW, self._id, job, message=str(job)))
+      job_wait_timeout = 1
+      self._job_output_queue.put(JobStatus.Working(
+        self._task_runner_id, job))
 
       try:
         job_result = job()
       except Exception as e:
         self._job_input_queue.task_done()
-        self._Fail(e)
+        self._job_output_queue.put(JobStatus.Failed(
+          self._task_runner_id, e))
         continue
 
-      self._job_response_queue.put(JobResponse(
-        JobResponse.LEVEL.GREEN, self._id, job,
-        result=job_result))
+      self._job_output_queue.put(JobStatus.Success(
+        self._task_runner_id, job, job_result))
       self._job_input_queue.task_done()
 
-class ThreadPool(multiprocessing.Process):
-  def __init__(self, poolcount:int, debug:bool = False):
+
+class PoolFiltration(mp.Process):
+  """The filter system keeps the pool free of childrens... detritus."""
+  def __init__(self, reporter:TypePipe[PoolStatus], threads:int, debug:bool):
     super().__init__()
-    self._debug = debug
-    self._job_response_queue:queue.Queue[JobResponse] = multiprocessing.Queue()
-    self._job_input_queue:queue.Queue[GraphNode] = multiprocessing.JoinableQueue()
-    self._pool_count:int = poolcount
-    self._printer = job_printer.JobPrinter(0, poolcount)
-    self._input = None
-    self._error_message = None
-    self._watchdogs = []
+    self._job_input_queue = TypeQueue[JobSpec|JobStop](joinable=True)
+    self._job_output_queue = TypeQueue[JobStatus]()
+    self._reporter = reporter
+    self._printer = job_printer.JobPrinter(0, threads)
+    self._task_runners = self._MakeTasks(threads, debug)
 
-  @abc.abstractmethod
-  def OnStart(self):
-    pass
-
-  @abc.abstractmethod
-  def IsFinished(self):
-    pass
-
-  @abc.abstractmethod
-  def _on_reply(self, response):
-    pass
-
-  @abc.abstractmethod
-  def _message_pump(self):
-    pass
-
-  def Start(self, data, threaded=True):
-    self._input = data
-    self._create_watchdogs()
-    if threaded:
-      self.start()
-    else:
-      self.run()
-
-  def run(self):
-    self.OnStart()
-    self._run_loop()
-
-  def _create_watchdogs(self):
-    for i in range(self._pool_count):
-      watchdog = ThreadWatchdog(
-        watchdog_id = i,
-        debug_mode = self._debug,
-        job_input_queue = self._job_input_queue,
-        job_response_queue = self._job_response_queue)
-      watchdog.start()
-      self._watchdogs.append(watchdog)
-
-  def _kill_watchdogs(self):
-    for _ in range(self._pool_count):
-      self._job_input_queue.put(ThreadWatchdog.POISON)
-    self._job_input_queue.join()
-    for dog in self._watchdogs:
-      dog.kill()
-
-  def _run_loop(self):
-    while True:
-      if self.IsFinished():
-        self._kill_watchdogs()
-        self._printer.finished()
-        return
-
-      if not self._message_pump():
-        continue
-
-      response = self._job_response_queue.get()
-      if not response:
-        self._kill_watchdogs()
-        self._printer.finished(err=Messages.EMPTY_RESPONSE)
-        return
-
-      if response.level() == JobResponse.LEVEL.FATAL:
-        self._kill_watchdogs()
-        self._printer.finished(err=response.message())
-        return
-
-      if not self._on_reply(response):
-        self._kill_watchdogs()
-        self._printer.finished(err=self._error_message)
-        return
-
-
-class DependentPool(ThreadPool):
-  def __init__(self, poolcount:int, debug:bool=False):
-    super().__init__(poolcount, debug)
-    self._pending_add = set()
-    self._in_flight = set()
-    self._completed = set()
-
-  def OnStart(self):
+  def SetTargets(self, targets:set[parsed_target.StagedBuildTarget]) -> None:
+    self._input = targets
     self._printer.add_job_count(len(self._input))
-    self._cycle_graph()
-    self._add_nodes()
 
-  def _add_nodes(self):
+  def _OnProcStart(self) -> None:
+    self._pending_add:Set[JobSpec] = set()
+    self._in_flight:Set[JobSpec] = set()
+    self._completed:Set[JobSpec] = set()
+
+    self._CycleGraph()
+    self._AddNodes()
+
+  def _CycleGraph(self, remove_node:JobSpec|None = None):
+    new_inputs:set[JobSpec] = set()
+    for node in self._input:
+      if remove_node:
+        node.remaining_dependencies.discard(remove_node)
+      if node.remaining_dependencies:
+        new_inputs.add(node)
+      else:
+        self._pending_add.add(node)
+    self._input = new_inputs
+
+  def _AddNodes(self):
     for node in self._pending_add:
       self._job_input_queue.put(node)
     self._in_flight |= self._pending_add
     self._pending_add = set()
 
-  def _cycle_graph(self, remove_node:GraphNode|None=None):
-    newgraph:Set[GraphNode] = set()
-    for node in self._input:
-      if remove_node:
-        node.remaining_dependencies.discard(remove_node)
-      if node.remaining_dependencies:
-        newgraph.add(node)
-      else:
-        self._pending_add.add(node)
-    self._input = newgraph
+  def _IsFinished(self) -> bool:
+    return not (self._input or self._pending_add or self._in_flight)
 
-  def _force_cycle_graph(self):
+  def _SendStopJobs(self) -> None:
+    for _ in self._task_runners:
+      self._job_input_queue.put(TaskRunner.STOP_JOB)
+    self._job_input_queue.join()
+    for task_runner in self._task_runners:
+      task_runner.kill()
+
+  def _ShouldForceCycleGraphOnWait(self) -> bool:
     for job in self._input:
       if not len(job.remaining_dependencies):
         return True
@@ -304,26 +294,10 @@ class DependentPool(ThreadPool):
           return True
     return False
 
-  def _handle_good_status(self, status:JobResponse):
-    self._in_flight.remove(status.job())
-    self._completed.add(status.job())
-    response = status.result()
-    discard_node = True
-    if response:
-      if isinstance(response, UpdateGraphResponseData):
-        discard_node = not self._update_graph(status.job(), response)
-    if discard_node:
-      self._cycle_graph(status.job())
-    else:
-      self._cycle_graph()
-
-  def _update_graph(self,
-                    node_from:GraphNode,
-                    results:UpdateGraphResponseData) -> bool:
+  def _UpdateGraph(self, job:JobSpec, result:UpdateGraphResponseData) -> bool:
     results.added_graph -= self._completed
     self._input |= results.added_graph
     self._printer.add_job_count(len(results.added_graph))
-
     if results.rerun_more_deps:
       needs_rerun = False
       for new_addition in results.rerun_more_deps:
@@ -338,79 +312,85 @@ class DependentPool(ThreadPool):
       return needs_rerun
     return False
 
-  def IsFinished(self):
-    return ((not self._input) and
-            (not self._pending_add) and
-            (not self._in_flight))
+  def _MakeTasks(self, threads:int, debug:bool) -> [TaskRunner]:
+    task_runners = []
+    for runner_id in range(threads):
+      task_runner = TaskRunner(
+        task_runner_id = runner_id,
+        debug = debug,
+        inqueue = self._job_input_queue,
+        outqueue = self._job_output_queue)
+      task_runner.start()
+      task_runners.append(task_runner)
+    return task_runners
 
-  def _message_pump(self):
-    self._add_nodes()
-    return True
+  def run(self) -> None:
+    self._OnProcStart()
+    while True:
+      if self._IsFinished():
+        self._SendStopJobs()
+        self._printer.finished()
+        self._reporter.send(PoolStatus.Success())
+        return
 
-  def _on_reply(self, response):
-    if response.level() == JobResponse.LEVEL.WARNING:
-      if response.message() == Messages.TIMEOUT:
-        if self._force_cycle_graph():
-          self._cycle_graph()
-          self._add_nodes()
-          return True
-      self._printer.write_task_msg(response.id(), response.message())
-      return True
+      self._AddNodes()
+      status:JobStatus = self._job_output_queue.get()
 
-    if response.level() == JobResponse.LEVEL.GREEN:
-      self._printer.remove_task_msg(response.id())
-      self._handle_good_status(response)
+      if not status:
+        self._SendStopJobs()
+        self._printer.finished(err = 'Unexpected empty queue message')
+        self._reporter.send(PoolStatus.Error(None))
+        return
 
-    if response.level() == JobResponse.LEVEL.YELLOW:
-      self._printer.write_task_msg(response.id(), response.message())
+      if status.IsFailed():
+        self._SendStopJobs()
+        self._printer.finished()
+        self._reporter.send(PoolStatus.Error(status))
+        return
 
-    return True
+      if status.IsWaiting():
+        self._printer.write_task_msg(status.ThreadID(), status.GetMessage())
+        if self._ShouldForceCycleGraphOnWait():
+          self._CycleGraph()
+          self._AddNodes()
+        continue
 
+      if status.IsWorking():
+        self._printer.write_task_msg(status.ThreadID(), status.GetMessage())
+        continue
 
-class StreamingPool(ThreadPool):
-  def __init__(self, poolcount:int, debug:bool=False):
-    super().__init__(poolcount, debug)
-    self._finished = False
-    self._replies = []
-    self._sent_jobs = 0
+      if status.IsSuccess():
+        self._printer.remove_task_msg(status.ThreadID())
+        self._in_flight.remove(status.GetJob())
+        self._completed.add(status.GetJob())
+        result = status.GetResult() # TODO: add typing!
+        discard_node = True
+        if isinstance(result, UpdateGraphResponseData):
+          discard_node = not self._UpdateGraph(status.GetJob(), result)
+        if discard_node:
+          self._CycleGraph(status.GetJob())
+        else:
+          self._CycleGraph()
+        continue
 
-  def OnStart(self):
-    for _ in range(self._pool_count):
-      try:
-        self._sent_jobs += 1
-        self._job_input_queue.put(next(self._input))
-      except StopIteration:
-        self._sent_jobs -= 1
-        self._finished = True
-
-  def IsFinished(self):
-    return self._finished and (len(self._replies) == self._sent_jobs)
-
-  def _on_reply(self, response):
-    if response.level() == JobResponse.LEVEL.WARNING:
-      self._printer.write_task_msg(response.id(), response.message())
-      return True
-    if response.level() == JobResponse.LEVEL.YELLOW:
-      self._printer.write_task_msg(response.id(), response.message())
-      return True
-    if response.level() == JobResponse.LEVEL.GREEN:
-      self._printer.remove_task_msg(response.id())
-      self._replies.append(response.result())
-      return True
-    return False
-
-  def _message_pump(self):
-    try:
-      self._sent_jobs += 1
-      self._job_input_queue.put(next(self._input))
-      return True
-    except StopIteration:
-      self._finished = True
-      self._sent_jobs -= 1
-      return True
-
-  def Replies(self):
-    return self._replies
+      raise ValueError('!!!')
 
 
+class Lifeguard():
+  """The lifeguard watches the pool to make sure the children don't drown."""
 
+  __slots__ = ('_threads', '_debug', '_filter', '_receiver')
+  def __init__(self, threads:int, debug:bool):
+    self._threads = threads
+    self._debug = debug
+    self._receiver, reporter = TypePipe[PoolStatus].Pipe()
+    self._filter = PoolFiltration(reporter, threads, debug)
+
+  def OpenPool(self, targets:set[parsed_target.StagedBuildTarget]):
+    self._filter.SetTargets(targets)
+    self._filter.start()
+
+  def ClosePool(self) -> PoolStatus:
+    status:PoolStatus = self._receiver.recv()
+    self._filter.join()
+    return status

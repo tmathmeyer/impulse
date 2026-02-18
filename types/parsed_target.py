@@ -9,9 +9,9 @@ import types
 
 from impulse.core import exceptions
 from impulse.core import environment
-from impulse.core import threading
 from impulse.pkg import overlayfs
 from impulse.pkg import packaging
+from impulse.types import graph_node
 from impulse.types import paths
 from impulse.types import references
 from impulse.util import temp_dir
@@ -182,9 +182,10 @@ class Any(object):
     return False
 
 
-class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
+class StagedBuildTargetImpl(graph_node.GraphNode[packaging.ExportablePackage], StagedBuildTarget):
   def __init__(self, target:BuildTarget, dependencies:StagedBuildTargetSet, archive:TargetArchive, force:bool, internal:bool):
-    threading.GraphNode.__init__(self, dependencies._targets, internal)
+    graph_node.GraphNode.__init__(
+      self, dependencies._targets, internal)
     StagedBuildTarget.__init__(self, target._name)
 
     # These can't be unmarshalled or accessed on the main thread
@@ -264,7 +265,8 @@ class StagedBuildTargetImpl(threading.GraphNode, StagedBuildTarget):
       # then print that.
       target_name = self._marshalled_kwargs['name']
       buildrule_type = str(self._buildrule_name)
-      raise exceptions.BuildDefsRaisesException(target_name, buildrule_type, e)
+      raise exceptions.BuildDefsRaisesException.From(
+        target_name, buildrule_type, e)
 
   def _CompileBuildRule(self) -> tuple[types.FunctionType, str, str]:
     self.check_thread()

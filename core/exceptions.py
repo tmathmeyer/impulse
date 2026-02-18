@@ -68,9 +68,10 @@ class InvalidPathException(Exception):
 
 class BuildDefsRaisesException(Exception):
   """Raised when a build_defs file raises an exception."""
-  def __init__(self, target_name, buildrule_name, exception):
-    fmt = '"{}" raised exception while building target "{}":\n{}'
-    super().__init__(fmt.format(buildrule_name, target_name, exception))
+  @staticmethod
+  def From(target_name:str, buildrule_name:str, cause:Exception):
+    return BuildDefsRaisesException(
+      f'{buildrule_name} failed building target "{target_name}":\n{cause}')
 
 
 class BuildRuleCompilationError(Exception):

@@ -212,7 +212,10 @@ def py_binary(target, name, **kwargs):
   _python_package_fresh_venv(target, python_packages)
 
   # Create the __main__ file
-  main_contents = f'from {package} import {mainfile}\n{mainfile}.main()\n'
+  main_contents = f'''from {package} import {mainfile}
+import sys
+sys.exit({mainfile}.main())
+'''
   _write_file(target, '__main__.py', main_contents)
   _version_check(target, kwargs)
 

@@ -35,11 +35,13 @@ def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
 
 
-def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet, N:int=6) -> None:
+def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet, N:int=6) -> bool:
   """Starts a pool with N threads and waits for graph run completion."""
-  pool = threading.DependentPool(N, debug=debug)
-  pool.Start(graph._targets)
-  pool.join()
+  lifeguard = threading.Lifeguard(N, debug)
+  lifeguard.OpenPool(graph._targets)
+  result:threading.PoolStatus = lifeguard.ClosePool()
+  if err := result.GetErrorReport():
+    raise err.GetException() from None
 
 
 def fix_build_target(
@@ -258,8 +260,8 @@ def main():
   try:
     command.eval()
     return 0
-  except errors.RenderableError as e:
-    print(str(e))
+  except Exception as e:
+    print(e)
     return 1
 
 

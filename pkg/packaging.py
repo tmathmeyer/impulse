@@ -272,7 +272,8 @@ class ExportablePackage(Hasher):
 
   def ExecutionFailed(self, command:str, stderr:str):
     '''Triggers an exception with given cmdline and stderr.'''
-    raise exceptions.BuildDefsRaisesException(self.package_target._target_name,
+    raise exceptions.BuildDefsRaisesException.From(
+      self.package_target._target_name,
       self.package_ruletype, command + "\n\n" + stderr)
 
   def ExecutionNotRequired(self):
