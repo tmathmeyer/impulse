@@ -44,7 +44,7 @@ jobs:
         with:
           tag_name: v${{ github.run_number }}
           name: Release v${{ github.run_number }}
-          body: Automated relase of impulse from commit: ${{ github.sha }}
+          body: Automated relase of impulse from commit ${{ github.sha }}
           draft: false
           prerelease: false
           files: GENERATED/BINARIES/impulse/impulse
