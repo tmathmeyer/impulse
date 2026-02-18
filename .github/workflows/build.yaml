@@ -33,7 +33,7 @@ jobs:
         run: make
 
       - name: Set Up Sources For Testing
-        run: make copy_srcs && cd impulse
+        run: make copy_srcs
 
       - name: Run Unit Tests
-        run: ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd)) --github_actions
+        run: cd impulse && ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd)) --github_actions
