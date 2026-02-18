@@ -341,6 +341,7 @@ def py_binary(macro_env, name, **kwargs):
     args = {
       'name': package_list_name,
       'deps': kwargs.get('deps', []),
+      'python_packages': kwargs.get('python_packages', []),
     })
 
   macro_env.ImitateRule(
