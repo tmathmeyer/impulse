@@ -10,29 +10,41 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      matrix:
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            fuse3 \
-            fuse-overlayfs \
-            libfuse-dev \
-            python3 make
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with: 
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install fuse
+        run: sudo apt-get install -y fuse3 fuse-overlayfs libfuse-dev
+
+      - name: Install make
+        run: sudo apt-get install make
+
+      - name: Verify fuse-overlayfs
+        run: which fuse-overlayfs && fuse-overlayfs --help
 
       - name: Build Impulse
         run: make
 
-      - name: Create Release
+      - name: Set Up Sources For Testing
+        run: make copy_srcs
+
+      - name: Run Unit Tests
+        run: cd impulse && ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd)) --github_actions --debug
+
+      - name Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: Release v${{ github.run_number }}
-          body: |
-            Automated build of the impulse binary from the master branch.
-            Commit: ${{ github.sha }}
+          body: Automated relase of impulse from commit: ${{ github.sha }}
           draft: false
           prerelease: false
           files: GENERATED/BINARIES/impulse/impulse

@@ -7,7 +7,7 @@ on:
     branches: [ "**" ]
 
 jobs:
-  setup:
+  run_tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -36,4 +36,4 @@ jobs:
         run: make copy_srcs
 
       - name: Run Unit Tests
-        run: cd impulse && ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd)) --github_actions
+        run: cd impulse && ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd)) --github_actions --debug
