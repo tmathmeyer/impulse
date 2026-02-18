@@ -165,8 +165,9 @@ def python_package_install(target, name, **kwargs):
   import sys
   version = f'{sys.version_info.major}.{sys.version_info.minor}'
   target.Execute(f'uv venv -q --python {version}')
+  flags = '' if target.IsDebug() else '-q'
   for package in packages:
-    target.Execute(f'uv pip install {package} -q')
+    target.Execute(f'uv pip install {package} {flags}')
   package_dir = f'.venv/lib/python{version}/site-packages'
 
   for library in os.listdir(package_dir):
