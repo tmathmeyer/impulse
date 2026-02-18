@@ -41,7 +41,7 @@ def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet, N:int=
   lifeguard.OpenPool(graph._targets)
   result:threading.PoolStatus = lifeguard.ClosePool()
   if err := result.GetErrorReport():
-    raise err.GetException() from None
+    raise err.GetException()
 
 
 def fix_build_target(

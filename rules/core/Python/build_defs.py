@@ -147,37 +147,99 @@ def py_library(target, name, srcs, **kwargs):
     directory = os.path.dirname(directory)
 
 
-def _python_package_fresh_venv(target, packages):
-  if os.path.exists('/usr/bin/uv'):
-    import sys
-    version = f'{sys.version_info.major}.{sys.version_info.minor}'
-    target.Execute(f'uv venv -q --python {version}')
-    for package in packages:
-      target.Execute(f'uv pip install {package} -q')
-    packages = f'.venv/lib/python{version}/site-packages'
-    for library in os.listdir(packages):
-      if library == '__pycache__':
-        continue
-      if library.endswith('.dist-info'):
-        continue
-      if library.endswith('.py'):
-        target.AddFile(library)
-      target.Execute(f'cp -r {packages}/{library} {library}')
-      for dn, _, files in os.walk(library):
-        init_file = os.path.join(dn, '__init__.py')
-        if not os.path.exists(init_file):
-          target.Execute(f'touch {init_file}')
-          target.AddFile(init_file)
-        if '__pycache__' not in dn:
-          for file in files:
-            target.AddFile(os.path.join(dn, file))
+@buildrule
+def python_package_install(target, name, **kwargs):
+  target.SetTags('py_library')
+  if not os.path.exists('__packagelist__'):
+    return
+
+  with open('__packagelist__', 'r') as f:
+    packages = f.readlines()
+
+  if not packages:
+    return
+
+  packages = [p.strip() for p in packages]
+
+  target.Execute('which uv')
+  import sys
+  version = f'{sys.version_info.major}.{sys.version_info.minor}'
+  target.Execute(f'uv venv -q --python {version}')
+  for package in packages:
+    target.Execute(f'uv pip install {package} -q')
+  package_dir = f'.venv/lib/python{version}/site-packages'
+
+  for library in os.listdir(package_dir):
+    if library == '__pycache__':
+      continue
+    if library.endswith('.dist-info'):
+      continue
+    if library.endswith('.py'):
+      target.AddFile(library)
+    target.Execute(f'cp -r {package_dir}/{library} {library}')
+    for dn, _, files in os.walk(library):
+      init_file = os.path.join(dn, '__init__.py')
+      if not os.path.exists(init_file):
+        target.Execute(f'touch {init_file}')
+        target.AddFile(init_file)
+      if '__pycache__' not in dn:
+        for file in files:
+          target.AddFile(os.path.join(dn, file))
+
+
+@buildrule
+def python_package_list(target, name, **kwargs):
+  my_python_packages = set(kwargs.get('python_packages', []))
+  for dep in target.Dependencies(tags=Any('py_library', 'py_binary')):
+    my_python_packages.update(set(dep.GetPropagatedData('python_packages')))
+  with open('__packagelist__', 'w+') as f:
+    for package in my_python_packages:
+      f.write(f'{package}\n')
+  target.AddFile('__packagelist__')
+
+
+@buildrule
+def python_main_target(target, name, srcs, **kwargs):
+  target.SetTags('py_library')
+  mainfile = name
+  package = '.'.join(target.GetPackageDirectory().split('/'))
+  if kwargs.get('mainfile', None) is not None:
+    mainfile = kwargs.get('mainfile').rstrip('py').rstrip('.')
+    if kwargs.get('mainpackage', None) is not None:
+      package = kwargs.get('mainpackage')
+  elif f'{name}.py' not in srcs:
+    if len(srcs) == 1:
+      mainfile = srcs[0].rstrip('py').rstrip('.')
+
+  with open('__main__.py', 'w+') as f:
+    f.write('\n'.join([
+      f'from {package} import {mainfile}',
+      f'import sys',
+      f'sys.exit({mainfile}.main())']))
+  target.AddFile('__main__.py')
+
+
+@buildrule
+def python_main_test_target(target, name, srcs, **kwargs):
+  with open('__main__.py', 'w+') as f:
+    target.SetTags('py_library')
+    main_exec = 'from impulse.testing import testmain\ntestmain.main()\n'
+    main_contents = ''
+
+    relapath = target.package_target.GetDirectory().Relative().RelativeLocation()
+    package = '.'.join(relapath.split('/'))
+
+    for src in srcs:
+      main_contents += f'from {package} import {os.path.splitext(src)[0]}\n'
+    main_contents += main_exec
+    f.write(main_contents)
+  target.AddFile('__main__.py')
 
 
 @depends_targets("//impulse/util:bintools")
-@using(_add_files, _write_file, _get_tools_paths, py_make_binary,
-       _get_recursive_pips, _version_check, _python_package_fresh_venv)
+@using(_add_files, _write_file, _get_tools_paths, py_make_binary, _version_check)
 @buildrule
-def py_binary(target, name, **kwargs):
+def py_internal_binary(target, name, **kwargs):
   target.SetTags('exe')
   srcs = kwargs.get('srcs', [])
 
@@ -195,28 +257,6 @@ def py_binary(target, name, **kwargs):
   for tool in _get_tools_paths(target, kwargs.get('tools', [])):
     target.AddFile(tool)
 
-  mainfile = name
-  package = '.'.join(target.GetPackageDirectory().split('/'))
-  if kwargs.get('mainfile', None) is not None:
-    mainfile = kwargs.get('mainfile').rstrip('py').rstrip('.')
-    if kwargs.get('mainpackage', None) is not None:
-      package = kwargs.get('mainpackage')
-  elif f'{name}.py' not in srcs:
-    if len(srcs) == 1:
-      mainfile = srcs[0].rstrip('py').rstrip('.')
-
-  python_packages = _get_recursive_pips(target, kwargs)
-
-  for pip in python_packages:
-    target.PropagateData('python_packages', pip)
-  _python_package_fresh_venv(target, python_packages)
-
-  # Create the __main__ file
-  main_contents = f'''from {package} import {mainfile}
-import sys
-sys.exit({mainfile}.main())
-'''
-  _write_file(target, '__main__.py', main_contents)
   _version_check(target, kwargs)
 
   # Converter from pkg to binary
@@ -224,10 +264,9 @@ sys.exit({mainfile}.main())
 
 
 @depends_targets("//impulse/testing:unittest")
-@using(_add_files, _write_file, py_make_binary, _get_recursive_pips,
-       _version_check, _python_package_fresh_venv)
+@using(_add_files, _write_file, py_make_binary, _version_check)
 @buildrule
-def py_test(target, name, srcs, **kwargs):
+def py_internal_test(target, name, srcs, **kwargs):
   target.SetTags('exe', 'test')
   _add_files(target, srcs + kwargs.get('data', []))
   # Create the init files
@@ -237,25 +276,97 @@ def py_test(target, name, srcs, **kwargs):
     _write_file(target, os.path.join(directory, '__init__.py'), '#generated')
     directory = os.path.dirname(directory)
 
-  python_packages = _get_recursive_pips(target, kwargs)
-
-  for pip in python_packages:
-    target.PropagateData('python_packages', pip)
-  _python_package_fresh_venv(target, python_packages)
-
   # Track the sources
   _add_files(target, srcs)
 
-  main_exec = 'from impulse.testing import testmain\ntestmain.main()\n'
-  main_contents = ''
-
-  relapath = target.package_target.GetDirectory().Relative().RelativeLocation()
-  package = '.'.join(relapath.split('/'))
-
-  for src in srcs:
-    main_contents += f'from {package} import {os.path.splitext(src)[0]}\n'
-  main_contents += main_exec
-
-  _write_file(target, '__main__.py', main_contents)
   _version_check(target, kwargs)
   return py_make_binary
+
+
+@buildmacro
+def py_test(macro_env, name, **kwargs):
+  package_list_name = f'{name}_package_list'
+  package_install_name = f'{name}_package_install'
+  package_mainfile_name = f'{name}_mainfile_build'
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'python_package_list',
+    args = {
+      'name': package_list_name,
+      'deps': kwargs.get('deps', []),
+      'python_packages': kwargs.get('python_packages', []),
+    })
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'python_package_install',
+    args = {
+      'name': package_install_name,
+      'deps': [ f':{package_list_name}', ],
+    })
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'python_main_test_target',
+    args = {
+      'name': package_mainfile_name,
+      'srcs': kwargs.get('srcs', []),
+    })
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'py_internal_test',
+    args = {
+      'name': name,
+      'srcs': kwargs.get('srcs', []),
+      'data': kwargs.get('data', []),
+      'deps': kwargs.get('deps', []) + [
+        f':{package_install_name}',
+        f':{package_mainfile_name}',
+      ],
+    })
+
+
+@buildmacro
+def py_binary(macro_env, name, **kwargs):
+  package_list_name = f'{name}_package_list'
+  package_install_name = f'{name}_package_install'
+  package_mainfile_name = f'{name}_mainfile_build'
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'python_package_list',
+    args = {
+      'name': package_list_name,
+      'deps': kwargs.get('deps', []),
+    })
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'python_package_install',
+    args = {
+      'name': package_install_name,
+      'deps': [ f':{package_list_name}', ],
+    })
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'python_main_target',
+    args = {
+      'name': package_mainfile_name,
+      'srcs': kwargs.get('srcs', []),
+    })
+
+  macro_env.ImitateRule(
+    rulefile = '//rules/core/Python/build_defs.py',
+    rulename = 'py_internal_binary',
+    args = {
+      'name': name,
+      'srcs': kwargs.get('srcs', []),
+      'data': kwargs.get('data', []),
+      'deps': kwargs.get('deps', []) + [
+        f':{package_install_name}',
+        f':{package_mainfile_name}',
+      ],
+    })
