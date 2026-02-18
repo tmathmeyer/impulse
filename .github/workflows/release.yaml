@@ -39,7 +39,7 @@ jobs:
       - name: Run Unit Tests
         run: cd impulse && ../GENERATED/BINARIES/impulse/impulse testsuite --fakeroot $(dirname $(pwd)) --github_actions --debug
 
-      - name Create Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
