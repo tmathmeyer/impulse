@@ -1,8 +1,7 @@
-
-
 import collections
 
 PIPE = '│'
+
 
 class Tree(collections.namedtuple('Tree', ['name', 'children'])):
   def Print(self, idx=0, cn=1, ids=''):
@@ -19,7 +18,7 @@ class Tree(collections.namedtuple('Tree', ['name', 'children'])):
     else:
       print(f'{self.name}')
     for i, cn in enumerate(self.children):
-      cn.Print(idx+1, len(self.children) - i, ids)
+      cn.Print(idx + 1, len(self.children) - i, ids)
 
 
 def _is_satisfied_by(trees, node):
@@ -38,7 +37,7 @@ def maketree(trees, node):
 
 
 def BuildTree(deps):
-  nodes = {k:k for k in deps}
+  nodes = {k: k for k in deps}
   trees = {}
   while len(nodes) > 1:
     remove_cycle = []

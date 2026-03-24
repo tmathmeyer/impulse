@@ -1,9 +1,9 @@
-
 import os
 import subprocess
 import sys
 
 from impulse.util import resources
+
 
 def main():
   sysdir = resources.Resources.Dir()
@@ -11,4 +11,4 @@ def main():
     entrypoint = os.path.join(sysdir, f.read())
     args = ['node', entrypoint, *sys.argv[1:]]
     subprocess.run(args=args)
-                   #stdin=subprocess.PIPE, stdout=subprocess.PIPE,)
+    # stdin=subprocess.PIPE, stdout=subprocess.PIPE,)

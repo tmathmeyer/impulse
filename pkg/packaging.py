@@ -1,4 +1,3 @@
-
 import abc
 import hashlib
 import json
@@ -27,14 +26,14 @@ def EnsureDirectory(directory):
 
 class Hasher(metaclass=abc.ABCMeta):
   @abc.abstractmethod
-  def GetHash(self, filename:str) -> str:
+  def GetHash(self, filename: str) -> str:
     raise NotImplementedError()
 
-  def MD5(self, filename:str) -> str:
+  def MD5(self, filename: str) -> str:
     hash_md5 = hashlib.md5()
     try:
-      with open(filename, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
+      with open(filename, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b''):
           hash_md5.update(chunk)
       return hash_md5.hexdigest()
     except FileNotFoundError:
@@ -44,14 +43,14 @@ class Hasher(metaclass=abc.ABCMeta):
 class HashedFile(object):
   __slots__ = ('file', 'hash')
 
-  def __init__(self, file:str, package:Hasher):
+  def __init__(self, file: str, package: Hasher):
     self.file = file
     self.hash = package.GetHash(file)
 
   def dict(self):
     return {'file': self.file, 'hash': self.hash}
 
-  def __eq__(self, other:object) -> bool:
+  def __eq__(self, other: object) -> bool:
     if type(other) != type(self):
       return False
     if getattr(other, 'file', None) != self.file:
@@ -66,10 +65,8 @@ class HashedFile(object):
 
 class ExportedPackage(object):
   """Read-only package wrapper."""
-  def __init__(self,
-               filename: str,
-               json: dict|None=None,
-               export_binary=None):
+
+  def __init__(self, filename: str, json: dict | None = None, export_binary=None):
     self.filename = filename
     if json:
       self.__dict__.update(json)
@@ -91,11 +88,13 @@ class ExportedPackage(object):
     return []
 
   def RunCommand(self, command):
-    return subprocess.run(command,
-                          encoding='utf-8',
-                          shell=True,
-                          stderr=subprocess.PIPE,
-                          stdout=subprocess.PIPE)
+    return subprocess.run(
+      command,
+      encoding='utf-8',
+      shell=True,
+      stderr=subprocess.PIPE,
+      stdout=subprocess.PIPE,
+    )
 
   def Execute(self, *cmds):
     for command in cmds:
@@ -106,7 +105,7 @@ class ExportedPackage(object):
       except:
         raise errors.FatalError(f'command "{command}" failed.')
 
-  def FatalError(self, msg:str):
+  def FatalError(self, msg: str):
     raise errors.FatalError(msg)
 
   def __str__(self):
@@ -115,7 +114,7 @@ class ExportedPackage(object):
   def __repr__(self):
     return str(self)
 
-  def __getitem__(self, name:str):
+  def __getitem__(self, name: str):
     return getattr(self, name)
 
 
@@ -128,23 +127,28 @@ class UtilHelper(object):
 class ExportablePackage(Hasher):
   """A wrapper class for building a package file."""
 
-  def __init__(self, package_target:references.Target, ruletype: str,
-               platform:typing.Any, # TODO: fix type
-               can_access_internal: bool=False,
-               binaries_location: str=''):
+  def __init__(
+    self,
+    package_target: references.Target,
+    ruletype: str,
+    platform: typing.Any,  # TODO: fix type
+    can_access_internal: bool = False,
+    binaries_location: str = '',
+  ):
     self._extracted_dir = None
 
-    self.included_files:typing.List[str] = []
-    self.input_files:typing.Set[HashedFile] = set()
-    self.depends_on_targets:typing.List[str] = []
-    self.build_file:HashedFile
-    self.rule_file:HashedFile
-    self.tags:typing.Set[str] = set()
+    self.included_files: typing.List[str] = []
+    self.input_files: typing.Set[HashedFile] = set()
+    self.depends_on_targets: typing.List[str] = []
+    self.build_file: HashedFile
+    self.rule_file: HashedFile
+    self.tags: typing.Set[str] = set()
 
     self.package_target = package_target
     self.build_timestamp = int(time.time())
-    self.is_binary_target = str(ruletype).endswith(
-      '_binary') or str(ruletype).endswith('_test')
+    self.is_binary_target = str(ruletype).endswith('_binary') or str(ruletype).endswith(
+      '_test'
+    )
     self.package_ruletype = ruletype
     self.execution_count = 0
 
@@ -187,7 +191,7 @@ class ExportablePackage(Hasher):
       if k == 'depends_on_targets':
         copydict[k] = [[d.package_target, d.build_timestamp] for d in v]
       if k == 'input_files':
-        copydict[k] = sorted(list(e.dict() for e in v), key=lambda x:x['file'])
+        copydict[k] = sorted(list(e.dict() for e in v), key=lambda x: x['file'])
       if k == 'build_file':
         copydict[k] = v.dict()
       if k == 'rule_file':
@@ -218,16 +222,14 @@ class ExportablePackage(Hasher):
       print(f'{potential.__name__}:')
       print(f'  {potential.__doc__}')
 
-  def GetHash(self, filename:str) -> str:
-    '''Gets the hash of a file, given its name'''
+  def GetHash(self, filename: str) -> str:
+    """Gets the hash of a file, given its name"""
     try:
       return self.MD5(filename)
     except FileNotFoundError as e:
-      raise exceptions.ListedSourceNotFound(filename,
-        str(self.package_target)) from e
+      raise exceptions.ListedSourceNotFound(filename, str(self.package_target)) from e
     except IsADirectoryError:
-      raise exceptions.ListedSourceNotFound(
-        filename, str(self.package_target))
+      raise exceptions.ListedSourceNotFound(filename, str(self.package_target))
 
   def PropagateData(self, key, data):
     if key not in self._propagated_data:
@@ -237,66 +239,68 @@ class ExportablePackage(Hasher):
   def SetInternalAccess(self, access):
     self._buildqueue_ref = access
 
-  def SetInputFiles(self, files:typing.List[str]):
+  def SetInputFiles(self, files: typing.List[str]):
     for f in files:
       self.input_files.add(HashedFile(f, self))
 
-  def SetRuleFile(self, file:str, hashpath:str):
+  def SetRuleFile(self, file: str, hashpath: str):
     self.rule_file = HashedFile(hashpath, self)
 
-  def SetBuildFile(self, file:str, hashpath:str):
+  def SetBuildFile(self, file: str, hashpath: str):
     self.build_file = HashedFile(hashpath, self)
 
-  def AddFile(self, filename:str):
-    '''Adds a file to the output package.'''
+  def AddFile(self, filename: str):
+    """Adds a file to the output package."""
     self.included_files.append(filename)
 
-  def AddDirectory(self, directory:str):
-    '''Adds all files in a directory'''
+  def AddDirectory(self, directory: str):
+    """Adds all files in a directory"""
     for [dirname, _, files] in os.walk(directory):
       for file in files:
         self.AddFile(os.path.join(dirname, file))
 
   def AddDependency(self, dependency):
-    '''Add a dependency on another target.'''
+    """Add a dependency on another target."""
     if dependency not in self.depends_on_targets:
       self.depends_on_targets.append(dependency)
 
   def GetPackageName(self) -> str:
-    '''Gets the name of the package.'''
+    """Gets the name of the package."""
     return self.package_target.GetPackage().GetRelativePath()
 
   def GetPackageDirectory(self):
-    '''Gets the package source directory.'''
+    """Gets the package source directory."""
     return self.package_target.GetDirectory().Relative().Value()[2:]
 
-  def ExecutionFailed(self, command:str, stderr:str):
-    '''Triggers an exception with given cmdline and stderr.'''
+  def ExecutionFailed(self, command: str, stderr: str):
+    """Triggers an exception with given cmdline and stderr."""
     raise exceptions.BuildDefsRaisesException.From(
-      self.package_target._target_name,
-      self.package_ruletype, command + "\n\n" + stderr)
+      self.package_target._target_name, self.package_ruletype, command + '\n\n' + stderr
+    )
 
   def ExecutionNotRequired(self):
     raise exceptions.BuildTargetNoBuildNecessary()
 
   def GetBinariesDir(self) -> str:
-    '''Gets the directory where binaries are exported to.'''
+    """Gets the directory where binaries are exported to."""
     return self._binaries_location
 
   def GetPreviousBuildTimestamp(self):
-    '''Gets the timestamp for when this rule was previously built.'''
+    """Gets the timestamp for when this rule was previously built."""
     return self._previous_build_timestamp
 
   def GetPlatform(self):
     return self._platform
 
   def RunCommand(self, command):
-    '''Executes a command.'''
-    return subprocess.run(command,
-                          encoding='utf-8',
-                          shell=True,
-                          stderr=subprocess.PIPE,
-                          stdout=subprocess.PIPE)
+    """Executes a command."""
+    return subprocess.run(
+      command,
+      encoding='utf-8',
+      shell=True,
+      stderr=subprocess.PIPE,
+      stdout=subprocess.PIPE,
+    )
 
   def Export(self) -> ExportedPackage:
     r = self.RunCommand('pwd')
@@ -313,15 +317,15 @@ class ExportablePackage(Hasher):
     filename = self.GetPackageName()
     cmd = cmd.format(filename, ' '.join(self.included_files))
     EnsureDirectory(os.path.dirname(filename))
-    subprocess.check_output(['zip', '--symlinks', filename, 'pkg_contents.json',
-                             *self.included_files])
+    subprocess.check_output(
+      ['zip', '--symlinks', filename, 'pkg_contents.json', *self.included_files]
+    )
     os.system('rm pkg_contents.json')
     return ExportedPackage(filename, self.__dict__, self._export_binary)
 
   def _GetPreviousBuild(self, package_dir):
     try:
-      archive = zipfile.ZipFile(
-        os.path.join(package_dir, self.GetPackageName()), 'r')
+      archive = zipfile.ZipFile(os.path.join(package_dir, self.GetPackageName()), 'r')
       return json.loads(archive.read('pkg_contents.json'))
     except Exception as e:
       return None
@@ -379,11 +383,13 @@ class ExportablePackage(Hasher):
     with open('pkg_contents.json', 'r+') as f:
       package_contents = json.loads(f.read())
       exported_package = ExportedPackage(
-        self.package_target.GetPackage().GetRelativePath(), package_contents)
+        self.package_target.GetPackage().GetRelativePath(), package_contents
+      )
       if self.is_binary_target:
         relative_binary = os.path.join(
           self.package_target.GetDirectory().Relative().Value()[2:],
-          self.package_target.GetName().Name())
+          self.package_target.GetName().Name(),
+        )
         full_path_binary = os.path.join(bin_dir, relative_binary)
         binary_location = os.path.join('bin', self.package_target.GetName().Name())
         return None, {binary_location: full_path_binary}, exported_package
@@ -394,17 +400,21 @@ class ExportablePackage(Hasher):
     return tempfile.mkdtemp()
 
   def UseTempDir(self):
-    '''Context manage for a temporary directory that auto cleans up.'''
+    """Context manage for a temporary directory that auto cleans up."""
     wrapper = self
+
     class DirManager(object):
       def __init__(self):
         self._directory = None
+
       def __enter__(self):
         self._directory = wrapper.MakeTempDir()
         return self._directory
+
       def __exit__(self, *args, **kwargs):
         wrapper.RunCommand(f'rm -rf {self._directory}')
         self._directory = None
+
     return DirManager()
 
   def LoadToTemp(self, pkg_dir, bin_dir):
@@ -412,8 +422,9 @@ class ExportablePackage(Hasher):
     if self._extracted_dir:
       self.UnloadPackageDirectory()
     self._extracted_dir = self.MakeTempDir()
-    package_name = os.path.join(pkg_dir,
-      self.package_target.GetPackage().GetRelativePath())
+    package_name = os.path.join(
+      pkg_dir, self.package_target.GetPackage().GetRelativePath()
+    )
 
     extract = f'unzip {package_name} -d {self._extracted_dir}'
     r = self.RunCommand(f'test -e {self._extracted_dir}')
@@ -438,7 +449,8 @@ class ExportablePackage(Hasher):
     self._extracted_dir = None
 
   def Dependencies(self, **filters):
-    '''Generates a list targets that this target depends on.'''
+    """Generates a list targets that this target depends on."""
+
     def yieldPackage(pkg):
       for k, v in filters.items():
         valueof = getattr(pkg, k, None)
@@ -457,25 +469,26 @@ class ExportablePackage(Hasher):
         yield package
 
   def SetTags(self, *tags):
-    '''Adds tags to this target.'''
+    """Adds tags to this target."""
     self.tags.update(set(tags))
 
   def Execute(self, *cmds):
-    '''Executes |cmds| in order.'''
+    """Executes |cmds| in order."""
     for command in cmds:
       command = f'{self._exec_env_str} {command}'
       try:
         r = self.RunCommand(command)
         if r.returncode:
           raise errors.FatalError(
-            f'command "{command}" failed:\n{r.stdout}\n{r.stderr}')
+            f'command "{command}" failed:\n{r.stdout}\n{r.stderr}'
+          )
       except Exception as e:
         if type(e) == errors.FatalError:
           raise
         raise errors.FatalError(f'command "{command}" failed.')
 
   def SetEnvVar(self, var, value):
-    '''Sets an environment variable for execution.'''
+    """Sets an environment variable for execution."""
     self._exec_env[var] = value
     self._update_exec_env_str()
 
@@ -483,15 +496,15 @@ class ExportablePackage(Hasher):
     return debug.IsDebug()
 
   def UnsetEnvVar(self, var):
-    '''Unsets an environment variable for execution.'''
+    """Unsets an environment variable for execution."""
     self._exec_env.pop(var)
     self._update_exec_env_str()
 
   def _update_exec_env_str(self):
-    self._exec_env_str = ' '.join(f'{k}={v}' for k,v in self._exec_env.items())
+    self._exec_env_str = ' '.join(f'{k}={v}' for k, v in self._exec_env.items())
 
   def IncludedFiles(self):
-    '''A list of all files included in this package.'''
+    """A list of all files included in this package."""
     return [f for f in self.included_files]
 
   def Semaphor(pkg):
@@ -499,13 +512,16 @@ class ExportablePackage(Hasher):
       def __init__(self):
         self._lockfile = os.path.join(impulse_paths.root(), '.lockfile')
         self._has_lockfile = not pkg.RunCommand('which lockfile').returncode
+
       def __enter__(self):
         if self._has_lockfile:
           pkg.RunCommand(f'lockfile {self._lockfile}')
         else:
           self._spinlock()
+
       def __exit__(self, *args, **kwargs):
         pkg.RunCommand(f'rm -rf {self._lockfile}')
+
       def _spinlock(self):
         success = False
         while not success:
@@ -513,11 +529,10 @@ class ExportablePackage(Hasher):
             time.sleep(2)
             continue
           success = not pkg.RunCommand(f'mkdir {self._lockfile}').returncode
-    return Sem()
 
+    return Sem()
 
   def __del__(self):
     if self._extracted_dir:
       if os.path.exists(self._extracted_dir):
         self.UnloadPackageDirectory()
-

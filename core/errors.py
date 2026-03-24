@@ -1,5 +1,3 @@
-
-
 class RenderableError(Exception):
   pass
 
@@ -22,12 +20,14 @@ class FileHighlightError(RenderableError):
         if text in line:
           line = line.strip()
           start = line.find(text)
-          spaces = (start+6) * ' '
-          squigs = (len(text)-2) * '~'
+          spaces = (start + 6) * ' '
+          squigs = (len(text) - 2) * '~'
           return f'{file}:\n...\n{lno:04}: {line}\n{spaces}^{squigs}^\n'
 
   def __init__(self, message, source, text, minline, maxline):
-    super().__init__(f'{message}:\n{FileHighlightError.GetUnderlineHighlightTextInFile(source, text, minline, maxline)}')
+    super().__init__(
+      f'{message}:\n{FileHighlightError.GetUnderlineHighlightTextInFile(source, text, minline, maxline)}'
+    )
 
 
 class InvalidDependency(FileHighlightError):
@@ -37,17 +37,27 @@ class InvalidDependency(FileHighlightError):
       sourcefile,
       targetname,
       minline=sourcerange.lineno,
-      maxline=sourcerange.end_lineno)
+      maxline=sourcerange.end_lineno,
+    )
 
 
 class InvalidSyntax(FileHighlightError):
   def __init__(self, message, search, frame):
     super().__init__(
-      message, frame.filename, search, frame.positions.lineno, frame.positions.end_lineno)
+      message,
+      frame.filename,
+      search,
+      frame.positions.lineno,
+      frame.positions.end_lineno,
+    )
 
 
 class FileNotFoundError(FileHighlightError):
   def __init__(self, missing, source, sourcerange):
     super().__init__(
       f'File not found: {missing}',
-      source, missing, sourcerange.lineno, sourcerange.end_lineno)
+      source,
+      missing,
+      sourcerange.lineno,
+      sourcerange.end_lineno,
+    )

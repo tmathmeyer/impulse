@@ -1,4 +1,3 @@
-
 import abc
 import inspect
 import glob
@@ -11,7 +10,7 @@ from impulse.types import parsed_target
 from impulse.types import paths
 
 
-def StackScour(filename:str) -> inspect.FrameInfo|None:
+def StackScour(filename: str) -> inspect.FrameInfo | None:
   for frame in inspect.stack():
     if frame.filename.endswith(filename):
       return frame
@@ -20,15 +19,15 @@ def StackScour(filename:str) -> inspect.FrameInfo|None:
 
 class EnvironmentLoader(metaclass=abc.ABCMeta):
   @abc.abstractmethod
-  def LoadFile(self, file:references.File) -> None:
-    '''Loads a file into the environment'''
+  def LoadFile(self, file: references.File) -> None:
+    """Loads a file into the environment"""
 
 
 class BuiltinMethod(object):
   def __init__(self):
-    self._loader:EnvironmentLoader = None
+    self._loader: EnvironmentLoader = None
 
-  def Attach(self, loader:EnvironmentError) -> None:
+  def Attach(self, loader: EnvironmentError) -> None:
     self._loader = loader
 
   def _GetBuildFileFromStack(self) -> references.File:
@@ -42,18 +41,20 @@ class BuiltinMethod(object):
 
 
 class DeprecationWarning(BuiltinMethod):
-  def __init__(self, method:str):
+  def __init__(self, method: str):
     super().__init__()
     self._method = method
 
   def __call__(self, *_, **__) -> None:
     callsite = inspect.stack()[1]
-    debug.DebugMsg(f'[{callsite.filename}:{callsite.lineno}]: '
-                   f'The {self._method} method is deprecated')
+    debug.DebugMsg(
+      f'[{callsite.filename}:{callsite.lineno}]: '
+      f'The {self._method} method is deprecated'
+    )
 
 
 class LoadFile(BuiltinMethod):
-  def __call__(self, *files:list[str]) -> None:
+  def __call__(self, *files: list[str]) -> None:
     for loading in files:
       try:
         loadfile = references.File(paths.QualifiedPath(loading).AbsPath())
@@ -62,15 +63,17 @@ class LoadFile(BuiltinMethod):
         callframe = StackScour('BUILD')
         if callframe is None:
           raise errors.FatalError('No BUILD file found in stack trace')
-        raise errors.FileNotFoundError(loading,
-                                       callframe.filename,
-                                       callframe.positions) from None
+        raise errors.FileNotFoundError(
+          loading, callframe.filename, callframe.positions
+        ) from None
 
 
 class Pattern(BuiltinMethod):
-  def __call__(self, pattern:str) -> list[references.File]:
-    build_file:references.File = self._GetBuildFileFromStack()
-    pattern:references.File = build_file.Directory().GetFile(references.Filename(pattern))
+  def __call__(self, pattern: str) -> list[references.File]:
+    build_file: references.File = self._GetBuildFileFromStack()
+    pattern: references.File = build_file.Directory().GetFile(
+      references.Filename(pattern)
+    )
     regex = pattern.Absolute().Value()
     try:
       files = []
@@ -83,20 +86,22 @@ class Pattern(BuiltinMethod):
 
 
 class Platform(BuiltinMethod):
-  def __init__(self, archive:parsed_target.TargetArchive):
+  def __init__(self, archive: parsed_target.TargetArchive):
     self._archive = archive
 
   def __call__(self, **kwargs):
     assert 'name' in kwargs
     name = kwargs['name']
     reference_name = references.Target.Parse(
-      f':{name}', self._GetBuildFileFromStack().Directory())
-    return self._archive.AddPlatformTarget(parsed_target.PlatformTarget(
-      reference_name, **kwargs))
+      f':{name}', self._GetBuildFileFromStack().Directory()
+    )
+    return self._archive.AddPlatformTarget(
+      parsed_target.PlatformTarget(reference_name, **kwargs)
+    )
 
 
 class BuildRule(BuiltinMethod):
-  def __init__(self, archive:parsed_target.TargetArchive, cmdline:dict):
+  def __init__(self, archive: parsed_target.TargetArchive, cmdline: dict):
     self._archive = archive
     self._cmdline = cmdline
 
@@ -111,8 +116,9 @@ class BuildRule(BuiltinMethod):
       # 'name' is a required argument!
       if 'name' not in kwargs:
         callframe = StackScour('BUILD')
-        raise errors.InvalidSyntax('`name` attribute is required for all targets',
-                                   buildrule_name, callframe)
+        raise errors.InvalidSyntax(
+          '`name` attribute is required for all targets', buildrule_name, callframe
+        )
       name = kwargs['name']
 
       # add any extra tags a user sers
@@ -124,21 +130,24 @@ class BuildRule(BuiltinMethod):
       target = references.Target.Parse(f':{name}', build_file.Directory())
       try:
         return self._archive.AddBuildTarget(
-          parsed_target.BuildTarget(
-            target, fn, kwargs, self._cmdline, extra_tags))
+          parsed_target.BuildTarget(target, fn, kwargs, self._cmdline, extra_tags)
+        )
       except exceptions.TargetCannotBeMapped as tcbm:
         callframe = StackScour('BUILD')
         if callframe is None:
           raise errors.FatalError('Could not find BUILD file on stack')
-        raise errors.InvalidDependency(targetname=tcbm.target,
-                                       targetfile=tcbm.location,
-                                       sourcefile=callframe.filename,
-                                       sourcerange=callframe.positions) from None
+        raise errors.InvalidDependency(
+          targetname=tcbm.target,
+          targetfile=tcbm.location,
+          sourcefile=callframe.filename,
+          sourcerange=callframe.positions,
+        ) from None
+
     return replacement
 
 
 class BuildMacro(BuiltinMethod):
-  def __init__(self, archive:parsed_target.TargetArchive):
+  def __init__(self, archive: parsed_target.TargetArchive):
     self._archive = archive
 
   def _GetMacroFile(self):
@@ -147,13 +156,18 @@ class BuildMacro(BuiltinMethod):
   def __call__(self, fn):
     def Replacement(name, **kwargs):
       return fn(self, name, **kwargs)
+
     return Replacement
 
-  def ImitateRule(self, rulefile:str, rulename:str, args:dict,
-                  kwargs:dict|None=None, tags:list|None=None):
+  def ImitateRule(
+    self,
+    rulefile: str,
+    rulename: str,
+    args: dict,
+    kwargs: dict | None = None,
+    tags: list | None = None,
+  ):
     args.update({'tags': tags or [], 'buildfile': self._GetMacroFile()})
     args.update(kwargs or {})
     load_file = references.File(paths.QualifiedPath(rulefile).AbsPath())
     self._archive.GetBuildTargetFromFile(load_file, rulename)(**args)
-
-

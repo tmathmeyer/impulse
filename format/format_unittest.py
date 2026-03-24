@@ -1,4 +1,3 @@
-
 from impulse.format import format
 from impulse.testing import unittest
 from impulse.util import resources

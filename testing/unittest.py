@@ -23,7 +23,7 @@ class FailedAssertError(Exception):
     self._lineno = lineno
     testbase = (__file__ or '')[:-27]
     if filename.startswith(testbase):
-      filename = filename[len(testbase):]
+      filename = filename[len(testbase) :]
     self._file_location = '{}:{}'.format(filename, lineno)
     self._rel_filename = filename
     self._assertName = assertname
@@ -38,8 +38,7 @@ class FailedAssertError(Exception):
       fileLocation += ' ' * (string_len - len(fileLocation))
     print(
       fmt.format(
-        FAILED_, fileLocation, ENDC, self._casename, self._expected,
-        self._actual
+        FAILED_, fileLocation, ENDC, self._casename, self._expected, self._actual
       )
     )
 
@@ -64,6 +63,7 @@ def call_with_stack(method):
     frame = inspect.currentframe()
     assert frame is not None
     return method(self, frame.f_back, *args, **kwargs)
+
   setattr(replacement, '_wrapped', method)
   return replacement
 
@@ -85,8 +85,12 @@ def ExpectRaises(errtype):
       except AssertionError as e:
         raise EarlyExitPassedError()
       raise FailedAssertError(
-        fn.__code__.co_filename, fn.__name__, fn.__code__.co_firstlineno,
-        'ExpectFailed', errtype.__name__, 'Nothing Raised'
+        fn.__code__.co_filename,
+        fn.__name__,
+        fn.__code__.co_firstlineno,
+        'ExpectFailed',
+        errtype.__name__,
+        'Nothing Raised',
       )
 
     return replacement
@@ -112,9 +116,7 @@ def ExpectException(tester, errtype):
   except Exception as e:
     tester.assertEqual._wrapped(tester, frame, type(e), errtype)
   else:
-    tester.assertEqual._wrapped(
-      tester, frame, errtype, 'Nothing Raised'
-    )
+    tester.assertEqual._wrapped(tester, frame, errtype, 'Nothing Raised')
 
 
 def AssertRaiseError(assertname, casename, stack, A, B):
@@ -124,7 +126,7 @@ def AssertRaiseError(assertname, casename, stack, A, B):
   raise FailedAssertError(file, casename, line, assertname, A, B)
 
 
-class TestIsolator():
+class TestIsolator:
   def __init__(self, cls, fnname, execute, setup=None, cleanup=None):
     self.setup = setup or self.setup
     self.cleanup = cleanup or self.cleanup
@@ -184,11 +186,11 @@ class TestIsolator():
   @call_with_stack
   def assertIn(self, stack, A, B):
     if A not in B:
-      AssertRaiseError("assertIn", self.name, stack, f'[..., {A}, ...]', B)
+      AssertRaiseError('assertIn', self.name, stack, f'[..., {A}, ...]', B)
 
   @call_with_stack
   def assertCalledWithArgs(self, stack, *argsets):
-    class CalledWithArgsExpector():
+    class CalledWithArgsExpector:
       def __init__(cwae):
         cwae.actual = []
         cwae.itr = iter(argsets)
@@ -286,26 +288,20 @@ class TestCase(object):
     f_len = len(out['failures'])
     c_len = len(out['crashes'])
     print(
-      '{}{} test{} passed.{}'.format(
-        PASSED, p_len, '' if p_len == 1 else 's', ENDC
-      )
+      '{}{} test{} passed.{}'.format(PASSED, p_len, '' if p_len == 1 else 's', ENDC)
     )
 
-    if (f_len):
+    if f_len:
       print(
-        '{}{} test{} failed:{}'.format(
-          FAILED, f_len, '' if f_len == 1 else 's', ENDC
-        )
+        '{}{} test{} failed:{}'.format(FAILED, f_len, '' if f_len == 1 else 's', ENDC)
       )
       max_len = max(f.FileLocationLength() for f in out['failures'])
       for f in out['failures']:
         cls.PrintFailure(f, max_len)
 
-    if (c_len):
+    if c_len:
       print(
-        '{}{} test{} crashed:{}'.format(
-          FAILED, c_len, '' if c_len == 1 else 's', ENDC
-        )
+        '{}{} test{} crashed:{}'.format(FAILED, c_len, '' if c_len == 1 else 's', ENDC)
       )
       for f in out['crashes']:
         cls.PrintCrashed(f)
@@ -331,7 +327,7 @@ class TestCase(object):
       lineno = tb.tb_lineno
       testbase = (__file__ or '')[:-27]
       if filename.startswith(testbase):
-        filename = filename[len(testbase):]
+        filename = filename[len(testbase) :]
       print(
         f'::error file={filename},line={lineno},title={c.isolator.name}::'
         f'Crashed: {c.exc}'
@@ -339,15 +335,15 @@ class TestCase(object):
     return exit_code
 
   @classmethod
-  def PrintFailure(cls, failure:FailedAssertError, max_len:int):
+  def PrintFailure(cls, failure: FailedAssertError, max_len: int):
     failure.print(max_len)
 
   @classmethod
-  def PrintCrashed(cls, crash:GenericCrashHandler):
+  def PrintCrashed(cls, crash: GenericCrashHandler):
     crash.print()
 
 
-class MockMethod():
+class MockMethod:
   __slots__ = ('_calls', '_name', '_returns')
 
   def __init__(self, name):
@@ -401,8 +397,7 @@ class MockMethod():
   def AssertCalled(self, stack, *args, **kwargs):
     if not self._calls:
       AssertRaiseError(
-        'assertCall', self._name, stack, f'{self._name} to be called',
-        'not called'
+        'assertCall', self._name, stack, f'{self._name} to be called', 'not called'
       )
     sargs, skwargs = self._calls.pop()
     if not self._listcompare(sargs, args):
@@ -414,9 +409,11 @@ class MockMethod():
   def AssertCallsChecked(self, stack):
     if self._calls:
       AssertRaiseError(
-        'assertCallsChecked', self._name, stack,
+        'assertCallsChecked',
+        self._name,
+        stack,
         f'No unchecked calls to {self._name}',
-        f'called with args: {self._calls}'
+        f'called with args: {self._calls}',
       )
 
 

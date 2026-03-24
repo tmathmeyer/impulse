@@ -1,5 +1,6 @@
 from impulse.testing import unittest
 
+
 class Example(unittest.TestCase):
   def test_TrueIsTrue(self):
     self.assertTrue(True)

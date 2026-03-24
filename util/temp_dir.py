@@ -1,6 +1,7 @@
 import os
 import tempfile
 
+
 class ScopedTempDirectory(object):
   def __init__(self, temp_directory=None, delete_non_empty=False):
     self._temp_directory = temp_directory
@@ -33,6 +34,7 @@ class ScopedTempDirectory(object):
         os.system(f'rm -rf {self._temp_directory}')
       else:
         os.rmdir(self._temp_directory)
+
 
 def CreateDangerousLifetimeDirectory():
   return tempfile.mkdtemp()

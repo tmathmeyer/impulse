@@ -1,4 +1,3 @@
-
 import inspect
 import types
 import typing
@@ -6,8 +5,9 @@ import typing
 
 class _InterfaceMeta(type):
   """Checks signatures on instances of concrete classes that implement
-     interface classes.
+  interface classes.
   """
+
   def __new__(mcls, name, bases, namespace, **kwargs):
     # Create the class so we can attach stuff to it
     cls = super().__new__(mcls, name, bases, namespace, **kwargs)
@@ -37,15 +37,18 @@ class _InterfaceMeta(type):
               raise TypeError(
                 f'Conflicting interface methods for child class {name}: '
                 f'{base.__name__} provides {method}::{signature}, '
-                f'{base.__name__} provides {method}::{unexpected}')
+                f'{base.__name__} provides {method}::{unexpected}'
+              )
           else:
             required_methods[method] = signature
       my_methods = _InterfaceMeta.MethodSignatures(namespace)
       for method, signature in required_methods.items():
         if my_methods.get(method, None) != signature:
-          raise TypeError(f'Concrete class {name} missing required '
-                          f'interface method {method}:[{signature}], '
-                          f'found: {my_methods.get(method, None)}')
+          raise TypeError(
+            f'Concrete class {name} missing required '
+            f'interface method {method}:[{signature}], '
+            f'found: {my_methods.get(method, None)}'
+          )
 
     return cls
 
@@ -64,6 +67,7 @@ class _InterfaceMeta(type):
 
 class _InterfaceParent(metaclass=_InterfaceMeta):
   """Parent class to get a metaclass into the |type()| call."""
+
   _InterfaceParentSentinal = True
 
 
@@ -77,10 +81,10 @@ def IFace(class_def: type) -> '_InterfaceParent':
       methods[name] = method
 
   # Create the new type, adding _InterfaceParent to the other base classes
-  created = typing.cast(_InterfaceParent, type(
-    class_def.__name__,
-    (_InterfaceParent, *class_def.__bases__),
-    methods))
+  created = typing.cast(
+    _InterfaceParent,
+    type(class_def.__name__, (_InterfaceParent, *class_def.__bases__), methods),
+  )
 
   # Mark it as _not_ an interface parent.
   created._InterfaceParentSentinal = False

@@ -1,4 +1,3 @@
-
 import os
 
 from impulse.args import args
@@ -17,14 +16,14 @@ def run(cmd):
 
 
 @command
-def install(upgrade:bool=False, dryrun:bool=False):
+def install(upgrade: bool = False, dryrun: bool = False):
   """Installs this package as a systemd target."""
   global DRY
   DRY = dryrun
   data = {}
   with resources.Resources.OpenGlob('*_metadata') as f:
     for line in f.readlines():
-      k,v = line.strip().split('=', 1)
+      k, v = line.strip().split('=', 1)
       data[k] = v
 
   binary = data['binary']
@@ -52,14 +51,14 @@ def install(upgrade:bool=False, dryrun:bool=False):
 
 
 @command
-def uninstall(dryrun:bool=False):
+def uninstall(dryrun: bool = False):
   """Installs this package as a systemd target."""
   global DRY
   DRY = dryrun
   data = {}
   with resources.Resources.OpenGlob('*.metadata') as f:
     for line in f.readlines():
-      k,v = line.strip().split('=', 1)
+      k, v = line.strip().split('=', 1)
       data[k] = v
 
   binary = data['binary']

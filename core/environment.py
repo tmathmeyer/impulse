@@ -1,11 +1,14 @@
 import os
 
 
-class Environ():
+class Environ:
   def __getattr__(self, attr):
     return os.environ[attr]
+
   def __getitem__(self, item):
     return os.environ[item]
+
+
 ENV = Environ()
 
 

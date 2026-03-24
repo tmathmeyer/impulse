@@ -1,10 +1,9 @@
-
 from impulse.core import exceptions
 from impulse.core import interface
 
 
 class LocalEnvironParser(dict):
-  def __init__(self, reader:'FileReader'):
+  def __init__(self, reader: 'FileReader'):
     self._reader = reader
     self._data = {}
 
@@ -12,8 +11,10 @@ class LocalEnvironParser(dict):
     method = getattr(self._reader, f'call_{name}', None)
     if method is not None:
       return method
+
     def wrapper(*args, **kwargs):
       return getattr(self._reader, 'call')(name, args, kwargs)
+
     return wrapper
 
   def __setitem__(self, name, value):
@@ -23,7 +24,7 @@ class LocalEnvironParser(dict):
     return self._data
 
 
-class FileReader():
+class FileReader:
   def __init__(self):
     self._environ = LocalEnvironParser(self)
     self._filename = None
@@ -35,7 +36,8 @@ class FileReader():
         exec(compile(f.read(), file, 'exec'), self._environ)
       except exceptions.ImpulseBaseException as e:
         raise exceptions.ImpulseBaseException(
-          f'{str(e)}\nFound parsing {file}') from None
+          f'{str(e)}\nFound parsing {file}'
+        ) from None
 
   def GetFile(self):
     return self._filename
@@ -43,7 +45,6 @@ class FileReader():
 
 @interface.IFace
 class BuildFileReaderImpl(FileReader):
-
   def call_langs(self, *langs):
     pass
 

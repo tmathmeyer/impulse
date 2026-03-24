@@ -1,5 +1,3 @@
-
-
 import abc
 import os
 import typing
@@ -11,26 +9,26 @@ from impulse.core import environment
 class Path(metaclass=abc.ABCMeta):
   @abc.abstractmethod
   def Value(self) -> str:
-    '''Gets the path value as a string'''
+    """Gets the path value as a string"""
 
   @abc.abstractmethod
   def SplitFile(self) -> tuple['Path', str]:
-    '''Splits the path into a directory path and a filename'''
+    """Splits the path into a directory path and a filename"""
 
   @abc.abstractmethod
   def AbsPath(self) -> 'AbsolutePath':
-    '''Converts this path type to an absolute filesystem path'''
+    """Converts this path type to an absolute filesystem path"""
 
   @abc.abstractmethod
   def QualPath(self) -> 'QualifiedPath':
-    '''Converts this path type to an repository-local path'''
+    """Converts this path type to an repository-local path"""
 
 
 class AbsolutePath(Path):
-  _rawpath:str
-  _qualpath:'QualifiedPath'
+  _rawpath: str
+  _qualpath: 'QualifiedPath'
 
-  def __init__(self, path:str):
+  def __init__(self, path: str):
     self._rawpath = path
 
   def Value(self) -> str:
@@ -48,24 +46,26 @@ class AbsolutePath(Path):
       root = environment.Root()
       if not self._rawpath.startswith(root):
         raise exceptions.InvalidPathException(
-          self._rawpath, f'Path is not within impulse root ({root})')
-      self._qualpath = QualifiedPath('/' + self._rawpath[len(root):])
+          self._rawpath, f'Path is not within impulse root ({root})'
+        )
+      self._qualpath = QualifiedPath('/' + self._rawpath[len(root) :])
     return self._qualpath
 
   def __hash__(self) -> int:
     return hash(self._rawpath)
 
-  def __eq__(self, other:typing.Any) -> int:
+  def __eq__(self, other: typing.Any) -> int:
     if not isinstance(other, AbsolutePath):
       return False
     return self._rawpath == other._rawpath
 
 
 class QualifiedPath(Path):
-  def __init__(self, path:str):
+  def __init__(self, path: str):
     if not path.startswith('//'):
       raise exceptions.InvalidPathException(
-        path, 'Path is not repository-relative (missing //)')
+        path, 'Path is not repository-relative (missing //)'
+      )
     self._value = path
 
   def Value(self) -> str:
@@ -84,7 +84,7 @@ class QualifiedPath(Path):
   def __hash__(self) -> int:
     return hash(self._value)
 
-  def __eq__(self, other:typing.Any) -> int:
+  def __eq__(self, other: typing.Any) -> int:
     if not isinstance(other, QualifiedPath):
       return False
     return self._value == other._value

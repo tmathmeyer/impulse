@@ -26,7 +26,7 @@ command = args.ArgumentParser(complete=True)
 multiprocessing.set_start_method('fork')
 
 
-def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
+def setup(enable_debug: bool, fakeroot: typing.Optional[args.Directory]) -> None:
   """Sets up debug and path info."""
   if enable_debug:
     debug.EnableDebug()
@@ -35,33 +35,34 @@ def setup(enable_debug:bool, fakeroot:typing.Optional[args.Directory]) -> None:
     os.environ['impulse_root'] = typing.cast(str, fakeroot.value())
 
 
-def build_and_await(debug:bool, graph:parsed_target.StagedBuildTargetSet, N:int=6) -> bool:
+def build_and_await(
+  debug: bool, graph: parsed_target.StagedBuildTargetSet, N: int = 6
+) -> bool:
   """Starts a pool with N threads and waits for graph run completion."""
   lifeguard = threading.Lifeguard(N, debug)
   lifeguard.OpenPool(graph._targets)
-  result:threading.PoolStatus = lifeguard.ClosePool()
+  result: threading.PoolStatus = lifeguard.ClosePool()
   if err := result.GetErrorReport():
     raise err.GetException()
 
 
-def fix_build_target(
-  target:impulse_paths.BuildTarget
-) -> impulse_paths.ParsedTarget:
+def fix_build_target(target: impulse_paths.BuildTarget) -> impulse_paths.ParsedTarget:
   """Converts some given path to a build target path."""
   return impulse_paths.convert_to_build_target(
     target.value(), impulse_paths.relative_pwd(), True
   )
 
 
-def GetStagedRuleInfo(target:parsed_target.StagedBuildTarget):
-  pt = impulse_paths.convert_to_build_target(str(target),
-                                             impulse_paths.relative_pwd(),
-                                             True)
+def GetStagedRuleInfo(target: parsed_target.StagedBuildTarget):
+  pt = impulse_paths.convert_to_build_target(
+    str(target), impulse_paths.relative_pwd(), True
+  )
   return pt.GetRuleInfo()
 
 
-def graph_for_directory(project=None, testonly:bool=False) -> (
-    list[parsed_target.StagedBuildTarget], parsed_target.StagedBuildTargetSet):
+def graph_for_directory(
+  project=None, testonly: bool = False
+) -> (list[parsed_target.StagedBuildTarget], parsed_target.StagedBuildTargetSet):
   directory = os.getcwd()
   if project:
     directory = os.path.join(impulse_paths.root(), project)
@@ -74,19 +75,19 @@ def graph_for_directory(project=None, testonly:bool=False) -> (
   if testonly:
     targets = list(rfp.StageAllTestTargets())
   else:
-    targets=list(rfp.StageAllTargets())
+    targets = list(rfp.StageAllTargets())
   return targets, rfp.GetStagedTargets()
 
 
 @command
 def build(
-  target:impulse_paths.BuildTarget,
-  platform:impulse_paths.BuildTarget|None=None,
-  debug:bool=False,
-  force:bool=False,
-  fakeroot:args.Directory|None=None,
-  threads:int=6,
-  hackermode:bool=False
+  target: impulse_paths.BuildTarget,
+  platform: impulse_paths.BuildTarget | None = None,
+  debug: bool = False,
+  force: bool = False,
+  fakeroot: args.Directory | None = None,
+  threads: int = 6,
+  hackermode: bool = False,
 ):
   """Builds the given target."""
   if hackermode:
@@ -101,17 +102,18 @@ def build(
     debug,
     recursive_loader.generate_graph(
       parsed_target, platform=platform, force_build=force, allow_meta=True
-    ), threads
+    ),
+    threads,
   )
   return parsed_target.GetRuleInfo()
 
 
 @command
 def targets(
-  fakeroot:args.Directory|None=None,
-  testonly:bool=False,
-  project:str|None=None,
-  debug:bool=False,
+  fakeroot: args.Directory | None = None,
+  testonly: bool = False,
+  project: str | None = None,
+  debug: bool = False,
 ):
   """Lists all buildable targets."""
   setup(debug, fakeroot)
@@ -122,10 +124,10 @@ def targets(
 
 @command
 def sitehost(
-  target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  force:bool=False,
-  fakeroot:args.Directory|None=None
+  target: impulse_paths.BuildTarget,
+  debug: bool = False,
+  force: bool = False,
+  fakeroot: args.Directory | None = None,
 ):
   ruleinfo = build(target, debug=debug, force=force, fakeroot=fakeroot)
   print(ruleinfo.type, ruleinfo.name, ruleinfo.output)
@@ -140,9 +142,9 @@ def sitehost(
 
 @command
 def run(
-  target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None
+  target: impulse_paths.BuildTarget,
+  debug: bool = False,
+  fakeroot: args.Directory | None = None,
 ):
   """Builds a binary and executes it."""
   ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
@@ -154,10 +156,10 @@ def run(
 
 @command
 def docker(
-  target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None,
-  norun:bool=False
+  target: impulse_paths.BuildTarget,
+  debug: bool = False,
+  fakeroot: args.Directory | None = None,
+  norun: bool = False,
 ):
   """Builds a docker container from the target."""
   ruleinfo = build(target=target, debug=debug, force=False, fakeroot=fakeroot)
@@ -181,10 +183,10 @@ def docker(
 
 @command
 def test(
-  target:impulse_paths.BuildTarget,
-  debug:bool=False,
-  fakeroot:args.Directory|None=None,
-  github_actions:bool=False,
+  target: impulse_paths.BuildTarget,
+  debug: bool = False,
+  fakeroot: args.Directory | None = None,
+  github_actions: bool = False,
 ):
   """Builds a testcase and executes it."""
   ruleinfo = build(target, None, debug, False, fakeroot)
@@ -192,19 +194,17 @@ def test(
     print(f'Only test targets can be run {ruleinfo.type}')
     return
   sys.exit(
-    os.WEXITSTATUS(
-      os.system(f'{ruleinfo.output} run {args.Forward("github_actions")}')
-    )
+    os.WEXITSTATUS(os.system(f'{ruleinfo.output} run {args.Forward("github_actions")}'))
   )
 
 
 @command
 def testsuite(
-  project:str|None=None,
-  debug:bool=False,
-  threads:int=6,
-  fakeroot:args.Directory|None=None,
-  github_actions:bool=False,
+  project: str | None = None,
+  debug: bool = False,
+  threads: int = 6,
+  fakeroot: args.Directory | None = None,
+  github_actions: bool = False,
 ):
   setup(debug, fakeroot)
   targets, buildgraph = graph_for_directory(project, True)
@@ -221,8 +221,8 @@ def testsuite(
 
 
 @command
-def format(fakeroot:args.Directory|None=None):
-  '''Formats all buildfiles'''
+def format(fakeroot: args.Directory | None = None):
+  """Formats all buildfiles"""
   setup(False, fakeroot)
   directory = impulse_paths.root()
   files = {}
@@ -245,8 +245,7 @@ def init():
   home = os.environ['HOME']
   if os.path.exists(f'{home}/.config/impulse/config'):
     override = input(
-      ('A configuration file exists, '
-       'do you want to overwrite it? [y, N]')
+      ('A configuration file exists, do you want to overwrite it? [y, N]')
     )
     if override not in ('y', 'yes', 'Y'):
       return

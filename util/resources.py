@@ -1,4 +1,3 @@
-
 import glob
 import os
 import shutil
@@ -13,6 +12,7 @@ from impulse.util import temp_dir
 
 class ResourceOpener(object):
   __slots__ = ('_extracted', '_extracted_cleanup', '_oldsignal')
+
   def __init__(self):
     self._extracted = None
     self._extracted_cleanup = False
@@ -27,6 +27,7 @@ class ResourceOpener(object):
     if extracted and do_clean:
       try:
         import shutil
+
         shutil.rmtree(extracted)
       except ImportError:
         # Probably a shutdown, do nothing

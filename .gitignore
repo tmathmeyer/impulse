@@ -4,3 +4,4 @@ PACKAGES
 impulse/
 .mypy_cache
 playground
+.ruff_cache

@@ -9,7 +9,9 @@ arguments = args.ArgumentParser(complete=True)
 
 
 @arguments
-def run(notermcolor:bool=False, filter:str|None=None, github_actions:bool=False):
+def run(
+  notermcolor: bool = False, filter: str | None = None, github_actions: bool = False
+):
   """Runs unit tests."""
   export_as = 'print'
   if github_actions or os.environ.get('GITHUB_ACTIONS') == 'true':

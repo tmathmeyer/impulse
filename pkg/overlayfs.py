@@ -15,7 +15,7 @@ def FuseCTX(ro, files):
   lower_dirs = ':'.join([lower_basedir, *ro])
 
   options = f'lowerdir={lower_dirs},upperdir={scratch},workdir={workdir}'
-  #mount_cmd = ['mount', '-t', 'overlay', 'overlay', '-o', options, mountpoint]
+  # mount_cmd = ['mount', '-t', 'overlay', 'overlay', '-o', options, mountpoint]
   fuse_cmd = ['fuse-overlayfs', '-o', options, mountpoint]
 
   try:

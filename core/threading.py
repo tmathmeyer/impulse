@@ -1,4 +1,3 @@
-
 import multiprocessing as mp
 import multiprocessing.connection
 import queue
@@ -12,6 +11,7 @@ from impulse.types import parsed_target
 
 def handle_pdb(sig, frame):
   import pdb
+
   pdb.Pdb().set_trace(frame)
 
 
@@ -24,7 +24,7 @@ class UpdateGraphResponseData(object):
     self.added_graph |= graph
 
   def RerunWithDependency(self, nodes):
-    self.added_graph |= (nodes)
+    self.added_graph |= nodes
     self.rerun_more_deps = nodes
 
 
@@ -34,20 +34,26 @@ JobSpec = graph_node.GraphNode[packaging.ExportablePackage]
 class JobStop(graph_node.GraphNode[None]):
   def __init__(self):
     super().__init__(set(), False)
+
   def run_job(*args, **kwargs):
     raise NotImplementedError()
+
   def __eq__(self, other):
     return type(other) == JobStop
+
   def __hash__(*args, **kwargs):
     raise NotImplementedError()
+
   def get_name(*args, **kwargs):
     raise NotImplementedError()
+
   def data(self) -> None:
     raise NotImplementedError()
 
 
 class TypePipe[T]:
   """Typed Wrapper on multiprcessing.Connection - does not support bytes."""
+
   __slots__ = ('_pipe',)
 
   @staticmethod
@@ -55,10 +61,10 @@ class TypePipe[T]:
     a, b = mp.Pipe()
     return (TypePipe(a), TypePipe(b))
 
-  def __init__(self, pipe:mp.connection):
+  def __init__(self, pipe: mp.Connection):
     self._pipe = pipe
 
-  def send(self, object:T) -> None:
+  def send(self, object: T) -> None:
     return self._pipe.send(object)
 
   def recv(self) -> T:
@@ -67,23 +73,23 @@ class TypePipe[T]:
   def close(self) -> None:
     self._pipe.close()
 
-  def poll(self, timeout:int|None = -1) -> bool:
+  def poll(self, timeout: int | None = -1) -> bool:
     if timeout != -1:
       return self._pipe.poll(timeout)
     return self._pipe.poll()
 
 
 class TypeQueue[T]:
-  def __init__(self, joinable:bool = False):
+  def __init__(self, joinable: bool = False):
     self._joinable = joinable
     self._queue = mp.JoinableQueue() if joinable else mp.Queue()
 
-  def get(self, block:bool=True, timeout:int|None = -1) -> T:
+  def get(self, block: bool = True, timeout: int | None = -1) -> T:
     if timeout != -1:
       return self._queue.get(block, timeout)
     return self._queue.get(block)
 
-  def put(self, object:T) -> None:
+  def put(self, object: T) -> None:
     return self._queue.put(object)
 
   def task_done(self) -> None:
@@ -95,13 +101,13 @@ class TypeQueue[T]:
       return self._queue.join()
 
 
-class JobStatus():
+class JobStatus:
   WORKING_SIGNAL = 1
   WAITING_SIGNAL = 2
   SUCCESS_SIGNAL = 3
   FAILURE_SIGNAL = 4
 
-  def __init__(self, signal:int, task_runner_id:int):
+  def __init__(self, signal: int, task_runner_id: int):
     self._signal = signal
     self._task_runner_id = task_runner_id
 
@@ -146,39 +152,42 @@ class JobStatus():
     raise ValueError('!!!')
 
   @staticmethod
-  def Waiting(task_runner_id:int, timeout:int) -> 'JobStatus':
+  def Waiting(task_runner_id: int, timeout: int) -> JobStatus:
     waiting = JobStatus(JobStatus.WAITING_SIGNAL, task_runner_id)
     waiting._timeout = timeout
     return waiting
 
   @staticmethod
-  def Working(task_runner_id:int, job:JobSpec) -> 'JobStatus':
+  def Working(task_runner_id: int, job: JobSpec) -> JobStatus:
     working = JobStatus(JobStatus.WORKING_SIGNAL, task_runner_id)
     working._job = job
     return working
 
   @staticmethod
-  def Failed(task_runner_id:int, exception:Exception) -> 'JobStatus':
+  def Failed(task_runner_id: int, exception: Exception) -> JobStatus:
     failed = JobStatus(JobStatus.FAILURE_SIGNAL, task_runner_id)
     failed._exception = exception
     return failed
 
   @staticmethod
-  def Success(task_runner_id: int, job:JobSpec, result:packaging.ExportablePackage) -> 'JobStatus':
+  def Success(
+    task_runner_id: int, job: JobSpec, result: packaging.ExportablePackage
+  ) -> JobStatus:
     success = JobStatus(JobStatus.SUCCESS_SIGNAL, task_runner_id)
     success._job = job
     success._result = result
     return success
 
 
-class PoolStatus():
+class PoolStatus:
   SUCCESS = 0
   FAILURE = 1
-  def __init__(self, signal:int, failed:JobStatus|None):
+
+  def __init__(self, signal: int, failed: JobStatus | None):
     self._signal = signal
     self._failed = failed
 
-  def GetErrorReport(self) -> JobStatus|None:
+  def GetErrorReport(self) -> JobStatus | None:
     return self._failed
 
   @staticmethod
@@ -186,7 +195,7 @@ class PoolStatus():
     return PoolStatus(PoolStatus.SUCCESS, None)
 
   @staticmethod
-  def Error(failed:JobStatus|None) -> 'PoolStatus':
+  def Error(failed: JobStatus | None) -> PoolStatus:
     return PoolStatus(PoolStatus.FAILURE, failed)
 
 
@@ -194,7 +203,13 @@ class TaskRunner(mp.Process):
   # This is delcared once so that it has the same `id`
   STOP_JOB = JobStop()
 
-  def __init__(self, task_runner_id:int, debug:bool, inqueue:TypeQueue[JobSpec|JobStop], outqueue:TypeQueue[JobStatus]):
+  def __init__(
+    self,
+    task_runner_id: int,
+    debug: bool,
+    inqueue: TypeQueue[JobSpec | JobStop],
+    outqueue: TypeQueue[JobStatus],
+  ):
     super().__init__()
     self._task_runner_id = task_runner_id
     self._debug = debug
@@ -211,8 +226,9 @@ class TaskRunner(mp.Process):
         job = self._job_input_queue.get(timeout=job_wait_timeout)
       except queue.Empty:
         job_wait_timeout *= 2
-        self._job_output_queue.put(JobStatus.Waiting(
-          self._task_runner_id, job_wait_timeout))
+        self._job_output_queue.put(
+          JobStatus.Waiting(self._task_runner_id, job_wait_timeout)
+        )
         continue
 
       if job == TaskRunner.STOP_JOB:
@@ -221,46 +237,46 @@ class TaskRunner(mp.Process):
         return
 
       job_wait_timeout = 1
-      self._job_output_queue.put(JobStatus.Working(
-        self._task_runner_id, job))
+      self._job_output_queue.put(JobStatus.Working(self._task_runner_id, job))
 
       try:
         job_result = job()
       except Exception as e:
         self._job_input_queue.task_done()
-        self._job_output_queue.put(JobStatus.Failed(
-          self._task_runner_id, e))
+        self._job_output_queue.put(JobStatus.Failed(self._task_runner_id, e))
         continue
 
-      self._job_output_queue.put(JobStatus.Success(
-        self._task_runner_id, job, job_result))
+      self._job_output_queue.put(
+        JobStatus.Success(self._task_runner_id, job, job_result)
+      )
       self._job_input_queue.task_done()
 
 
 class PoolFiltration(mp.Process):
   """The filter system keeps the pool free of childrens... detritus."""
-  def __init__(self, reporter:TypePipe[PoolStatus], threads:int, debug:bool):
+
+  def __init__(self, reporter: TypePipe[PoolStatus], threads: int, debug: bool):
     super().__init__()
-    self._job_input_queue = TypeQueue[JobSpec|JobStop](joinable=True)
+    self._job_input_queue = TypeQueue[JobSpec | JobStop](joinable=True)
     self._job_output_queue = TypeQueue[JobStatus]()
     self._reporter = reporter
     self._printer = job_printer.JobPrinter(0, threads)
     self._task_runners = self._MakeTasks(threads, debug)
 
-  def SetTargets(self, targets:set[parsed_target.StagedBuildTarget]) -> None:
+  def SetTargets(self, targets: set[parsed_target.StagedBuildTarget]) -> None:
     self._input = targets
     self._printer.add_job_count(len(self._input))
 
   def _OnProcStart(self) -> None:
-    self._pending_add:Set[JobSpec] = set()
-    self._in_flight:Set[JobSpec] = set()
-    self._completed:Set[JobSpec] = set()
+    self._pending_add: Set[JobSpec] = set()
+    self._in_flight: Set[JobSpec] = set()
+    self._completed: Set[JobSpec] = set()
 
     self._CycleGraph()
     self._AddNodes()
 
-  def _CycleGraph(self, remove_node:JobSpec|None = None):
-    new_inputs:set[JobSpec] = set()
+  def _CycleGraph(self, remove_node: JobSpec | None = None):
+    new_inputs: set[JobSpec] = set()
     for node in self._input:
       if remove_node:
         node.remaining_dependencies.discard(remove_node)
@@ -296,7 +312,7 @@ class PoolFiltration(mp.Process):
           return True
     return False
 
-  def _UpdateGraph(self, job:JobSpec, result:UpdateGraphResponseData) -> bool:
+  def _UpdateGraph(self, job: JobSpec, result: UpdateGraphResponseData) -> bool:
     results.added_graph -= self._completed
     self._input |= results.added_graph
     self._printer.add_job_count(len(results.added_graph))
@@ -314,14 +330,15 @@ class PoolFiltration(mp.Process):
       return needs_rerun
     return False
 
-  def _MakeTasks(self, threads:int, debug:bool) -> [TaskRunner]:
+  def _MakeTasks(self, threads: int, debug: bool) -> [TaskRunner]:
     task_runners = []
     for runner_id in range(threads):
       task_runner = TaskRunner(
-        task_runner_id = runner_id,
-        debug = debug,
-        inqueue = self._job_input_queue,
-        outqueue = self._job_output_queue)
+        task_runner_id=runner_id,
+        debug=debug,
+        inqueue=self._job_input_queue,
+        outqueue=self._job_output_queue,
+      )
       task_runner.start()
       task_runners.append(task_runner)
     return task_runners
@@ -336,11 +353,11 @@ class PoolFiltration(mp.Process):
         return
 
       self._AddNodes()
-      status:JobStatus = self._job_output_queue.get()
+      status: JobStatus = self._job_output_queue.get()
 
       if not status:
         self._SendStopJobs()
-        self._printer.finished(err = 'Unexpected empty queue message')
+        self._printer.finished(err='Unexpected empty queue message')
         self._reporter.send(PoolStatus.Error(None))
         return
 
@@ -365,7 +382,7 @@ class PoolFiltration(mp.Process):
         self._printer.remove_task_msg(status.ThreadID())
         self._in_flight.remove(status.GetJob())
         self._completed.add(status.GetJob())
-        result = status.GetResult() # TODO: add typing!
+        result = status.GetResult()  # TODO: add typing!
         discard_node = True
         if isinstance(result, UpdateGraphResponseData):
           discard_node = not self._UpdateGraph(status.GetJob(), result)
@@ -378,21 +395,22 @@ class PoolFiltration(mp.Process):
       raise ValueError('!!!')
 
 
-class Lifeguard():
+class Lifeguard:
   """The lifeguard watches the pool to make sure the children don't drown."""
 
   __slots__ = ('_threads', '_debug', '_filter', '_receiver')
-  def __init__(self, threads:int, debug:bool):
+
+  def __init__(self, threads: int, debug: bool):
     self._threads = threads
     self._debug = debug
     self._receiver, reporter = TypePipe[PoolStatus].Pipe()
     self._filter = PoolFiltration(reporter, threads, debug)
 
-  def OpenPool(self, targets:set[parsed_target.StagedBuildTarget]):
+  def OpenPool(self, targets: set[parsed_target.StagedBuildTarget]):
     self._filter.SetTargets(targets)
     self._filter.start()
 
   def ClosePool(self) -> PoolStatus:
-    status:PoolStatus = self._receiver.recv()
+    status: PoolStatus = self._receiver.recv()
     self._filter.join()
     return status

@@ -1,5 +1,5 @@
-
 import abc
+
 
 class UpdateGraphResponseData(object):
   def __init__(self):
@@ -10,12 +10,12 @@ class UpdateGraphResponseData(object):
     self.added_graph |= graph
 
   def RerunWithDependency(self, nodes):
-    self.added_graph |= (nodes)
+    self.added_graph |= nodes
     self.rerun_more_deps = nodes
 
 
 class GraphNode[T]:
-  def __init__(self, dependencies:set['GraphNode[T]'], has_internal_access:bool):
+  def __init__(self, dependencies: set[GraphNode[T]], has_internal_access: bool):
     self.dependencies = dependencies
     # Make a copy of the set, but not the underlying objects
     self.remaining_dependencies = set(dependencies)

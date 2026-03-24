@@ -1,10 +1,10 @@
-
-
 __DEBUG = {'generic': False}
 
-def DebugMsg(message:str):
+
+def DebugMsg(message: str):
   if IsDebug():
     print(message)
+
 
 def EnableDebug(key='generic'):
   global __DEBUG

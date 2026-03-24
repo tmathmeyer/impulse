@@ -1,4 +1,3 @@
-
 import sys
 from impulse.core import debug
 

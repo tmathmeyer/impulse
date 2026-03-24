@@ -1,4 +1,3 @@
-
 import os
 import re
 
@@ -10,11 +9,14 @@ EXPORT_DIR = 'GENERATED'
 NOT_A_BUILD_TARGET = object()
 
 
-class Environ():
+class Environ:
   def __getattr__(self, attr):
     return os.environ[attr]
+
   def __getitem__(self, item):
     return os.environ[item]
+
+
 ENV = Environ()
 
 
@@ -36,10 +38,9 @@ def relative_pwd():
     raise ValueError('Unable to determine current directory')
 
   if pwd.startswith(impulse_root):
-    return '/' + pwd[len(impulse_root):]
+    return '/' + pwd[len(impulse_root) :]
 
-  raise ValueError(
-    f'Impulse must be run inside {impulse_root}\nbut you are in {pwd}')
+  raise ValueError(f'Impulse must be run inside {impulse_root}\nbut you are in {pwd}')
 
 
 def output_directory():
@@ -90,7 +91,8 @@ class RuleSpec(object):
       output_type = 'PACKAGES'
       self.name += '.zip'
     self.output = os.path.join(
-      output_directory(), output_type, target.target_path[2:], self.name)
+      output_directory(), output_type, target.target_path[2:], self.name
+    )
 
 
 class ParsedTarget(object):
@@ -105,7 +107,9 @@ class ParsedTarget(object):
     try:
       return expand_fully_qualified_path(os.path.join(self.target_path, 'BUILD'))
     except exceptions.InvalidPathException as ipe:
-      raise exceptions.BuildTargetMissing(f'Missing rule: {self.GetFullyQualifiedRulePath()}')
+      raise exceptions.BuildTargetMissing(
+        f'Missing rule: {self.GetFullyQualifiedRulePath()}'
+      )
 
   def GetFullyQualifiedRulePath(self):
     return self.target_path + ':' + self.target_name
@@ -166,8 +170,9 @@ def convert_to_build_target(target, loaded_from_dir, quit_on_err=False):
 
 def expand_fully_qualified_path(path):
   if not is_fully_qualified_path(path):
-    raise exceptions.InvalidPathException(path,
-      'Path is not repository-relative (missing starting //)')
+    raise exceptions.InvalidPathException(
+      path, 'Path is not repository-relative (missing starting //)'
+    )
   return os.path.join(root(), path[2:])
 
 
@@ -189,11 +194,11 @@ def get_qualified_build_file_dir(build_file_path):
   if defs:
     return '//' + defs.group(1)
   raise exceptions.InvalidPathException(
-    'targets must be defined in BUILD files or in build_defs.py macros',
-    build_file_path)
+    'targets must be defined in BUILD files or in build_defs.py macros', build_file_path
+  )
 
 
-class Platform():
+class Platform:
   def __init__(self, **kwargs):
     self._values = kwargs
 
@@ -201,8 +206,7 @@ class Platform():
     if attr.startswith('__'):
       raise AttributeError(attr)
     if attr not in self._values:
-      raise exceptions.PlatformKeyAbsentError(
-        self._values['platform_target'], attr)
+      raise exceptions.PlatformKeyAbsentError(self._values['platform_target'], attr)
     return self._values[attr]
 
 
@@ -217,9 +221,9 @@ class BuildTarget(args.ArgComplete):
         if value.startswith(stub[1:]):
           yield value
     elif stub.startswith('//'):
-      yield from  cls._parse_partial_target(stub[2:])
+      yield from cls._parse_partial_target(stub[2:])
     elif stub == '/':
-      yield from  cls._parse_partial_target(stub[1:])
+      yield from cls._parse_partial_target(stub[1:])
 
   @classmethod
   def _parse_from_local_build_file(cls):
@@ -257,5 +261,5 @@ class BuildTarget(args.ArgComplete):
       for directory in args.Directory.get_completion_list(path):
         if not directory.endswith('/'):
           for entry in cls._parse_targets_in_file(directory, ''):
-            yield '//' + directory[len(build_root)+1:] + ':' + entry
-        yield '//' + directory[len(build_root)+1:]
+            yield '//' + directory[len(build_root) + 1 :] + ':' + entry
+        yield '//' + directory[len(build_root) + 1 :]

@@ -1,4 +1,3 @@
-
 import abc
 import argparse
 import inspect
@@ -9,8 +8,9 @@ import shlex
 import subprocess
 import sys
 
+
 class ArgComplete(metaclass=abc.ABCMeta):
-  def __init__(self, wrapped:typing.Optional[str]):
+  def __init__(self, wrapped: typing.Optional[str]):
     self.wrapped = wrapped
 
   @classmethod
@@ -40,7 +40,7 @@ class Directory(ArgComplete):
         yield d
 
   @classmethod
-  def _get_directories(cls, stub:str) -> typing.Generator[str, None, None]:
+  def _get_directories(cls, stub: str) -> typing.Generator[str, None, None]:
     shell = '/bin/sh'
     if not os.path.exists(shell):
       return
@@ -48,8 +48,9 @@ class Directory(ArgComplete):
       return
 
     cmd = f'compgen -o bashdefault -o default -o nospace -F _cd {stub}'
-    stdout =  subprocess.Popen(cmd, shell=True,
-      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout = subprocess.Popen(
+      cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     stream = stdout.stdout
     if stream is not None:
       for line in stream.readlines():
@@ -72,8 +73,9 @@ class File(ArgComplete):
       return
 
     cmd = f'compgen -o bashdefault -o default -o nospace -F _ls {stub}'
-    stdout = subprocess.Popen(cmd, shell=True,
-      stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout = subprocess.Popen(
+      cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     stream = stdout.stdout
     if stream is not None:
       for line in stream.readlines():
@@ -93,12 +95,8 @@ class ArgumentParser(object):
     methodname = func.__name__
     methodhelp = func.__doc__ or methodname
 
-    self._methods[methodname] = {
-      'func': func,
-      'args': {}
-    }
-    task = self._subparser.add_parser(
-      methodname, help=methodhelp.splitlines()[0])
+    self._methods[methodname] = {'func': func, 'args': {}}
+    task = self._subparser.add_parser(methodname, help=methodhelp.splitlines()[0])
 
     task.set_defaults(task=methodname)
     methodargs = inspect.getfullargspec(func)[0]
@@ -126,12 +124,12 @@ class ArgumentParser(object):
         self._methods[methodname]['args'][arg] = argtype
         task.add_argument(arg, type=argtype, action=action)
       elif argtype == bool:
-        self._methods[methodname]['args']['--'+arg] = None
-        task.add_argument('--'+arg, default=default, action=action)
+        self._methods[methodname]['args']['--' + arg] = None
+        task.add_argument('--' + arg, default=default, action=action)
       else:
-        self._methods[methodname]['args']['--'+arg] = argtype
+        self._methods[methodname]['args']['--' + arg] = argtype
         try:
-          task.add_argument('--'+arg, type=argtype, default=default)
+          task.add_argument('--' + arg, type=argtype, default=default)
         except:
           print(argtype)
           raise
@@ -188,8 +186,7 @@ class ArgumentParser(object):
         else:
           yield from filter_flags_opts_no_requirements('')
       else:
-        yield from filter_flags_opts_no_requirements(
-          '' if needs_new_token else args[0])
+        yield from filter_flags_opts_no_requirements('' if needs_new_token else args[0])
 
     elif len(args) == 2:
       (penultimate, last) = args
@@ -206,7 +203,7 @@ class ArgumentParser(object):
         else:
           yield from flag_param_type.get_completion_list(last)
 
-    else: # more than two args, trim them
+    else:  # more than two args, trim them
       yield from self._get_sub_completion(needs_new_token, cmdargs, args[-2:])
 
   def _print_commands_matching(self, stub, operation):
@@ -239,7 +236,7 @@ class ArgumentParser(object):
 
     if needs_new_token:
       if args[0] not in self._methods:
-        return # invalid subcommand, do not complete anything
+        return  # invalid subcommand, do not complete anything
 
     cmd_args = self._methods[args[0]]['args']
     for value in self._get_sub_completion(needs_new_token, cmd_args, args[1:]):
@@ -263,13 +260,14 @@ class ArgumentParser(object):
 
 
 def _GetForwardingWrapperFrame():
-  previous:typing.Any|None = None
+  previous: typing.Any | None = None
   for entry in inspect.stack():
     if entry.frame.f_code.co_name == '_exec_func':
       module = inspect.getmodule(previous)
       assert previous is not None
       return previous, getattr(module, previous.f_code.co_name)
     previous = entry.frame
+
 
 def _GetDefaultValue(func, name):
   for arg, info in inspect.signature(func).parameters.items():

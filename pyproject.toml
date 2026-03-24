@@ -1,1 +1,10 @@
-[tool.ty]
+[project]
+name = "impulse"
+version = "0.1.0"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+
+[tool.ruff]
+indent-width = 2

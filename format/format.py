@@ -1,4 +1,3 @@
-
 from collections import namedtuple
 
 from impulse.core import exceptions
@@ -45,19 +44,15 @@ class FormattingBuildFileReader(readers.BuildFileReaderImpl):
   def call(self, name, args, kwargs):
     if args:
       raise FormattingError('Unnamed arguments are disallowed in buildrules')
-    self._rules.append({
-      'name': name,
-      'args': kwargs
-    })
+    self._rules.append({'name': name, 'args': kwargs})
 
   def PrintFormat(self):
     try:
-      return ''.join([self._print_langs(),
-                      self._print_loads(),
-                      self._print_rules()]).strip()
+      return ''.join(
+        [self._print_langs(), self._print_loads(), self._print_rules()]
+      ).strip()
     except FormattingError as e:
-      raise FormattingError(
-        f'{e.msg}\nIn file: {self.GetFile()}') from None
+      raise FormattingError(f'{e.msg}\nIn file: {self.GetFile()}') from None
 
   def _print_langs(self):
     if self._langs_calls:
@@ -86,8 +81,7 @@ class FormattingBuildFileReader(readers.BuildFileReaderImpl):
         result += f'  {name} = {formatted},\n'
       except FormattingError as e:
         rulename = rule['args']['name']
-        raise FormattingError(
-          f'{e.msg}\nwhile formatting rule: {rulename}') from None
+        raise FormattingError(f'{e.msg}\nwhile formatting rule: {rulename}') from None
     result += ')'
     return result
 
@@ -118,9 +112,9 @@ class FormattingBuildFileReader(readers.BuildFileReaderImpl):
       if len(data) == 1:
         return f'[ {self._print_data(data[0], indent)} ]'
       l = '[\n'
-      for d in (sorted(data, key=self._csorted) if sort else data):
+      for d in sorted(data, key=self._csorted) if sort else data:
         l += ' ' * (indent + 2)
-        l += self._print_data(d, indent+2)
+        l += self._print_data(d, indent + 2)
         l += ',\n'
       l += ' ' * indent + ']'
       return l
@@ -130,16 +124,16 @@ class FormattingBuildFileReader(readers.BuildFileReaderImpl):
       for k, v in data.items():
         l += ' ' * (indent + 2)
         l += f'"{k}": '
-        l += self._print_data(v, indent+2)
+        l += self._print_data(v, indent + 2)
         l += ',\n'
       l += ' ' * indent + '}'
       return l
 
     if type(data) == ProxyGitRepo:
       l = 'git_repo (\n'
-      l += ' ' * (indent+2) + f'url = "{data.url}",\n'
-      l += ' ' * (indent+2) + f'repo = "{data.repo}",\n'
-      l += ' ' * (indent+2) + f'target = "{data.target}",\n'
+      l += ' ' * (indent + 2) + f'url = "{data.url}",\n'
+      l += ' ' * (indent + 2) + f'repo = "{data.repo}",\n'
+      l += ' ' * (indent + 2) + f'target = "{data.target}",\n'
       l += ' ' * indent + ')'
       return l
 
@@ -158,11 +152,9 @@ class FormattingBuildFileReader(readers.BuildFileReaderImpl):
       l = '(\n'
       for d in data:
         l += ' ' * (indent + 2)
-        l += self._print_data(d, indent+2)
+        l += self._print_data(d, indent + 2)
         l += ',\n'
       l += ' ' * indent + ')'
       return l
 
     raise FormattingError(f'unknown type of {data}')
-
-

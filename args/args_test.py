@@ -1,10 +1,11 @@
-
 from impulse.testing import unittest
 from impulse.args import args
 import typing
 
 
-def ReturnDirectoryResults(stub:str|None=None) -> typing.Generator[str, None, None]:
+def ReturnDirectoryResults(
+  stub: str | None = None,
+) -> typing.Generator[str, None, None]:
   for option in ('example', 'rasin', 'rapid', 'foobar'):
     if stub and option.startswith(stub):
       yield option
@@ -12,11 +13,12 @@ def ReturnDirectoryResults(stub:str|None=None) -> typing.Generator[str, None, No
 
 def DontRelyOnCompgen():
   # Shadowing intentionally.
-  args.Directory._get_directories:typing.Callable[[str], typing.Generator[str, None, None]] = ReturnDirectoryResults
+  args.Directory._get_directories: typing.Callable[
+    [str], typing.Generator[str, None, None]
+  ] = ReturnDirectoryResults
 
 
 class TestDirectoryCompletion(unittest.TestCase):
-
   def setup(self):
     DontRelyOnCompgen()
 
@@ -38,7 +40,6 @@ class TestDirectoryCompletion(unittest.TestCase):
 
 
 class TestArgumentParserDecorator(unittest.TestCase):
-
   def setup(self):
     DontRelyOnCompgen()
 
@@ -51,16 +52,17 @@ class TestArgumentParserDecorator(unittest.TestCase):
     def _e1():
       pass
 
-    self.assertEqual(ap._methods, {
-      '_e1': {
-        'func': _e1,
-        'args': {}
+    self.assertEqual(
+      ap._methods,
+      {
+        '_e1': {'func': _e1, 'args': {}},
       },
-    })
+    )
 
   @unittest.ExpectRaises(SyntaxError)
   def test_requires_annotation(self):
     ap = args.ArgumentParser(False)
+
     @ap
     def _e1(A):
       pass
@@ -71,17 +73,15 @@ class TestArgumentParserDecorator(unittest.TestCase):
     self.assertEqual(ap._complete, False)
 
     @ap
-    def _e1(A:str):
+    def _e1(A: str):
       pass
 
-    self.assertEqual(ap._methods, {
-      '_e1': {
-        'func': _e1,
-        'args': {
-          'A': str
-        }
+    self.assertEqual(
+      ap._methods,
+      {
+        '_e1': {'func': _e1, 'args': {'A': str}},
       },
-    })
+    )
 
   def test_has_default_arg(self):
     ap = args.ArgumentParser(False)
@@ -89,17 +89,15 @@ class TestArgumentParserDecorator(unittest.TestCase):
     self.assertEqual(ap._complete, False)
 
     @ap
-    def _e1(A:str='a'):
+    def _e1(A: str = 'a'):
       pass
 
-    self.assertEqual(ap._methods, {
-      '_e1': {
-        'func': _e1,
-        'args': {
-          '--A': str
-        }
+    self.assertEqual(
+      ap._methods,
+      {
+        '_e1': {'func': _e1, 'args': {'--A': str}},
       },
-    })
+    )
 
   @unittest.ExpectRaises(SyntaxError)
   def test_is_bool_needs_default(self):
@@ -108,17 +106,15 @@ class TestArgumentParserDecorator(unittest.TestCase):
     self.assertEqual(ap._complete, False)
 
     @ap
-    def _e1(A:bool):
+    def _e1(A: bool):
       pass
 
-    self.assertEqual(ap._methods, {
-      '_e1': {
-        'func': _e1,
-        'args': {
-          '--A': bool
-        }
+    self.assertEqual(
+      ap._methods,
+      {
+        '_e1': {'func': _e1, 'args': {'--A': bool}},
       },
-    })
+    )
 
   def test_is_bool_has_default(self):
     ap = args.ArgumentParser(False)
@@ -126,26 +122,24 @@ class TestArgumentParserDecorator(unittest.TestCase):
     self.assertEqual(ap._complete, False)
 
     @ap
-    def _e1(A:bool=False):
+    def _e1(A: bool = False):
       pass
 
-    self.assertEqual(ap._methods, {
-      '_e1': {
-        'func': _e1,
-        'args': {
-          '--A': None
-        }
+    self.assertEqual(
+      ap._methods,
+      {
+        '_e1': {'func': _e1, 'args': {'--A': None}},
       },
-    })
+    )
 
 
 class TestArgumentParserComplete(unittest.TestCase):
-
   def setup(self):
     DontRelyOnCompgen()
 
   def test_completion_method(self):
     ap = args.ArgumentParser()
+
     @ap
     def example():
       pass
@@ -154,24 +148,31 @@ class TestArgumentParserComplete(unittest.TestCase):
     def eat():
       pass
 
-    ap._print_completion_for_testing(['e'], self.assertCalledWithArgs(
-      ('example',), ('eat',)))
-
+    ap._print_completion_for_testing(
+      ['e'], self.assertCalledWithArgs(('example',), ('eat',))
+    )
 
   def test_completion_directory_required(self):
     ap = args.ArgumentParser()
+
     @ap
-    def example(foo:args.Directory):
+    def example(foo: args.Directory):
       pass
-    ap._print_completion_for_testing(['example', 'r'], self.assertCalledWithArgs(
-      ['rasin'], ['rapid']))
+
+    ap._print_completion_for_testing(
+      ['example', 'r'], self.assertCalledWithArgs(['rasin'], ['rapid'])
+    )
 
   def test_completion_directory_flag(self):
     ap = args.ArgumentParser()
+
     @ap
-    def example(foo:args.Directory|None=None):
+    def example(foo: args.Directory | None = None):
       pass
-    ap._print_completion_for_testing(['example', '--'], self.assertCalledWithArgs(
-      ['--foo']))
-    ap._print_completion_for_testing(['example', '--foo', 'r'], self.assertCalledWithArgs(
-      ['rasin'], ['rapid']))
+
+    ap._print_completion_for_testing(
+      ['example', '--'], self.assertCalledWithArgs(['--foo'])
+    )
+    ap._print_completion_for_testing(
+      ['example', '--foo', 'r'], self.assertCalledWithArgs(['rasin'], ['rapid'])
+    )
