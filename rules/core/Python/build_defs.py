@@ -358,6 +358,7 @@ def py_binary(macro_env, name, **kwargs):
     args = {
       'name': package_mainfile_name,
       'srcs': kwargs.get('srcs', []),
+      'mainfile': kwargs.get('mainfile', kwargs.get('srcs', [-1])[0])
     })
 
   macro_env.ImitateRule(
