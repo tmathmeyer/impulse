@@ -2,7 +2,6 @@ import abc
 import marshal
 import os
 import shutil
-import tempfile
 import typing
 import types
 

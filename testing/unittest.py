@@ -82,7 +82,7 @@ def ExpectRaises(errtype):
         fn(*args, **kwargs)
       except errtype:
         raise EarlyExitPassedError()
-      except AssertionError as e:
+      except AssertionError:
         raise EarlyExitPassedError()
       raise FailedAssertError(
         fn.__code__.co_filename,
@@ -275,7 +275,7 @@ class TestCase(object):
       isolator.run()
     except FailedAssertError as e:
       out['failures'].append(e)
-    except EarlyExitPassedError as e:
+    except EarlyExitPassedError:
       pass
     except Exception as e:
       out['crashes'].append(GenericCrashHandler(isolator, e))

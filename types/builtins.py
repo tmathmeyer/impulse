@@ -59,7 +59,7 @@ class LoadFile(BuiltinMethod):
       try:
         loadfile = references.File(paths.QualifiedPath(loading).AbsPath())
         self._loader.LoadFile(loadfile)
-      except exceptions.FileNotFoundException as fnfe:
+      except exceptions.FileNotFoundException:
         callframe = StackScour('BUILD')
         if callframe is None:
           raise errors.FatalError('No BUILD file found in stack trace')

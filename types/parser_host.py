@@ -1,7 +1,6 @@
 import abc
 import typing
 
-from impulse.types import parsed_target
 
 
 class MacroEnvironmentHost(metaclass=abc.ABCMeta):

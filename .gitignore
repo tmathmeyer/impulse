@@ -5,3 +5,4 @@ impulse/
 .mypy_cache
 playground
 .ruff_cache
+uv.lock

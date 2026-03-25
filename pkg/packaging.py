@@ -327,7 +327,7 @@ class ExportablePackage(Hasher):
     try:
       archive = zipfile.ZipFile(os.path.join(package_dir, self.GetPackageName()), 'r')
       return json.loads(archive.read('pkg_contents.json'))
-    except Exception as e:
+    except Exception:
       return None
 
   def NeedsBuild(self, package_dir, src_dir):
