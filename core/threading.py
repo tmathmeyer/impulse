@@ -1,11 +1,13 @@
 
 import multiprocessing as mp
+import multiprocessing.connection
 import queue
 import signal
 
 from impulse.core import job_printer
 from impulse.pkg import packaging
 from impulse.types import graph_node
+from impulse.types import parsed_target
 
 
 def handle_pdb(sig, frame):
@@ -49,11 +51,11 @@ class TypePipe[T]:
   __slots__ = ('_pipe',)
 
   @staticmethod
-  def Pipe() -> (TypePipe[T], TypePipe[T]):
+  def Pipe() -> ('TypePipe[T]', 'TypePipe[T]'):
     a, b = mp.Pipe()
     return (TypePipe(a), TypePipe(b))
 
-  def __init__(self, pipe:mp.Connection):
+  def __init__(self, pipe:mp.connection):
     self._pipe = pipe
 
   def send(self, object:T) -> None:
@@ -144,25 +146,25 @@ class JobStatus():
     raise ValueError('!!!')
 
   @staticmethod
-  def Waiting(task_runner_id:int, timeout:int) -> JobStatus:
+  def Waiting(task_runner_id:int, timeout:int) -> 'JobStatus':
     waiting = JobStatus(JobStatus.WAITING_SIGNAL, task_runner_id)
     waiting._timeout = timeout
     return waiting
 
   @staticmethod
-  def Working(task_runner_id:int, job:JobSpec) -> JobStatus:
+  def Working(task_runner_id:int, job:JobSpec) -> 'JobStatus':
     working = JobStatus(JobStatus.WORKING_SIGNAL, task_runner_id)
     working._job = job
     return working
 
   @staticmethod
-  def Failed(task_runner_id:int, exception:Exception) -> JobStatus:
+  def Failed(task_runner_id:int, exception:Exception) -> 'JobStatus':
     failed = JobStatus(JobStatus.FAILURE_SIGNAL, task_runner_id)
     failed._exception = exception
     return failed
 
   @staticmethod
-  def Success(task_runner_id: int, job:JobSpec, result:packaging.ExportablePackage) -> JobStatus:
+  def Success(task_runner_id: int, job:JobSpec, result:packaging.ExportablePackage) -> 'JobStatus':
     success = JobStatus(JobStatus.SUCCESS_SIGNAL, task_runner_id)
     success._job = job
     success._result = result
@@ -180,11 +182,11 @@ class PoolStatus():
     return self._failed
 
   @staticmethod
-  def Success() -> PoolStatus:
+  def Success() -> 'PoolStatus':
     return PoolStatus(PoolStatus.SUCCESS, None)
 
   @staticmethod
-  def Error(failed:JobStatus|None) -> PoolStatus:
+  def Error(failed:JobStatus|None) -> 'PoolStatus':
     return PoolStatus(PoolStatus.FAILURE, failed)
 
 

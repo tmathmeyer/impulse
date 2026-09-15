@@ -15,7 +15,7 @@ class UpdateGraphResponseData(object):
 
 
 class GraphNode[T]:
-  def __init__(self, dependencies:set[GraphNode[T]], has_internal_access:bool):
+  def __init__(self, dependencies:set['GraphNode[T]'], has_internal_access:bool):
     self.dependencies = dependencies
     # Make a copy of the set, but not the underlying objects
     self.remaining_dependencies = set(dependencies)
